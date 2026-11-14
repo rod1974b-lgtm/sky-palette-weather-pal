@@ -198,82 +198,82 @@ const ACCESSORY_LABELS = {
   hi: {
     umbrella: "छाता या रेनकोट",
     sunglasses: "यूवी चश्मा और टोपी",
-    sunscreen: "सनस्क्रीन एसपीएफ़ 50+",
-    water: "पानी की बोतल",
+    sunscreen: "एसपीएफ 50+ सनस्क्रीन",
+    water: "ठंडा पानी",
     windbreaker: "विंडप्रूफ जैकेट",
-    heavyCoat: "गर्म विंटर कोट और दस्ताने",
-    lightJacket: "हल्की जैकेट या स्वेटर",
-    warmBeanie: "ऊनी टोपी और मफलर",
+    heavyCoat: "गर्म कोट और दस्ताने",
+    lightJacket: "हल्की जैकेट",
+    warmBeanie: "टोपी और मफलर",
   },
   fr: {
     umbrella: "Parapluie compact ou imperméable",
     sunglasses: "Lunettes de soleil UV & chapeau",
     sunscreen: "Crème solaire résistante SPF 50+",
     water: "Gourde d'eau fraîche",
-    windbreaker: "Veste coupe-vent",
-    heavyCoat: "Manteau d'hiver chaud et gants",
+    windbreaker: "Veste coupe-vent respirante",
+    heavyCoat: "Manteau d'hiver chaud & gants",
     lightJacket: "Veste légère ou pull fin",
-    warmBeanie: "Bonnet, écharpe et chaussettes chaudes",
+    warmBeanie: "Bonnet en laine, écharpe & chaussettes chaudes",
   },
   de: {
-    umbrella: "Kompakter Regenschirm oder Regenjacke",
+    umbrella: "Kompakter Regenschirm oder Regenmantel",
     sunglasses: "UV-Sonnenbrille & Sonnenhut",
-    sunscreen: "Wasserfester Sonnenschutz SPF 50+",
+    sunscreen: "Wasserfeste Sonnencreme LSF 50+",
     water: "Trinkflasche mit kaltem Wasser",
-    windbreaker: "Winddichte Funktionsjacke",
-    heavyCoat: "Gefütterter Wintermantel & Handschuhe",
-    lightJacket: "Leichte Jacke oder Strickjacke",
-    warmBeanie: "Strickmütze, Schal & Thermosocken",
+    windbreaker: "Atmungsaktive Windjacke",
+    heavyCoat: "Warmer Wintermantel & Handschuhe",
+    lightJacket: "Leichte Jacke oder Pullover",
+    warmBeanie: "Wollmütze, Schal & Thermosocken",
   },
   pt: {
     umbrella: "Guarda-chuva compacto ou capa de chuva",
-    sunglasses: "Óculos de sol com proteção UV e chapéu",
-    sunscreen: "Protetor solar resistente à água FPS 50+",
+    sunglasses: "Óculos de sol UV e chapéu",
+    sunscreen: "Protetor solar resistente SPF 50+",
     water: "Garrafa de água gelada",
     windbreaker: "Jaqueta corta-vento",
-    heavyCoat: "Casaco de inverno térmico e luvas",
+    heavyCoat: "Casaco de inverno térmico & luvas",
     lightJacket: "Jaqueta leve ou suéter",
-    warmBeanie: "Gorro de lã, cachecol e meias térmicas",
+    warmBeanie: "Gorro de lã, cachecol e meias quentes",
   },
   ru: {
     umbrella: "Компактный зонт или дождевик",
-    sunglasses: "Солнцезащитные очки с защитой от УФ и шляпа",
+    sunglasses: "Солнцезащитные очки UV и панама",
     sunscreen: "Водостойкий солнцезащитный крем SPF 50+",
-    water: "Бутылка прохладной воды",
-    windbreaker: "Ветрозащитная куртка",
-    heavyCoat: "Теплая зимняя куртка и перчатки",
-    lightJacket: "Легкая куртка или свитер",
+    water: "Бутылка с прохладной водой",
+    windbreaker: "Ветрозащитная легкая куртка",
+    heavyCoat: "Теплое зимнее пальто/пуховик и перчатки",
+    lightJacket: "Легкая ветровка или джемпер",
     warmBeanie: "Вязаная шапка, шарф и теплые носки",
   },
   ar: {
-    umbrella: "مظلة صغيرة أو معطف مطر",
-    sunglasses: "نظارات شمسية وقبعة واقية",
+    umbrella: "مظلة مدمجة أو معطف مطر",
+    sunglasses: "نظارات شمسية وقبعة",
     sunscreen: "واقي شمس مقاوم للماء SPF 50+",
     water: "قارورة ماء بارد",
-    windbreaker: "سترة واقية من الرياح",
+    windbreaker: "سترة خفيفة واقية من الرياح",
     heavyCoat: "معطف شتوي دافئ وقفازات",
     lightJacket: "سترة خفيفة أو كنزة",
-    warmBeanie: "قبعة صوف ووشاح وجوارب دافئة",
+    warmBeanie: "قبعة صوفية ووشاح",
   },
   ko: {
-    umbrella: "휴대용 우산 또는 우비",
+    umbrella: "접이식 우산 또는 우비",
     sunglasses: "자외선 차단 선글라스 & 모자",
     sunscreen: "워터프루프 선크림 SPF 50+",
-    water: "시원한 물병",
-    windbreaker: "방풍 바람막이 자켓",
-    heavyCoat: "두꺼운 겨울 패딩 & 장갑",
-    lightJacket: "가벼운 겉옷 또는 가디건",
-    warmBeanie: "비니, 목도리 & 보온 양말",
+    water: "휴대용 물병 또는 시원한 물",
+    windbreaker: "방풍 윈드브레이커",
+    heavyCoat: "두꺼운 겨울 패딩 코트 & 장갑",
+    lightJacket: "가벼운 재킷 또는 가디건",
+    warmBeanie: "비니 모자, 목도리 & 보온 양말",
   },
   id: {
     umbrella: "Payung lipat atau jas hujan",
     sunglasses: "Kacamata hitam UV & topi matahari",
     sunscreen: "Tabir surya tahan air SPF 50+",
     water: "Botol air dingin",
-    windbreaker: "Jaket penahan angin",
-    heavyCoat: "Jaket musim dingin tebal & sarung tangan",
-    lightJacket: "Jaket tipis atau kardigan",
-    warmBeanie: "Kupluk rajut, syal & kaus kaki hangat",
+    windbreaker: "Jaket pelindung angin",
+    heavyCoat: "Mantel musim dingin tebal & sarung tangan",
+    lightJacket: "Jaket tipis atau sweter",
+    warmBeanie: "Kupluk rajut, syal & kaus kaki tebal",
   },
   vi: {
     umbrella: "Ô gấp gọn hoặc áo mưa",
@@ -286,6 +286,21 @@ const ACCESSORY_LABELS = {
     warmBeanie: "Mũ len, khăn quàng & tất ấm",
   },
 };
+
+// Helper to load user's saved gallery slots (Slot 1, Slot 2, Slot 3...)
+function getSavedSlotArtworks(): { id: string; url: string; title: string }[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem("weather:custom-art-saved");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item) => Boolean(item?.url));
+      }
+    }
+  } catch {}
+  return [];
+}
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
   weather,
@@ -307,14 +322,29 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const w = weather || weatherProp;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
+
   const [heroBgUrl, setHeroBgUrl] = useState<string>(() => {
     if (customBgUrl) return customBgUrl;
     if (typeof window !== "undefined") {
       const cityKey = w?.place?.name ? `weather:custom-bg:${w.place.name.toLowerCase().trim()}` : "";
-      return (cityKey ? localStorage.getItem(cityKey) : null) || localStorage.getItem("weather:custom-bg:current") || "";
+      const savedCity = cityKey ? localStorage.getItem(cityKey) : null;
+      const savedCurrent = localStorage.getItem("weather:custom-bg:current");
+      if (savedCity) return savedCity;
+      if (savedCurrent) return savedCurrent;
+
+      // Default to saved slots (Slot 1, Slot 2, Slot 3...)
+      const slots = getSavedSlotArtworks();
+      if (slots.length > 0) {
+        const cityMatch = w?.place?.name
+          ? slots.find((s) => s.title.toLowerCase().includes(w.place.name.toLowerCase().trim()))
+          : null;
+        const target = cityMatch || slots[0];
+        if (target?.url) return target.url;
+      }
     }
     return "";
   });
+
   const [artIndex, setArtIndex] = useState(0);
   const [isDarkArtwork, setIsDarkArtwork] = useState<boolean>(false);
 
@@ -439,6 +469,19 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       }
     } catch {}
 
+    // Check user's saved slots (Slot 1, Slot 2, Slot 3...)
+    const slots = getSavedSlotArtworks();
+    if (slots.length > 0) {
+      const cityMatch = slots.find((s) =>
+        s.title.toLowerCase().includes(w.place.name.toLowerCase().trim())
+      );
+      const targetSlot = cityMatch || slots[0];
+      if (targetSlot?.url) {
+        setHeroBgUrl(targetSlot.url);
+        return;
+      }
+    }
+
     const conditionStr = getConditionLabel(w.current.code, t);
     const arts = getAllAvailableArtworks(
       w.place.name,
@@ -499,7 +542,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const windDirStr = getWindDirectionLabel(w.current.wind_dir ?? 0);
   const windUnitStr = unit === "imperial" ? "mph" : "km/h";
 
-   // Pressure & Visibility with defensive optional chaining
+  // Pressure & Visibility with defensive optional chaining
   const pressureVal = Math.round(w.current?.pressure ?? 1013);
   const visUnitStr = unit === "imperial" ? "mi" : "km";
   const rawVis = typeof w.current?.vis === "number" ? w.current.vis : 10;
@@ -588,10 +631,10 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
   const finalAccessories = Array.from(new Set(accessories)).slice(0, 3);
 
-  // Cycling artwork through Next Art button
+  // Cycling artwork through Next Art button: Slot 1 -> Slot 2 -> Slot 3 -> ... -> Curated Landmarks
   const handleCycleArtwork = () => {
     const conditionStr = getConditionLabel(w.current.code, t);
-    const arts = getAllAvailableArtworks(
+    const landmarkArts = getAllAvailableArtworks(
       w.place.name,
       w.current.code,
       conditionStr,
@@ -599,15 +642,24 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       w.place.lat,
       w.place.lon
     );
-    if (!arts || arts.length === 0) return;
 
-    const nextIdx = (artIndex + 1) % arts.length;
+    const savedSlots = getSavedSlotArtworks();
+    const slotUrls = savedSlots.map((s) => s.url);
+    const allArts = Array.from(new Set([...slotUrls, ...landmarkArts]));
+    if (!allArts || allArts.length === 0) return;
+
+    const currentIdx = allArts.indexOf(heroBgUrl);
+    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % allArts.length : 0;
     setArtIndex(nextIdx);
-    const nextUrl = arts[nextIdx];
+    const nextUrl = allArts[nextIdx];
     if (nextUrl) {
       handleSelectBackground(nextUrl);
     }
   };
+
+  // Determine if active heroBgUrl is one of user's saved slots
+  const savedSlotsList = getSavedSlotArtworks();
+  const currentSlotIndex = savedSlotsList.findIndex((s) => s.url === heroBgUrl);
 
   const cityBadgeClass =
     "inline-flex items-center gap-2 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]";
@@ -621,8 +673,10 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       <div className="flex items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
           <span>🎨</span>
-          <span className="truncate max-w-[150px] sm:max-w-none">
-            {t("watercolor_sky", "AI Watercolor")}
+          <span className="truncate max-w-[150px] sm:max-w-none font-semibold text-foreground">
+            {currentSlotIndex >= 0
+              ? t("slot_active_badge", `Slot ${currentSlotIndex + 1}`, { slot: currentSlotIndex + 1 })
+              : t("watercolor_sky", "AI Watercolor")}
           </span>
         </div>
 
@@ -679,7 +733,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
       {/* 2. STREAMLINED HERO CARD (Expanded Height & Crisp Artwork) */}
       <section className="relative overflow-hidden rounded-3xl border border-border/80 p-5 sm:p-6 shadow-lg bg-card text-card-foreground min-h-[290px] sm:min-h-[320px] flex flex-col justify-between">
-               {heroBgUrl && (
+        {heroBgUrl && (
           <div
             className="absolute inset-0 bg-cover bg-center transition-all duration-700 pointer-events-none"
             style={{
