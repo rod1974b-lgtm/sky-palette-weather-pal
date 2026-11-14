@@ -137,7 +137,7 @@ function ArtGalleryPage() {
       list.push({
         city: formattedCity,
         title,
-        image: images[0],
+        image: images[0]!,
         region: getCityRegion(cityKey),
       });
     }
@@ -197,7 +197,6 @@ function ArtGalleryPage() {
         data: {
           city: aiCity,
           userPrompt: aiPrompt,
-          referenceImageBase64: uploadedPhoto || undefined,
         },
       });
 
