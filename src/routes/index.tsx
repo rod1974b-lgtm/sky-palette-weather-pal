@@ -27,6 +27,7 @@ import {
   saveThankYouBackgroundForever,
 } from "@/lib/monetization";
 import { getTmdAlertsFn } from "@/lib/tmdAlerts.functions";
+import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -232,7 +233,8 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 function Index() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language || "en";
   const navigate = useNavigate();
   const [unit, setUnit] = useState<WeatherUnit>("metric");
 
@@ -248,6 +250,7 @@ function Index() {
           return parsed as Place;
         }
       }
+
       const saved = loadLastPlace();
       if (saved) return saved;
     } catch {}
@@ -387,17 +390,20 @@ function Index() {
     fetchAllWeatherData(place, unit);
   }, [place, unit]);
 
-  // Sync custom background from localStorage
+  // Sync custom background from localStorage with fallback to current
   useEffect(() => {
-    const key = `weather:custom-bg:${place.name.trim().toLowerCase()}`;
-    const saved = localStorage.getItem(key);
+    const cityKey = `weather:custom-bg:${place.name.trim().toLowerCase()}`;
+    const saved =
+      localStorage.getItem(cityKey) ||
+      localStorage.getItem("weather:custom-bg:current");
     setCustomBgUrl(saved);
 
     const handleCustomBgChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ city?: string; url?: string }>;
       if (
         !customEvent.detail?.city ||
-        customEvent.detail.city.toLowerCase() === place.name.trim().toLowerCase()
+        customEvent.detail.city.toLowerCase() === place.name.trim().toLowerCase() ||
+        customEvent.detail.city === "current"
       ) {
         setCustomBgUrl(customEvent.detail?.url || null);
       }
@@ -545,12 +551,15 @@ function Index() {
   };
 
   const handleSelectCustomBg = (url: string) => {
-    const key = `weather:custom-bg:${place.name.trim().toLowerCase()}`;
+    const cityKey = `weather:custom-bg:${place.name.trim().toLowerCase()}`;
+    const currentKey = "weather:custom-bg:current";
     if (url) {
-      localStorage.setItem(key, url);
+      localStorage.setItem(cityKey, url);
+      localStorage.setItem(currentKey, url);
       setCustomBgUrl(url);
     } else {
-      localStorage.removeItem(key);
+      localStorage.removeItem(cityKey);
+      localStorage.removeItem(currentKey);
       setCustomBgUrl(null);
     }
     window.dispatchEvent(
@@ -649,17 +658,21 @@ function Index() {
           {/* Autocomplete Dropdown */}
           {suggestions.length > 0 && (
             <div className="absolute left-0 right-0 top-12 z-30 max-h-60 overflow-y-auto rounded-2xl border border-border bg-card/95 p-1.5 shadow-xl backdrop-blur-md">
-              {suggestions.map((s, idx) => (
-                <button
-                  key={`${s.name}-${s.lat}-${idx}`}
-                  type="button"
-                  onClick={() => handleSelectPlace(s)}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/80 transition cursor-pointer"
-                >
-                  <span className="font-medium text-foreground">{s.name}</span>
-                  <span className="text-xs text-muted-foreground">{s.country}</span>
-                </button>
-              ))}
+              {suggestions.map((s, idx) => {
+                const localizedSugCity = getLocalizedCity(s.name, currentLang);
+                const localizedSugCountry = getLocalizedCountry(s.country, currentLang);
+                return (
+                  <button
+                    key={`${s.name}-${s.lat}-${idx}`}
+                    type="button"
+                    onClick={() => handleSelectPlace(s)}
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/80 transition cursor-pointer"
+                  >
+                    <span className="font-medium text-foreground">{localizedSugCity}</span>
+                    <span className="text-xs text-muted-foreground">{localizedSugCountry}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </section>
@@ -672,6 +685,7 @@ function Index() {
             </span>
             {favorites.map((fav) => {
               const active = isSamePlace(fav, place);
+              const localizedFavCity = getLocalizedCity(fav.name, currentLang);
               return (
                 <button
                   key={`${fav.name}-${fav.lat}`}
@@ -683,7 +697,7 @@ function Index() {
                       : "border border-border/60 bg-card/80 text-foreground hover:bg-muted/80"
                   }`}
                 >
-                  {fav.name}
+                  {localizedFavCity}
                 </button>
               );
             })}
