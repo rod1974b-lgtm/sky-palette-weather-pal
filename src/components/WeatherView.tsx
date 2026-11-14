@@ -495,7 +495,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const uvValFormatted = typeof w.current.uv === "number" ? w.current.uv.toFixed(1) : "0.0";
 
   // Wind speed & direction
-  const windDirStr = getWindDirectionLabel(w.current.wind_dir);
+  const windDirStr = getWindDirectionLabel(w.current.wind_dir ?? 0);
   const windUnitStr = unit === "imperial" ? "mph" : "km/h";
 
    // Pressure & Visibility with defensive optional chaining
@@ -894,7 +894,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 </span>
 
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <WeatherIcon code={d.code} isDay={true} className="w-6 h-6 shrink-0" />
+                  <WeatherIcon code={d.code} isDay={1} className="w-6 h-6 shrink-0" />
                   <span className="text-muted-foreground truncate">
                     {dailyCondition}
                   </span>
@@ -991,7 +991,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         <AiGalleryModal
           isOpen={galleryOpen}
           onClose={() => setGalleryOpen(false)}
-          activeCity={w.place.name}
+          city={w.place.name}
           onSelectBackground={handleSelectBackground}
           onSelectBg={handleSelectBackground}
         />

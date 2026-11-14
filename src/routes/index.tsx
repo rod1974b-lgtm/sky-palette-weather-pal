@@ -461,7 +461,7 @@ function Index() {
   };
 
   const handleToggleFavorite = () => {
-    const isFav = isFavorite(place, favorites);
+    const isFav = isFavorite(favorites, place);
     const updated = isFav
       ? favorites.filter((f) => !isSamePlace(f, place))
       : [...favorites, place];
@@ -719,7 +719,7 @@ function Index() {
             unit={unit}
             loading={loading}
             onRefresh={() => fetchAllWeatherData(place, unit)}
-            isFav={isFavorite(place, favorites)}
+            isFav={isFavorite(favorites, place)}
             onToggleFavorite={handleToggleFavorite}
             onSelectBackground={handleSelectCustomBg}
             onOpenAiGallery={() => navigate({ to: "/gallery" })}

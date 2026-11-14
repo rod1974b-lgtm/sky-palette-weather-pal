@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 // src/routes/gallery.tsx
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -137,7 +138,7 @@ export function getUserSlotLimits() {
   };
 }
 
-function getTierShortName(level: number, t: (k: string, d?: string) => string): string {
+function getTierShortName(level: number, t: TFunction): string {
   switch (level) {
     case 4: return t("tier_short_party", "Party VIP");
     case 3: return t("tier_short_large", "Large");
@@ -147,7 +148,7 @@ function getTierShortName(level: number, t: (k: string, d?: string) => string): 
   }
 }
 
-function getTierFullName(level: number, t: (k: string, d?: string) => string): string {
+function getTierFullName(level: number, t: TFunction): string {
   switch (level) {
     case 4: return t("tier_full_party", "Party Pack VIP (Unlimited)");
     case 3: return t("tier_full_large", "Large Root Beer (6 Slots)");

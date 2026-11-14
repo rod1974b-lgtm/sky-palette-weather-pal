@@ -816,7 +816,7 @@ const CITY_DICTIONARY: Record<string, Record<string, string>> = {
  */
 export function getLocalizedCountry(rawCountry: string | undefined, lang: string): string {
   if (!rawCountry) return "";
-  const cleanLang = (lang || "en").toLowerCase().split("-")[0];
+  const cleanLang = (lang || "en").toLowerCase().split("-")[0] ?? "en";
   const normalized = rawCountry.trim().toLowerCase();
 
   // 1. Try standard Intl.DisplayNames with ISO 3166 code
@@ -843,11 +843,11 @@ export function getLocalizedCountry(rawCountry: string | undefined, lang: string
  */
 export function getLocalizedCity(rawCity: string | undefined, lang: string): string {
   if (!rawCity) return "";
-  const cleanLang = (lang || "en").toLowerCase().split("-")[0];
+  const cleanLang = (lang || "en").toLowerCase().split("-")[0] ?? "en";
 
   // Separate primary city name from subregions/admin areas (e.g. "Ratchaburi, Changwat Ratchaburi")
   const parts = rawCity.split(",").map((s) => s.trim());
-  const primaryName = parts[0];
+  const primaryName = parts[0] ?? rawCity;
   const primaryKey = primaryName.toLowerCase();
 
   if (CITY_DICTIONARY[primaryKey]?.[cleanLang]) {

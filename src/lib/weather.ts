@@ -69,7 +69,10 @@ export function saveUnitPref(unit: WeatherUnit): void {
 export function loadFavorites(): Place[] {
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);
-    return raw ? (JSON.parse(raw) as Place[]) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((p) => p && typeof p.name === "string" && typeof p.lat === "number" && typeof p.lon === "number")
+      : [];
   } catch {
     return [];
   }
@@ -89,6 +92,7 @@ export function isSamePlace(a: Place, b: Place): boolean {
 }
 
 export function isFavorite(favorites: Place[], place: Place): boolean {
+  if (!Array.isArray(favorites) || !place) return false;
   return favorites.some((f) => isSamePlace(f, place));
 }
 
@@ -106,7 +110,7 @@ function formatSunTime(iso?: string): string {
 
 export async function searchCity(q: string, lang: string = "en"): Promise<Place[]> {
   if (!q.trim()) return [];
-  const cleanLang = (lang || "en").split("-")[0].toLowerCase();
+  const cleanLang = ((lang || "en").split("-")[0] ?? "en").toLowerCase();
   const r = await fetch(
     `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&format=json&language=${cleanLang}`,
   );
@@ -274,11 +278,23 @@ export function aqiCategory(aqi: number): { label: string; color: string } {
   return { label: "Hazardous", color: "text-rose-900" };
 }
 
-export function skyKey(code: number): "clear" | "clouds" | "rain" | "snow" | "storm" {
-  if (code === 0 || code === 1) return "clear";
-  if (code <= 3 || code <= 48) return "clouds";
-  if (code <= 82) return "rain";
-  if (code <= 86) return "snow";
+export type SkyKey =
+  | "clear-day"
+  | "clear-night"
+  | "cloudy-day"
+  | "cloudy-night"
+  | "fog"
+  | "rain"
+  | "snow"
+  | "storm";
+
+export function skyKey(code: number, isDay: number = 1): SkyKey {
+  const night = isDay === 0;
+  if (code === 0 || code === 1) return night ? "clear-night" : "clear-day";
+  if (code <= 3) return night ? "cloudy-night" : "cloudy-day";
+  if (code <= 48) return "fog";
+  if (code <= 67 || (code >= 80 && code <= 82)) return "rain";
+  if (code <= 77 || code === 85 || code === 86) return "snow";
   return "storm";
 }
 
