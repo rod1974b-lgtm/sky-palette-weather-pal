@@ -1,5 +1,8 @@
 // src/components/WeatherView.tsx
 import React, { useState, useEffect } from "react";
+import { Link } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
+import React, { useState, useEffect } from "react";
 import type { TFunction } from "i18next";
 import { type Weather, type WeatherUnit, type Place } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
