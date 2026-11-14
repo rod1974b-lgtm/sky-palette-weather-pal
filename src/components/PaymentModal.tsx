@@ -1,5 +1,6 @@
 // src/components/PaymentModal.tsx
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE,
   getDonationUrl,
@@ -18,6 +19,7 @@ interface PaymentModalProps {
 }
 
 export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) {
+  const { t } = useTranslation();
   const [hasOpenedCheckout, setHasOpenedCheckout] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [playBillingLoading, setPlayBillingLoading] = useState(false);
@@ -40,7 +42,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
       setHasOpenedCheckout(true);
       setErrorMessage(null);
     } catch {
-      setErrorMessage("Could not open payment link. Please try again.");
+      setErrorMessage(t("pay_error_link", "Could not open payment link. Please try again."));
     }
   };
 
@@ -62,7 +64,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
       (err: any) => {
         setPlayBillingLoading(false);
         setErrorMessage(
-          err?.message || "Google Play billing was cancelled or unavailable."
+          err?.message || t("google_play_cancelled", "Google Play billing was cancelled or unavailable.")
         );
       }
     );
@@ -78,7 +80,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("close", "Close")}
           className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center font-bold text-sm transition cursor-pointer"
         >
           ✕
@@ -129,31 +131,31 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
                 <div className="flex items-start gap-1.5">
                   <span className="text-amber-600 shrink-0">🎨</span>
                   <span className="text-foreground">
-                    <strong className="font-semibold text-foreground">Skies:</strong> {tier.perks.backgrounds}
+                    <strong className="font-semibold text-foreground">{t("perk_skies", "Skies:")}</strong> {tier.perks.backgrounds}
                   </span>
                 </div>
                 <div className="flex items-start gap-1.5">
                   <span className="text-amber-600 shrink-0">✨</span>
                   <span className="text-foreground">
-                    <strong className="font-semibold text-foreground">AI Art:</strong> {tier.perks.aiGenerations}
+                    <strong className="font-semibold text-foreground">{t("perk_ai", "AI Art:")}</strong> {tier.perks.aiGenerations}
                   </span>
                 </div>
                 <div className="flex items-start gap-1.5">
                   <span className="text-amber-600 shrink-0">🐻</span>
                   <span className="text-foreground">
-                    <strong className="font-semibold text-foreground">Mascots:</strong> {tier.perks.mascots}
+                    <strong className="font-semibold text-foreground">{t("perk_mascots", "Mascots:")}</strong> {tier.perks.mascots}
                   </span>
                 </div>
                 <div className="flex items-start gap-1.5">
                   <span className="text-amber-600 shrink-0">🚫</span>
                   <span className="text-foreground">
-                    <strong className="font-semibold text-foreground">Ad-Free:</strong> {tier.perks.adFree}
+                    <strong className="font-semibold text-foreground">{t("perk_ad_free", "Ad-Free:")}</strong> {tier.perks.adFree}
                   </span>
                 </div>
                 <div className="flex items-start gap-1.5">
                   <span className="text-amber-600 shrink-0">🎉</span>
                   <span className="text-foreground">
-                    <strong className="font-semibold text-foreground">Celebration:</strong> {tier.perks.celebration}
+                    <strong className="font-semibold text-foreground">{t("perk_celebration", "Celebration:")}</strong> {tier.perks.celebration}
                   </span>
                 </div>
               </div>
@@ -171,26 +173,26 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
             /* Step 1: Pick payment method */
             <div className="space-y-2.5">
               <p className="text-xs text-muted-foreground font-medium mb-1">
-                Select how you'd like to support:
+                {t("select_support_method", "Select how you'd like to support:")}
               </p>
 
-              {/* 1. Debit or Credit Card / Apple Pay (Buy Me a Coffee Extra Link) */}
+              {/* 1. Debit or Credit Card / Apple Pay */}
               <button
                 type="button"
-                onClick={() => handleOpenWebPayment("buymeacoffee", "Debit or Credit Card")}
+                onClick={() => handleOpenWebPayment("buymeacoffee", t("pay_card", "Debit or Credit Card"))}
                 className="w-full text-left p-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-amber-700/15 hover:from-amber-500/25 hover:to-amber-700/25 border border-amber-500/50 hover:border-amber-500/70 transition shadow-xs cursor-pointer flex items-center justify-between gap-3 group"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">💳</span>
                   <div>
                     <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      Debit or Credit Card
+                      {t("pay_card", "Debit or Credit Card")}
                       <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-amber-500/25 text-amber-700 dark:text-amber-300">
-                        No account needed
+                        {t("no_account_needed", "No account needed")}
                       </span>
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      Visa, Mastercard, Amex, Apple Pay & Google Pay
+                      {t("card_sub", "Visa, Mastercard, Amex, Apple Pay & Google Pay")}
                     </div>
                   </div>
                 </div>
@@ -202,17 +204,17 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
               {/* 2. PayPal Option */}
               <button
                 type="button"
-                onClick={() => handleOpenWebPayment("paypal", "PayPal")}
+                onClick={() => handleOpenWebPayment("paypal", t("pay_paypal", "PayPal"))}
                 className="w-full text-left p-3 rounded-xl bg-card/80 hover:bg-muted/60 border border-border/80 hover:border-amber-500/40 transition shadow-xs cursor-pointer flex items-center justify-between gap-3 group"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">🅿️</span>
                   <div>
                     <div className="text-xs font-bold text-foreground">
-                      PayPal
+                      {t("pay_paypal", "PayPal")}
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      Pay with PayPal account
+                      {t("paypal_sub", "Pay with PayPal account")}
                     </div>
                   </div>
                 </div>
@@ -233,15 +235,15 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
                     <span className="text-2xl">▶️</span>
                     <div>
                       <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        Google Play Store
+                        {t("pay_google_play", "Google Play Store")}
                         <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-                          In-App Purchase
+                          {t("in_app_purchase", "In-App Purchase")}
                         </span>
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-0.5">
                         {playBillingLoading
-                          ? "Connecting to Google Play..."
-                          : "Charge to your saved Google Play card"}
+                          ? t("connecting_google_play", "Connecting to Google Play...")
+                          : t("google_play_sub", "Charge to your saved Google Play card")}
                       </div>
                     </div>
                   </div>
@@ -253,7 +255,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
 
               <div className="pt-2 text-center">
                 <p className="text-[10px] text-muted-foreground">
-                  🔒 Secure, SSL-encrypted checkout powered by Buy Me a Coffee.
+                  🔒 {t("secure_checkout", "Secure, SSL-encrypted checkout powered by Buy Me a Coffee.")}
                 </p>
               </div>
             </div>
@@ -266,20 +268,20 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
 
               <div>
                 <h4 className="text-sm font-bold text-foreground">
-                  Checkout Opened on {selectedProvider}
+                  {t("checkout_opened_on", "Checkout Opened on")} {selectedProvider}
                 </h4>
                 <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto leading-relaxed">
-                  Complete your donation in the Buy Me a Coffee tab that just opened.
+                  {t("checkout_opened_sub", "Complete your donation in the Buy Me a Coffee tab that just opened.")}
                 </p>
               </div>
 
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs text-left space-y-1">
                 <div className="font-bold flex items-center gap-1.5">
                   <span>⚡</span>
-                  <span>Automatic Verification</span>
+                  <span>{t("auto_verification", "Automatic Verification")}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  As soon as your card payment is confirmed, Buy Me a Coffee will automatically return you here and your bonus perks will unlock instantly!
+                  {t("auto_verification_sub", "As soon as your card payment is confirmed, Buy Me a Coffee will automatically return you here and your bonus perks will unlock instantly!")}
                 </p>
               </div>
 
@@ -289,14 +291,14 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
                   onClick={() => handleOpenWebPayment("buymeacoffee", "Buy Me a Coffee")}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition cursor-pointer"
                 >
-                  Re-open Buy Me a Coffee Page
+                  {t("reopen_checkout", "Re-open Buy Me a Coffee Page")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setHasOpenedCheckout(false)}
                   className="text-xs text-muted-foreground hover:text-foreground underline transition cursor-pointer block mx-auto"
                 >
-                  Choose another payment option
+                  {t("choose_another_option", "Choose another payment option")}
                 </button>
               </div>
             </div>
