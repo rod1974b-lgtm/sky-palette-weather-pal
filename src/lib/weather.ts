@@ -1,3 +1,4 @@
+// src/lib/weather.ts
 export type Place = { name: string; country?: string; lat: number; lon: number };
 
 export type WeatherUnit = "metric" | "imperial";
@@ -91,9 +92,10 @@ export function loadCached(): Weather | null {
   }
 }
 
-export async function searchCity(q: string): Promise<Place[]> {
+export async function searchCity(q: string, lang = "en"): Promise<Place[]> {
+  const cleanLang = (lang || "en").toLowerCase().split("-")[0];
   const r = await fetch(
-    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&format=json`,
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&format=json&language=${cleanLang}`,
   );
   if (!r.ok) throw new Error("Search failed");
   const j = await r.json();
@@ -195,7 +197,6 @@ export async function fetchWeather(place: Place, unit: WeatherUnit = "metric"): 
   return w;
 }
 
-// Alias export for backwards compatibility
 export const getWeather = fetchWeather;
 
 export function describe(code: number): { label: string; icon: string } {
