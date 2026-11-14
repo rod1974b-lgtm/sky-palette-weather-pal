@@ -1,5 +1,6 @@
 // src/components/RootBeerThankYou_DEEPER_AMBER.tsx
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE,
   saveThankYouBackgroundForever,
@@ -16,6 +17,7 @@ interface ThankYouProps {
 }
 
 export function RootBeerThankYou({ tierId, onClose }: ThankYouProps) {
+  const { t } = useTranslation();
   const [unlocked, setUnlocked] = useState<boolean>(() =>
     isThankYouBackgroundUnlocked(tierId)
   );
@@ -66,9 +68,11 @@ export function RootBeerThankYou({ tierId, onClose }: ThankYouProps) {
       <div className="px-6 pb-6 text-center">
         <button
           onClick={handleUnlock}
-          className="w-full bg-white/95 hover:bg-white text-amber-950 px-4 py-2.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 border border-amber-200"
+          className="w-full bg-white/95 hover:bg-white text-amber-950 px-4 py-2.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 border border-amber-200 cursor-pointer"
         >
-          {unlocked ? "✓ Background Kept Forever ✨" : "Keep this background forever ✨"}
+          {unlocked
+            ? t("bg_kept_forever", "✓ Background Kept Forever ✨")
+            : t("keep_bg_forever", "Keep this background forever ✨")}
         </button>
       </div>
 
