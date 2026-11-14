@@ -252,17 +252,23 @@ function ArtGalleryPage() {
 
   const handleApplyWallpaper = (cityName: string, imageUrl: string) => {
     saveCustomArtChoice(cityName, imageUrl);
+    saveCustomArtChoice(currentPlace.name, imageUrl);
     try {
-      localStorage.setItem(`weather:custom-bg:${cityName.toLowerCase()}`, imageUrl);
+      const cityKey = cityName.toLowerCase().trim();
+      const currentCityKey = currentPlace.name.toLowerCase().trim();
+
+      localStorage.setItem(`weather:custom-bg:${cityKey}`, imageUrl);
+      localStorage.setItem(`weather:custom-bg:${currentCityKey}`, imageUrl);
       localStorage.setItem("weather:custom-bg:current", imageUrl);
       localStorage.setItem("weather:custom-bg-synced-at", Date.now().toString());
+
       window.dispatchEvent(
         new CustomEvent("weather:custom-bg-change", {
-          detail: { city: cityName, url: imageUrl },
+          detail: { city: cityName, currentCity: currentPlace.name, url: imageUrl },
         })
       );
     } catch {}
-    alert(t("alert_wallpaper_applied", `Applied wallpaper for ${cityName}!`, { city: cityName }));
+    alert(t("alert_wallpaper_applied", `Applied wallpaper for ${cityName}! Tap "Back to Forecast" to see it live.`, { city: cityName }));
   };
 
   const handleViewWeather = (cityName: string) => {
@@ -297,8 +303,14 @@ function ArtGalleryPage() {
     setIsGenerating(true);
     setAiError(null);
     try {
-      const fullPrompt = `Watercolor painting of ${currentPlace.name}, ${currentPlace.country || ""}: ${aiPrompt.trim()}. Vibrant fluid watercolors, elegant paper texture, artistic brush strokes.`;
-      const res = await generateWatercolorFn({ data: { prompt: fullPrompt } });
+      const res = await generateWatercolorFn({
+        data: {
+          city: currentPlace.name,
+          userPrompt: aiPrompt.trim(),
+          weatherDesc: "fluid watercolor painting, vibrant atmospheric wash, visible paper texture",
+        },
+      });
+
       if (res?.imageUrl) {
         const newItem: SavedItem = {
           id: `ai-${Date.now()}`,
@@ -326,7 +338,16 @@ function ArtGalleryPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setUploadedPhoto(reader.result as string);
+      const photoUrl = reader.result as string;
+      setUploadedPhoto(photoUrl);
+      const newItem: SavedItem = {
+        id: `photo-${Date.now()}`,
+        url: photoUrl,
+        title: `${currentPlace.name} — ${file.name.slice(0, 24)}`,
+        timestamp: Date.now(),
+      };
+      saveArtworkList([newItem, ...savedArtworks]);
+      handleApplyWallpaper(currentPlace.name, photoUrl);
     };
     reader.readAsDataURL(file);
   };
@@ -884,7 +905,7 @@ function ArtGalleryPage() {
                           {t("slot_num_locked", `Slot ${slotNumber} Locked`, { num: slotNumber })}
                         </p>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {t("unlocks_with_large", "Unlocks with Large Root Beer (6 Slots + 1 Year Ad-Free)")}
+                          {t("unlocks_with_large", "Unlocks with Large Root Beer (6 Slots + 365 Days Ad-Free)")}
                         </p>
                       </div>
                       <button
