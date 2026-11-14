@@ -869,110 +869,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* 4. ROLLING 24-HOUR HOURLY FORECAST */}
-      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-base">⏱️</span>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("hourly_forecast", "24-Hour Forecast")}
-            </h3>
-          </div>
-          <span className="text-[11px] text-muted-foreground">
-            {w.hourly.length} {t("hours", "hours")}
-          </span>
-        </div>
-
-        <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-thin">
-          {w.hourly.slice(0, 24).map((h, idx) => {
-            const timeLabel = getHourlyTimeLabel(h.time, idx, t);
-            const hourlyCondition = getConditionLabel(h.code, t);
-            const hTemp = Math.round(h.temp);
-            const hPop = h.pop ?? 0;
-
-            return (
-              <div
-                key={`hourly-${idx}`}
-                className="flex flex-col items-center justify-between p-2.5 rounded-xl bg-muted/30 border border-border/40 min-w-[70px] shrink-0 text-center space-y-1.5 hover:bg-muted/50 transition"
-              >
-                <span className="text-xs font-medium text-muted-foreground">
-                  {timeLabel}
-                </span>
-
-                <WeatherIcon
-                  code={h.code}
-                  isDay={h.is_day}
-                  className="w-8 h-8 my-0.5"
-                />
-
-                <span className="text-xs font-bold text-foreground">
-                  {hTemp}{tempUnitStr}
-                </span>
-
-                {hPop > 0 ? (
-                  <span className="text-[10px] font-semibold text-blue-500">
-                    💧{hPop}%
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[62px]">
-                    {hourlyCondition}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 5. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
-      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-base">📅</span>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("seven_day_forecast", "7-Day Forecast")}
-          </h3>
-        </div>
-
-        <div className="divide-y divide-border/40">
-          {w.daily.slice(0, 7).map((d, idx) => {
-            const dayLabel = getDailyDayLabel(d.date, idx, t);
-            const dailyCondition = getConditionLabel(d.code, t);
-            const dMax = Math.round(d.max);
-            const dMin = Math.round(d.min);
-
-            return (
-              <div
-                key={`daily-${idx}`}
-                className="py-2.5 flex items-center justify-between gap-3 text-xs"
-              >
-                <span className="w-16 font-semibold text-foreground">
-                  {dayLabel}
-                </span>
-
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <WeatherIcon code={d.code} isDay={1} className="w-6 h-6 shrink-0" />
-                  <span className="text-muted-foreground truncate">
-                    {dailyCondition}
-                  </span>
-                </div>
-
-                {d.pop > 0 && (
-                  <span className="text-[11px] font-semibold text-blue-500 shrink-0">
-                    💧{d.pop}%
-                  </span>
-                )}
-
-                <div className="flex items-center gap-2 font-semibold text-right shrink-0">
-                  <span className="text-foreground">{dMax}{tempUnitStr}</span>
-                  <span className="text-muted-foreground font-normal">/ {dMin}{tempUnitStr}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 6. WHAT TO WEAR TODAY */}
+      {/* 4. WHAT TO WEAR TODAY (Moved directly under Current Conditions) */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
           <div className="flex items-center gap-2">
@@ -1039,6 +936,113 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               ))}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* 5. ROLLING 24-HOUR HOURLY FORECAST WITH PRINTED WEATHER WORDS */}
+      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⏱️</span>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("hourly_forecast", "24-Hour Forecast")}
+            </h3>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            {w.hourly.length} {t("hours", "hours")}
+          </span>
+        </div>
+
+        <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+          {w.hourly.slice(0, 24).map((h, idx) => {
+            const timeLabel = getHourlyTimeLabel(h.time, idx, t);
+            const hourlyCondition = getConditionLabel(h.code, t);
+            const hTemp = Math.round(h.temp);
+            const hPop = h.pop ?? 0;
+
+            return (
+              <div
+                key={`hourly-${idx}`}
+                className="flex flex-col items-center justify-between p-2.5 rounded-xl bg-muted/30 border border-border/40 min-w-[76px] shrink-0 text-center space-y-1.5 hover:bg-muted/50 transition"
+              >
+                <span className="text-xs font-medium text-muted-foreground">
+                  {timeLabel}
+                </span>
+
+                <WeatherIcon
+                  code={h.code}
+                  isDay={h.is_day}
+                  className="w-8 h-8 my-0.5"
+                />
+
+                <span className="text-xs font-bold text-foreground">
+                  {hTemp}{tempUnitStr}
+                </span>
+
+                {/* Printed Weather Condition Words */}
+                <span
+                  className="text-[10px] font-medium text-muted-foreground line-clamp-1 max-w-[72px]"
+                  title={hourlyCondition}
+                >
+                  {hourlyCondition}
+                </span>
+
+                {hPop > 0 && (
+                  <span className="text-[10px] font-semibold text-blue-500">
+                    💧{hPop}%
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 6. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
+      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-base">📅</span>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("seven_day_forecast", "7-Day Forecast")}
+          </h3>
+        </div>
+
+        <div className="divide-y divide-border/40">
+          {w.daily.slice(0, 7).map((d, idx) => {
+            const dayLabel = getDailyDayLabel(d.date, idx, t);
+            const dailyCondition = getConditionLabel(d.code, t);
+            const dMax = Math.round(d.max);
+            const dMin = Math.round(d.min);
+
+            return (
+              <div
+                key={`daily-${idx}`}
+                className="py-2.5 flex items-center justify-between gap-3 text-xs"
+              >
+                <span className="w-16 font-semibold text-foreground">
+                  {dayLabel}
+                </span>
+
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <WeatherIcon code={d.code} isDay={1} className="w-6 h-6 shrink-0" />
+                  <span className="text-muted-foreground truncate">
+                    {dailyCondition}
+                  </span>
+                </div>
+
+                {d.pop > 0 && (
+                  <span className="text-[11px] font-semibold text-blue-500 shrink-0">
+                    💧{d.pop}%
+                  </span>
+                )}
+
+                <div className="flex items-center gap-2 font-semibold text-right shrink-0">
+                  <span className="text-foreground">{dMax}{tempUnitStr}</span>
+                  <span className="text-muted-foreground font-normal">/ {dMin}{tempUnitStr}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
