@@ -328,13 +328,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   isFav,
   onToggleFavorite,
   onOpenAiGallery,
+  customBgUrl,
 }) => {
   const { t, i18n } = useTranslation();
   const lang = i18n?.language?.toLowerCase().split("-")[0] || "en";
   const w = weather || weatherProp;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const [heroBgUrl, setHeroBgUrl] = useState<string>("");
+  const [heroBgUrl, setHeroBgUrl] = useState<string>(customBgUrl || "");
   const [artIndex, setArtIndex] = useState(0);
   const [isDarkArtwork, setIsDarkArtwork] = useState<boolean>(false);
 
@@ -408,6 +409,32 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       active = false;
     };
   }, [heroBgUrl, w?.current?.is_day]);
+
+  // Sync custom background if passed as prop
+  useEffect(() => {
+    if (customBgUrl) {
+      setHeroBgUrl(customBgUrl);
+    }
+  }, [customBgUrl]);
+
+  // Live listener for wallpaper changes from gallery
+  useEffect(() => {
+    const handleBgChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ city?: string; url?: string }>;
+      if (
+        !customEvent.detail?.city ||
+        (w?.place?.name && customEvent.detail.city.toLowerCase() === w.place.name.toLowerCase().trim())
+      ) {
+        if (customEvent.detail?.url) {
+          setHeroBgUrl(customEvent.detail.url);
+        }
+      }
+    };
+    window.addEventListener("weather:custom-bg-change", handleBgChange);
+    return () => {
+      window.removeEventListener("weather:custom-bg-change", handleBgChange);
+    };
+  }, [w?.place?.name]);
 
   const handleSelectBackground = (url: string) => {
     setHeroBgUrl(url);
@@ -732,18 +759,19 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </div>
 
-      {/* 3. STREAMLINED HERO CARD (Only City, Temp, and Weather Icon) */}
-      <section className="relative overflow-hidden rounded-3xl border border-border/80 p-5 shadow-lg bg-card text-card-foreground min-h-[250px] flex flex-col justify-between">
+      {/* 3. STREAMLINED HERO CARD (Expanded Height & Crisp Artwork) */}
+      <section className="relative overflow-hidden rounded-3xl border border-border/80 p-5 sm:p-6 shadow-lg bg-card text-card-foreground min-h-[290px] sm:min-h-[320px] flex flex-col justify-between">
         {heroBgUrl && (
           <div
             className="absolute inset-0 bg-cover bg-center transition-all duration-700 pointer-events-none"
             style={{
               backgroundImage: `url(${heroBgUrl})`,
-              filter: "brightness(0.98) saturate(1.1)",
+              filter: "brightness(1.02) saturate(1.15)",
             }}
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background/70 via-background/10 to-transparent pointer-events-none" />
+        {/* Subtle cinematic edge vignette so watercolor art stays vivid and text is razor sharp */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/20 pointer-events-none" />
 
         <div className="relative z-10 flex flex-col justify-between flex-1 w-full">
           {/* Top: City Name (Transparent) */}
