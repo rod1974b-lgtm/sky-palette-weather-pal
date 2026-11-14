@@ -8,6 +8,7 @@ import {
   saveCustomArtChoice,
 } from "@/lib/aiWatercolorGenerator";
 import { generateWatercolorFn } from "@/lib/aiWatercolor.functions";
+import { PaymentModal } from "@/components/PaymentModal";
 import type { Place } from "@/lib/weather";
 
 const DESC =
@@ -27,7 +28,6 @@ export const Route = createFileRoute("/gallery")({
   component: ArtGalleryPage,
 });
 
-// Built-in coordinate map so "View Weather" directly loads without geocoding delays
 const LANDMARK_COORDINATES: Record<string, Place> = {
   ratchaburi: { name: "Ratchaburi", country: "Thailand", lat: 13.5283, lon: 99.8134 },
   bangkok: { name: "Bangkok", country: "Thailand", lat: 13.7563, lon: 100.5018 },
@@ -66,14 +66,6 @@ const LANDMARK_COORDINATES: Record<string, Place> = {
   dubai: { name: "Dubai", country: "United Arab Emirates", lat: 25.2048, lon: 55.2708 },
 };
 
-const REGIONS = [
-  { id: "all", label: "All Cities" },
-  { id: "thailand", label: "Thailand" },
-  { id: "asia", label: "Asia & Pacific" },
-  { id: "europe", label: "Europe" },
-  { id: "americas", label: "Americas" },
-];
-
 function getCityRegion(cityName: string): string {
   const c = cityName.toLowerCase();
   if (["ratchaburi", "bangkok", "chiang mai", "phuket", "krabi", "pattaya"].includes(c)) return "thailand";
@@ -89,6 +81,61 @@ interface SavedItem {
   timestamp: number;
 }
 
+export function getUserSlotLimits() {
+  if (typeof window === "undefined") {
+    return {
+      citySlots: 1,
+      aiSlots: 1,
+      isUnlimited: false,
+      hasAdBonus: false,
+      adHoursLeft: 0,
+      tierName: "Free Tier",
+    };
+  }
+
+  const isParty = localStorage.getItem("thankyou_unlocked_party_pack_root_beer_tier") === "true";
+  const isLarge = localStorage.getItem("thankyou_unlocked_large_root_beer_tier") === "true";
+  const isMedium = localStorage.getItem("thankyou_unlocked_medium_root_beer_tier") === "true";
+  const isSmall = localStorage.getItem("thankyou_unlocked_small_root_beer_tier") === "true";
+
+  let baseSlots = 1;
+  let tierName = "Free Tier";
+  let isUnlimited = false;
+
+  if (isParty) {
+    baseSlots = 9999;
+    tierName = "Party Pack VIP (Unlimited)";
+    isUnlimited = true;
+  } else if (isLarge) {
+    baseSlots = 6;
+    tierName = "Large Root Beer (6 Slots)";
+  } else if (isMedium) {
+    baseSlots = 4;
+    tierName = "Medium Root Beer (4 Slots)";
+  } else if (isSmall) {
+    baseSlots = 2;
+    tierName = "Small Root Beer (2 Slots)";
+  }
+
+  const adUntilStr = localStorage.getItem("weather:ad-unlocked-slots-until");
+  const adUntil = adUntilStr ? parseInt(adUntilStr, 10) : 0;
+  const now = Date.now();
+  const hasAdBonus = adUntil > now;
+  const adHoursLeft = hasAdBonus ? Math.ceil((adUntil - now) / (1000 * 60 * 60)) : 0;
+
+  const totalSlots = isUnlimited ? Infinity : baseSlots + (hasAdBonus ? 1 : 0);
+
+  return {
+    citySlots: totalSlots,
+    aiSlots: totalSlots,
+    baseSlots,
+    isUnlimited,
+    hasAdBonus,
+    adHoursLeft,
+    tierName,
+  };
+}
+
 function ArtGalleryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -97,10 +144,25 @@ function ArtGalleryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("all");
 
+  // Current City Lock
+  const [currentPlace, setCurrentPlace] = useState<Place>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("weather:last-place");
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return { name: "Ratchaburi", country: "Thailand", lat: 13.5283, lon: 99.8134 };
+  });
+
+  // Slot System State
+  const [slotLimits, setSlotLimits] = useState(getUserSlotLimits);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [paymentModalTier, setPaymentModalTier] = useState<string | null>(null);
+
   // Expandable AI Creator state
   const [isAiExpanded, setIsAiExpanded] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiCity, setAiCity] = useState("Ratchaburi");
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -110,13 +172,12 @@ function ArtGalleryPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load saved art from localStorage
+  // Refresh slots on mount and storage events
   useEffect(() => {
+    setSlotLimits(getUserSlotLimits());
     try {
       const raw = localStorage.getItem("weather:custom-art-saved");
-      if (raw) {
-        setSavedArtworks(JSON.parse(raw));
-      }
+      if (raw) setSavedArtworks(JSON.parse(raw));
     } catch {}
   }, []);
 
@@ -127,9 +188,20 @@ function ArtGalleryPage() {
     } catch {}
   };
 
+  const handleWatchAd = () => {
+    setIsWatchingAd(true);
+    setTimeout(() => {
+      const until = Date.now() + 24 * 60 * 60 * 1000;
+      localStorage.setItem("weather:ad-unlocked-slots-until", until.toString());
+      setSlotLimits(getUserSlotLimits());
+      setIsWatchingAd(false);
+      alert("✨ Ad watched! +1 City slot & +1 AI slot unlocked for the next 24 hours.");
+    }, 1500);
+  };
+
   // Curated Landmark items
   const landmarkItems = useMemo(() => {
-    const list: Array<{ city: string; title: string; image: string; region: string }> = [];
+    const list: Array<{ city: string; title: string; image: string; region: string; isFreeForever: boolean }> = [];
     for (const [cityKey, images] of Object.entries(LANDMARK_WATERCOLORS)) {
       if (!images || images.length === 0) continue;
       const formattedCity = cityKey.charAt(0).toUpperCase() + cityKey.slice(1);
@@ -139,12 +211,12 @@ function ArtGalleryPage() {
         title,
         image: images[0]!,
         region: getCityRegion(cityKey),
+        isFreeForever: true, // Primary landmark is 100% free forever
       });
     }
     return list;
   }, []);
 
-  // Filtered landmarks
   const filteredLandmarks = useMemo(() => {
     return landmarkItems.filter((item) => {
       const matchesSearch =
@@ -155,7 +227,6 @@ function ArtGalleryPage() {
     });
   }, [landmarkItems, searchQuery, selectedRegion]);
 
-  // Apply wallpaper for a city
   const handleApplyWallpaper = (cityName: string, imageUrl: string) => {
     saveCustomArtChoice(cityName, imageUrl);
     window.dispatchEvent(
@@ -166,7 +237,6 @@ function ArtGalleryPage() {
     alert(`Applied wallpaper for ${cityName}!`);
   };
 
-  // View Weather: save exact Place coordinates so it never reverts to Bangkok
   const handleViewWeather = (cityName: string) => {
     const key = cityName.toLowerCase();
     const directCoords = LANDMARK_COORDINATES[key];
@@ -186,16 +256,25 @@ function ArtGalleryPage() {
     navigate({ to: "/" });
   };
 
-  // AI Generation
+  // AI Generation with City-Lock & Slot Check
   const handleGenerate = async () => {
     if (!aiPrompt.trim()) return;
+
+    // Slot Limit Enforcement
+    if (!slotLimits.isUnlimited && savedArtworks.length >= slotLimits.aiSlots) {
+      setAiError(
+        `AI slot limit reached (${savedArtworks.length}/${slotLimits.aiSlots}). Watch an ad for +1 slot (24h) or upgrade with Root Beer to keep it forever!`
+      );
+      return;
+    }
+
     setIsGenerating(true);
     setAiError(null);
 
     try {
       const result = await generateWatercolorFn({
         data: {
-          city: aiCity,
+          city: currentPlace.name,
           userPrompt: aiPrompt,
         },
       });
@@ -204,12 +283,12 @@ function ArtGalleryPage() {
         const newItem: SavedItem = {
           id: `ai-${Date.now()}`,
           url: result.imageUrl,
-          title: `${aiCity} — ${aiPrompt.slice(0, 30)}...`,
+          title: `${currentPlace.name} — ${aiPrompt.slice(0, 30)}...`,
           timestamp: Date.now(),
         };
         const updated = [newItem, ...savedArtworks];
         saveArtworkList(updated);
-        handleApplyWallpaper(aiCity, result.imageUrl);
+        handleApplyWallpaper(currentPlace.name, result.imageUrl);
         setAiPrompt("");
         setUploadedPhoto(null);
         setIsAiExpanded(false);
@@ -238,6 +317,14 @@ function ArtGalleryPage() {
     saveArtworkList(updated);
   };
 
+  const REGIONS = [
+    { id: "all", label: t("region_all", "All Cities") },
+    { id: "thailand", label: t("region_thailand", "Thailand") },
+    { id: "asia", label: t("region_asia", "Asia & Pacific") },
+    { id: "europe", label: t("region_europe", "Europe") },
+    { id: "americas", label: t("region_americas", "Americas") },
+  ];
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-12">
       {/* Top Header */}
@@ -249,60 +336,95 @@ function ArtGalleryPage() {
           >
             ← {t("back_to_forecast", "Back to Forecast")}
           </Link>
-          <h1 className="text-sm font-bold tracking-tight">🎨 Art & Wallpaper Studio</h1>
-          <span className="w-16" />
+          <h1 className="text-sm font-bold tracking-tight">🎨 {t("gallery_title", "Art & Wallpaper Studio")}</h1>
+          <button
+            onClick={() => setPaymentModalTier("small_root_beer_tier")}
+            className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+          >
+            🍺 {slotLimits.tierName.split(" ")[0]}
+          </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 space-y-8">
-        {/* Expandable AI Studio Bar */}
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 space-y-6">
+        {/* Tier & Slot Meter Card */}
+        <section className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base">🍺</span>
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                  {slotLimits.tierName}
+                </span>
+                {slotLimits.hasAdBonus && (
+                  <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-semibold border border-emerald-500/20">
+                    +1 Ad Slot Active ({slotLimits.adHoursLeft}h left)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {slotLimits.isUnlimited
+                  ? "Unlimited creations and wallpapers unlocked forever!"
+                  : `AI Slots: ${savedArtworks.length} of ${slotLimits.aiSlots} used • 1 Free City Wallpaper per city`}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!slotLimits.isUnlimited && (
+                <button
+                  onClick={handleWatchAd}
+                  disabled={isWatchingAd}
+                  className="px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition cursor-pointer"
+                >
+                  {isWatchingAd ? "Loading Ad... ⏳" : "📺 +1 Slot (24h Ad)"}
+                </button>
+              )}
+              <button
+                onClick={() => setPaymentModalTier("small_root_beer_tier")}
+                className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold shadow-xs hover:bg-amber-700 transition cursor-pointer"
+              >
+                ⚡ {t("unlock_more_slots", "Upgrade Slots")}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Expandable City-Locked AI Studio Bar */}
         <section className="rounded-2xl border border-primary/20 bg-card/60 p-4 shadow-xs backdrop-blur-xs">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <span className="text-xl">✨</span>
               <div>
-                <h2 className="text-sm font-bold">AI Watercolor Creator</h2>
-                <p className="text-xs text-muted-foreground">
-                  Paint custom landmark scenes or transform your photos into watercolors.
-                </p>
+                <h2 className="text-sm font-bold">{t("gallery_ai_title", "AI Watercolor Creator")}</h2>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>📍 {t("locked_to_city", "Locked to")}:</span>
+                  <span className="font-semibold text-foreground underline decoration-primary">
+                    {currentPlace.name}, {currentPlace.country || "Live Forecast"}
+                  </span>
+                </div>
               </div>
             </div>
             <button
               onClick={() => setIsAiExpanded(!isAiExpanded)}
               className="px-3 py-1.5 rounded-xl border border-border/60 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition cursor-pointer"
             >
-              {isAiExpanded ? "Close Studio ▲" : "Create with AI ▼"}
+              {isAiExpanded ? t("close_studio", "Close Studio ▲") : t("create_with_ai", "Create with AI ▼")}
             </button>
           </div>
 
           {isAiExpanded && (
             <div className="mt-4 pt-4 border-t border-border/40 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">
-                    City Name
-                  </label>
-                  <input
-                    type="text"
-                    value={aiCity}
-                    onChange={(e) => setAiCity(e.target.value)}
-                    placeholder="e.g. Ratchaburi, Tokyo..."
-                    className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">
-                    Scene Description
-                  </label>
-                  <input
-                    type="text"
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder="e.g. Misty mountain temples at sunrise with golden light..."
-                    className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  {t("scene_description", "Describe your custom watercolor scene")}
+                </label>
+                <input
+                  type="text"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder={`e.g. Misty sunrise over ${currentPlace.name} with warm golden reflections...`}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary"
+                />
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
@@ -319,14 +441,14 @@ function ArtGalleryPage() {
                     onClick={() => fileInputRef.current?.click()}
                     className="px-3 py-1.5 rounded-xl border border-border/60 text-xs font-medium hover:bg-muted/80 transition cursor-pointer"
                   >
-                    📷 {uploadedPhoto ? "Change Photo" : "Upload Reference Photo"}
+                    📷 {uploadedPhoto ? t("change_photo", "Change Photo") : t("upload_photo", "Upload Reference Photo")}
                   </button>
                   {uploadedPhoto && (
                     <button
                       onClick={() => setUploadedPhoto(null)}
                       className="text-xs text-destructive hover:underline cursor-pointer"
                     >
-                      Remove Photo
+                      {t("remove_photo", "Remove Photo")}
                     </button>
                   )}
                 </div>
@@ -336,7 +458,7 @@ function ArtGalleryPage() {
                   disabled={isGenerating || !aiPrompt.trim()}
                   className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
                 >
-                  {isGenerating ? "Painting Scene... ⏳" : "Paint Watercolor 🎨"}
+                  {isGenerating ? t("painting_scene", "Painting Scene... ⏳") : t("paint_watercolor", "Paint Watercolor 🎨")}
                 </button>
               </div>
 
@@ -351,18 +473,17 @@ function ArtGalleryPage() {
         <section className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold tracking-tight">City & Landmark Wallpapers</h2>
+              <h2 className="text-base font-bold tracking-tight">{t("city_wallpapers", "City & Landmark Wallpapers")}</h2>
               <p className="text-xs text-muted-foreground">
-                Set as forecast wallpaper or jump directly into that city's live forecast.
+                {t("wallpapers_sub", "Set as forecast wallpaper or jump directly into that city's live forecast.")}
               </p>
             </div>
 
-            {/* Search Input */}
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search landmarks or cities..."
+              placeholder={t("search_landmarks", "Search landmarks or cities...")}
               className="w-full sm:w-64 rounded-xl border border-border/60 bg-card/80 px-3 py-1.5 text-xs shadow-xs focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -402,6 +523,14 @@ function ArtGalleryPage() {
                     className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                  
+                  {/* Free Forever Badge */}
+                  {item.isFreeForever && (
+                    <div className="absolute top-2.5 right-2.5 rounded-full bg-emerald-500/90 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
+                      ✨ Free Forever
+                    </div>
+                  )}
+
                   <div className="absolute bottom-2 left-3 right-3 text-white">
                     <p className="text-xs font-bold leading-tight drop-shadow-md">{item.city}</p>
                     <p className="text-[10px] text-white/80 truncate drop-shadow-sm">{item.title}</p>
@@ -413,13 +542,13 @@ function ArtGalleryPage() {
                     onClick={() => handleApplyWallpaper(item.city, item.image)}
                     className="flex-1 py-1.5 rounded-xl border border-border/60 bg-muted/40 hover:bg-muted text-foreground text-[11px] font-semibold transition cursor-pointer text-center"
                   >
-                    Set Wallpaper
+                    {t("set_wallpaper", "Set Wallpaper")}
                   </button>
                   <button
                     onClick={() => handleViewWeather(item.city)}
                     className="flex-1 py-1.5 rounded-xl bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer text-center"
                   >
-                    View Weather 🌤️
+                    {t("view_weather", "View Weather 🌤️")}
                   </button>
                 </div>
               </div>
@@ -431,9 +560,9 @@ function ArtGalleryPage() {
         {savedArtworks.length > 0 && (
           <section className="space-y-4 pt-4 border-t border-border/40">
             <div>
-              <h2 className="text-base font-bold tracking-tight">My Saved & Uploaded Art</h2>
+              <h2 className="text-base font-bold tracking-tight">{t("my_saved_art", "My Saved & Uploaded Art")}</h2>
               <p className="text-xs text-muted-foreground">
-                Your custom creations and personal uploads saved locally.
+                {t("saved_art_sub", "Your custom creations and personal uploads saved locally.")}
               </p>
             </div>
 
@@ -461,13 +590,13 @@ function ArtGalleryPage() {
                         onClick={() => handleApplyWallpaper("Custom", art.url)}
                         className="text-[10px] font-semibold text-primary hover:underline cursor-pointer"
                       >
-                        Apply
+                        {t("apply", "Apply")}
                       </button>
                       <button
                         onClick={() => handleDeleteSavedArt(art.id)}
                         className="text-[10px] font-semibold text-destructive hover:underline cursor-pointer"
                       >
-                        Delete
+                        {t("delete", "Delete")}
                       </button>
                     </div>
                   </div>
@@ -478,7 +607,7 @@ function ArtGalleryPage() {
         )}
       </main>
 
-      {/* Light Image Zoom Preview Modal */}
+      {/* Image Preview Modal */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
@@ -498,6 +627,18 @@ function ArtGalleryPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Root Beer Payment Modal */}
+      {paymentModalTier && (
+        <PaymentModal
+          tierId={paymentModalTier}
+          onClose={() => setPaymentModalTier(null)}
+          onSuccess={() => {
+            setSlotLimits(getUserSlotLimits());
+            setPaymentModalTier(null);
+          }}
+        />
       )}
     </div>
   );
