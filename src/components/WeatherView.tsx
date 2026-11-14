@@ -2,8 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import React, { useState, useEffect } from "react";
-import type { TFunction } from "i18next";
 import { type Weather, type WeatherUnit, type Place } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { useTranslation } from "react-i18next";
@@ -249,7 +247,7 @@ const ACCESSORY_LABELS = {
     sunglasses: "Солнцезащитные очки",
     sunscreen: "Защита от солнца",
     mask: "Маска",
-    scarf: "Шарฟ и перчатки",
+    scarf: "Шарф и перчатки",
     water: "Больше воды",
     windbreaker: "Ветровка",
     evening_drop: "Вечернее похолодание: до",
@@ -507,6 +505,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const isRaining = code >= 95 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
   const isSnowing = (code >= 71 && code <= 77) || (code >= 85 && code <= 86);
   const windKmh = unit === "imperial" ? w.current.wind * 1.60934 : w.current.wind;
+
   // Category-specific clothing advice generator
   const getExpandedClothingAdvice = (): string => {
     if (wearCategory === "business") {
@@ -635,14 +634,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const tempBadgeClass =
     "inline-flex items-baseline gap-1 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]";
 
-  const pillGlassBg = isDarkArtwork
-    ? "bg-black/50 text-white border-white/20"
-    : "bg-white/80 text-slate-800 border-slate-300/60";
-
-  const actionBtnGlassBg = isDarkArtwork
-    ? "bg-black/50 text-white border-white/25 hover:bg-black/65"
-    : "bg-white/85 text-slate-800 border-slate-300/70 hover:bg-white";
-
   return (
     <div className="space-y-4">
       {/* 1. DISASTER & ADVISORY ALERT TICKER */}
@@ -685,12 +676,12 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         )}
       </section>
 
-      {/* 2. TOP ACTIONS BAR (Next Art & Favorite) */}
+      {/* 2. TOP ACTIONS BAR (Next Art, AI Gallery, Refresh & Favorite) */}
       <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate max-w-[120px] sm:max-w-none">
           {w.place.name}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Next Artwork Button */}
           <button
             type="button"
@@ -701,6 +692,16 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             <span className="text-sm">↻</span>
             <span>{t("next_art", "Next Art")}</span>
           </button>
+
+          {/* AI Gallery Button */}
+          <Link
+            to="/gallery"
+            className="flex items-center gap-1.5 rounded-xl border border-border/80 bg-card/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs backdrop-blur-md transition hover:bg-muted cursor-pointer"
+            title={t("art_gallery", "AI Gallery")}
+          >
+            <span className="text-sm">🎨</span>
+            <span>{t("art_gallery", "AI Gallery")}</span>
+          </Link>
 
           {/* Refresh Button */}
           <button
