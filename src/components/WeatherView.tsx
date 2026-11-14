@@ -127,6 +127,22 @@ function getWindDirectionLabel(deg: number): string {
   return dirs[Math.round(deg / 22.5) % 16] || "N";
 }
 
+const TAG_TRANSLATION_MAP: Record<string, string> = {
+  "TMD Alert": "alert_thunderstorm_tag",
+  "TMD Warning": "alert_thunderstorm_tag",
+  "Earthquake": "alert_earthquake_tag",
+  "Earthquake Alert": "alert_earthquake_tag",
+  "Flood Watch": "alert_flood_tag",
+  "Rain Advisory": "alert_rain_tag",
+  "Severe Storm": "alert_thunderstorm_tag",
+  "High Wind": "alert_hazard",
+  "Extreme Heat": "alert_hazard",
+  "Severe Freeze": "alert_hazard",
+  "NWS Alert": "alert_hazard",
+  "Air Quality": "air_quality",
+  "Marine Warning": "alert_advisory",
+};
+
 const WEAR_CATEGORIES = {
   en: { casual: "Casual", business: "Office / Business", sports: "Athletic / Outdoor" },
   th: { casual: "ลำลอง / สบายๆ", business: "ทำงาน / สุภาพ", sports: "ออกกำลังกาย / ลุยๆ" },
@@ -262,7 +278,7 @@ const ACCESSORY_LABELS = {
     water: "휴대용 물병 또는 시원한 물",
     windbreaker: "방풍 윈드브레이커",
     heavyCoat: "두꺼운 겨울 패딩 코트 & 장갑",
-    lightJacket: "가벼운 재킷 또는 가디건",
+    lightJacket: "가벼운 재킷 หรือ 가디건",
     warmBeanie: "비니 모자, 목도리 & 보온 양말",
   },
   id: {
@@ -282,7 +298,7 @@ const ACCESSORY_LABELS = {
     water: "Bình nước mát",
     windbreaker: "Áo khoác gió thoáng khí",
     heavyCoat: "Áo khoác ấm mùa đông & găng tay",
-    lightJacket: "Áo khoác nhẹ hoặc áo len mỏng",
+    lightJacket: "Áo khoác nhẹ หรือ áo len mỏng",
     warmBeanie: "Mũ len, khăn quàng & tất ấm",
   },
 };
@@ -380,38 +396,33 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     let active = true;
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.referrerPolicy = "no-referrer";
     img.src = heroBgUrl;
-
     img.onload = () => {
       if (!active) return;
       try {
         const canvas = document.createElement("canvas");
         canvas.width = 16;
         canvas.height = 16;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, 16, 16);
-        const data = ctx.getImageData(0, 0, 16, 16).data;
-        let totalLum = 0;
-        let count = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i]!;
-          const g = data[i + 1]!;
-          const b = data[i + 2]!;
-          totalLum += 0.299 * r + 0.587 * g + 0.114 * b;
-          count++;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, 16, 16);
+          const data = ctx.getImageData(0, 0, 16, 16).data;
+          let r = 0, g = 0, b = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            r += data[i];
+            g += data[i + 1];
+            b += data[i + 2];
+          }
+          const count = data.length / 4;
+          const brightness = (r / count) * 0.299 + (g / count) * 0.587 + (b / count) * 0.114;
+          setIsDarkArtwork(brightness < 128);
         }
-        const avgLum = totalLum / count;
-        setIsDarkArtwork(avgLum < 135);
       } catch {
-        setIsDarkArtwork(!w?.current?.is_day);
+        setIsDarkArtwork(true);
       }
     };
-
     img.onerror = () => {
-      if (!active) return;
-      setIsDarkArtwork(!w?.current?.is_day);
+      if (active) setIsDarkArtwork(true);
     };
 
     return () => {
@@ -482,8 +493,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       }
     }
 
+    // Curated Landmark Watercolor Fallback
     const conditionStr = getConditionLabel(w.current.code, t);
-    const arts = getAllAvailableArtworks(
+    const landmarkArts = getAllAvailableArtworks(
       w.place.name,
       w.current.code,
       conditionStr,
@@ -492,9 +504,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       w.place.lon
     );
 
-    const firstArt = arts[0];
-    if (firstArt) {
-      setHeroBgUrl(firstArt);
+    if (landmarkArts.length > 0) {
+      setHeroBgUrl(landmarkArts[0]);
     } else {
       getCityWeatherBackground(
         w.place.name,
@@ -558,75 +569,124 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   let sunsetStr = "--:--";
   if (todayDaily?.sunrise) {
     try {
-      sunriseStr = todayDaily.sunrise.includes("T")
-        ? todayDaily.sunrise.split("T")[1]?.slice(0, 5) || todayDaily.sunrise
-        : todayDaily.sunrise;
+      const parts = todayDaily.sunrise.split("T")[1];
+      sunriseStr = parts ? parts.slice(0, 5) : todayDaily.sunrise;
     } catch {}
   }
   if (todayDaily?.sunset) {
     try {
-      sunsetStr = todayDaily.sunset.includes("T")
-        ? todayDaily.sunset.split("T")[1]?.slice(0, 5) || todayDaily.sunset
-        : todayDaily.sunset;
+      const parts = todayDaily.sunset.split("T")[1];
+      sunsetStr = parts ? parts.slice(0, 5) : todayDaily.sunset;
     } catch {}
   }
 
-  // --- Dynamic Clothing Advisor Engine ---
-  const tempC = unit === "imperial" ? ((w.current.temp - 32) * 5) / 9 : w.current.temp;
-  const isRaining = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].includes(w.current.code);
-  const isSnowing = [71, 73, 75, 77, 85, 86].includes(w.current.code);
-  const isSunnyHighUv = w.current.uv >= 6 && w.current.is_day;
-  const isWindy = w.current.wind_speed >= (unit === "imperial" ? 18 : 30);
+  // Active Alerts combined
+  const alertsToDisplay = activeAlerts.length > 0 ? activeAlerts : disasters;
 
-  const locAccessory = (ACCESSORY_LABELS as any)[lang] || ACCESSORY_LABELS.en;
-  const locWearCat = (WEAR_CATEGORIES as any)[lang] || WEAR_CATEGORIES.en;
+  // What to Wear Advice calculation
+  const locWearCat =
+    WEAR_CATEGORIES[lang as keyof typeof WEAR_CATEGORIES] || WEAR_CATEGORIES.en;
+  const locAccessory =
+    ACCESSORY_LABELS[lang as keyof typeof ACCESSORY_LABELS] || ACCESSORY_LABELS.en;
+
+  const tempC = unit === "imperial" ? ((w.current.temp - 32) * 5) / 9 : w.current.temp;
+  const code = w.current.code;
+  const isRaining = code >= 95 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
+  const isSnowing = (code >= 71 && code <= 77) || (code >= 85 && code <= 86);
+  const isVeryHot = tempC >= 32;
 
   let clothingDescription = "";
-  const accessories: string[] = [];
-
-  if (tempC >= 28) {
-    if (wearCategory === "business") {
-      clothingDescription = t("wear_desc_hot_biz", "Breathable linen shirt or blouse, lightweight trousers, and moisture-wicking undershirt.");
-    } else if (wearCategory === "sports") {
-      clothingDescription = t("wear_desc_hot_sport", "Ultra-light tank top or moisture-wicking tee, running shorts, and anti-friction socks.");
+  if (wearCategory === "business") {
+    if (isRaining) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อเทรนช์โค้ทกันน้ำ รองเท้าหนังกันน้ำ และพกร่มทำงานคันใหญ่"
+          : "Tailored commuter trench coat, water-resistant dress shoes, and a sturdy business umbrella.";
+    } else if (isSnowing || tempC <= 5) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อโค้ทผ้าวูลตัวยาวทับชุดสูท ผ้าพันคอแคชเมียร์ และถุงมือหนังสุภาพ"
+          : "Tailored wool overcoat over suit, cashmere scarf, and insulated dress leather gloves.";
+    } else if (tempC <= 14) {
+      clothingDescription =
+        lang === "th"
+          ? "เบลเซอร์ผ้าวูล เสื้อเชิ้ตคัตติ้งเนี้ยบ หรือสเวตเตอร์บางสวมทับเชิ้ต"
+          : "Structured wool blazer, crisp dress shirt, and optional fine-knit sweater layer.";
+    } else if (isVeryHot) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อเชิ้ตผ้าลินินหรือคอตตอนระบายอากาศ กางเกงสแล็คเนื้อเบาโทนสว่าง"
+          : "Breathable crisp cotton/linen dress shirt, lightweight tailored trousers, and leather loafers.";
     } else {
-      clothingDescription = t("wear_desc_hot_casual", "Light cotton t-shirt, shorts or airy skirt, and breathable open footwear.");
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อเชิ้ตทำงานแขนยาว กางเกงสแล็คทรงพอดีตัว และเบลเซอร์มาตรฐาน"
+          : "Classic commuter button-down shirt, smart tailored trousers, and clean professional attire.";
     }
-  } else if (tempC >= 20) {
-    if (wearCategory === "business") {
-      clothingDescription = t("wear_desc_mild_biz", "Long-sleeve dress shirt, tailored chinos or pencil skirt, and smart leather loafers.");
-    } else if (wearCategory === "sports") {
-      clothingDescription = t("wear_desc_mild_sport", "Breathable athletic t-shirt, flexible joggers or training tights, and cushioned running shoes.");
+  } else if (wearCategory === "sports") {
+    if (isRaining) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อวิ่งกันน้ำมีฮู้ด กางเกงรัดรูปแห้งไว และรองเท้าวิ่งกริปเกาะถนนเปียก"
+          : "Waterproof running shell jacket, quick-dry tights, and trail shoes with wet-grip traction.";
+    } else if (isSnowing || tempC <= 5) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อเบสเลเยอร์เทอร์มอล แจ็กเก็ตฟลีซกันหนาว หมวกบีนี่ และถุงมือออกกำลังกาย"
+          : "Thermal compression base layer, insulated athletic fleece, moisture-wicking beanie & gloves.";
+    } else if (tempC <= 14) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อแขนยาวผ้าระบายอากาศ เสื้อกั๊กกันลม และกางเกงวอร์มออกกำลังกาย"
+          : "Long-sleeve technical athletic shirt, wind vest, and breathable running track pants.";
+    } else if (isVeryHot) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อกล้ามหรือเสื้อวิ่งระบายเหงื่อ กางเกงขาสั้นเบาพิเศษ และหมวกวิ่งกันแดด"
+          : "Ultra-breathable sweat-wicking singlet, split running shorts, and sun-protection sports cap.";
     } else {
-      clothingDescription = t("wear_desc_mild_casual", "Comfortable cotton tee, light cardigan or denim shirt, and relaxed jeans or chinos.");
-    }
-  } else if (tempC >= 12) {
-    if (wearCategory === "business") {
-      clothingDescription = t("wear_desc_cool_biz", "Tailored wool blazer over dress shirt, smart slacks, and leather dress shoes.");
-    } else if (wearCategory === "sports") {
-      clothingDescription = t("wear_desc_cool_sport", "Long-sleeve thermal training top, wind-resistant track pants, and trail running shoes.");
-    } else {
-      clothingDescription = t("wear_desc_cool_casual", "Warm sweater or knit hoodie, medium jacket, jeans, and comfortable sneakers or boots.");
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อยืดกีฬาเนื้อดราย กางเกงจ็อกเกอร์ และรองเท้าผ้าใบซัพพอร์ตดี"
+          : "Performance technical tee, flexible training joggers, and supportive athletic sneakers.";
     }
   } else {
-    if (wearCategory === "business") {
-      clothingDescription = t("wear_desc_cold_biz", "Heavy wool overcoat, cashmere sweater layered over dress shirt, thermal trousers, and insulated leather boots.");
-    } else if (wearCategory === "sports") {
-      clothingDescription = t("wear_desc_cold_sport", "Fleece-lined thermal base layer, insulated wind jacket, thermal running tights, and trail shoes with grip.");
+    // Casual
+    if (isRaining) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อฮู้ดกันน้ำ กางเกงยีนส์พับขา รองเท้ากันน้ำ และร่มพกพาสีสดใส"
+          : "Lightweight hooded waterproof jacket, water-resistant sneakers, and a compact umbrella.";
+    } else if (isSnowing || tempC <= 5) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อแจ็กเก็ตบุนวมหนานุ่ม เสื้อสเวตเตอร์ไหมพรม และรองเท้าบูทกันลื่น"
+          : "Puffer down jacket, cozy fleece/wool sweater, thermal beanie, and insulated boots.";
+    } else if (tempC <= 14) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อแจ็กเก็ตยีนส์หรือคาร์ดิแกน สวมทับเสื้อยืด และกางเกงขายาวใส่สบาย"
+          : "Denim or bomber jacket layered over a casual tee, comfortable denim, and sneakers.";
+    } else if (isVeryHot) {
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อยืดคอตตอนบาง กางเกงขาสั้นผ้าเบา แว่นกันแดด และรองเท้าแตะหรือผ้าใบโปร่ง"
+          : "Breathable airy cotton t-shirt, casual linen shorts, UV sunglasses, and canvas shoes.";
     } else {
-      clothingDescription = t("wear_desc_cold_casual", "Padded down jacket or heavy parka, wool knit sweater, fleece-lined trousers, and warm winter boots.");
+      clothingDescription =
+        lang === "th"
+          ? "เสื้อยืดหรือเสื้อเชิ้ตลำลอง กางเกงยีนส์ตัวโปรด และรองเท้าผ้าใบสบายเท้า"
+          : "Comfortable casual tee or polo, relaxed jeans or chinos, and everyday walking sneakers.";
     }
   }
 
+  // Accessories logic
+  const accessories: string[] = [];
   if (isRaining) accessories.push(locAccessory.umbrella);
-  if (isSunnyHighUv) {
-    accessories.push(locAccessory.sunglasses);
-    accessories.push(locAccessory.sunscreen);
-  }
-  if (tempC >= 30) accessories.push(locAccessory.water);
-  if (isWindy && tempC < 22) accessories.push(locAccessory.windbreaker);
-  if (tempC < 10) accessories.push(locAccessory.warmBeanie);
-  if (tempC < 5 || isSnowing) accessories.push(locAccessory.heavyCoat);
+  if (tempC <= 5) accessories.push(locAccessory.heavyCoat, locAccessory.warmBeanie);
+  if (uvNum >= 6) accessories.push(locAccessory.sunglasses, locAccessory.sunscreen);
+  if (isVeryHot) accessories.push(locAccessory.water);
+  if ((w.current.wind_speed ?? 0) >= 28) accessories.push(locAccessory.windbreaker);
   if (tempC >= 12 && tempC <= 18 && accessories.length < 2) accessories.push(locAccessory.lightJacket);
 
   const finalAccessories = Array.from(new Set(accessories)).slice(0, 3);
@@ -731,7 +791,51 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </div>
 
-      {/* 2. STREAMLINED HERO CARD (Expanded Height & Crisp Artwork) */}
+      {/* 2. DISASTER & ADVISORY ALERT TICKER BANNER (Active Alerts / All Clear) */}
+      <section className="rounded-2xl border border-border/70 bg-card overflow-hidden shadow-xs text-card-foreground">
+        {alertsToDisplay.length > 0 ? (
+          <div className="flex items-center px-3.5 py-2.5 bg-amber-500/10 text-amber-900 dark:text-amber-200 border-b border-amber-500/20 text-xs">
+            <span className="font-bold flex items-center gap-1.5 shrink-0 mr-3">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-ping inline-block" />
+              <span className="sm:hidden">⚠️ ({alertsToDisplay.length})</span>
+              <span className="hidden sm:inline">
+                {t("alerts", "Weather Alerts")} ({alertsToDisplay.length})
+              </span>
+            </span>
+
+            <div className="overflow-hidden relative w-full flex items-center">
+              <div className="flex items-center gap-6 whitespace-nowrap animate-ticker hover:[animation-play-state:paused] py-0.5">
+                {alertsToDisplay.map((alt) => {
+                  const tagKey = alt.tagKey || (alt.tag ? TAG_TRANSLATION_MAP[alt.tag] : undefined);
+                  const displayTag = tagKey ? t(tagKey, alt.tag || "Advisory") : alt.tag || "Advisory";
+
+                  return (
+                    <div key={alt.id} className="inline-flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md font-semibold text-[10px] uppercase bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                        {displayTag}
+                      </span>
+                      <span className="font-medium">
+                        {lang === "th" && alt.headlineTh
+                          ? alt.headlineTh
+                          : (alt.headlineEn ?? alt.text ?? alt.headline ?? "")}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />
+            <span>
+              {t("all_clear", "ALL CLEAR")} — {t("all_clear_sub", "No severe weather watches active in this region")}
+            </span>
+          </div>
+        )}
+      </section>
+
+      {/* 3. STREAMLINED HERO CARD (Expanded Height & Crisp Artwork) */}
       <section className="relative overflow-hidden rounded-3xl border border-border/80 p-5 sm:p-6 shadow-lg bg-card text-card-foreground min-h-[290px] sm:min-h-[320px] flex flex-col justify-between">
         {heroBgUrl && (
           <div
@@ -780,7 +884,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* 3. CURRENT CONDITIONS DETAILS CARD */}
+      {/* 4. CURRENT CONDITIONS DETAILS CARD */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2 border-b border-border/50 pb-2.5">
           <div className="flex items-center gap-2">
@@ -869,7 +973,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* 4. WHAT TO WEAR TODAY (Moved directly under Current Conditions) */}
+      {/* 5. WHAT TO WEAR TODAY (Directly under Current Conditions) */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
           <div className="flex items-center gap-2">
@@ -939,7 +1043,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* 5. ROLLING 24-HOUR HOURLY FORECAST WITH PRINTED WEATHER WORDS */}
+      {/* 6. ROLLING 24-HOUR HOURLY FORECAST WITH PRINTED WEATHER WORDS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -998,7 +1102,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* 6. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
+      {/* 7. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-base">📅</span>
