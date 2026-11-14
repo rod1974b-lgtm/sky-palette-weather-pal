@@ -498,12 +498,13 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const windDirStr = getWindDirectionLabel(w.current.wind_dir);
   const windUnitStr = unit === "imperial" ? "mph" : "km/h";
 
-  // Pressure & Visibility
-  const pressureVal = Math.round(w.current.pressure);
+   // Pressure & Visibility with defensive optional chaining
+  const pressureVal = Math.round(w.current?.pressure ?? 1013);
   const visUnitStr = unit === "imperial" ? "mi" : "km";
+  const rawVis = typeof w.current?.vis === "number" ? w.current.vis : 10;
   const visVal = unit === "imperial"
-    ? (w.current.vis / 1.60934).toFixed(1)
-    : w.current.vis.toFixed(1);
+    ? (rawVis / 1.60934).toFixed(1)
+    : rawVis.toFixed(1);
 
   // Rain chance
   const rainChanceVal = todayDaily?.pop ?? 0;
