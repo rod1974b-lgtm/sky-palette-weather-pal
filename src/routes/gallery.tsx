@@ -86,10 +86,12 @@ export function getUserSlotLimits() {
     return {
       citySlots: 1,
       aiSlots: 1,
+      baseSlots: 1,
       isUnlimited: false,
       hasAdBonus: false,
       adHoursLeft: 0,
       tierName: "Free Tier",
+      tierLevel: 0,
     };
   }
 
@@ -100,21 +102,26 @@ export function getUserSlotLimits() {
 
   let baseSlots = 1;
   let tierName = "Free Tier";
+  let tierLevel = 0;
   let isUnlimited = false;
 
   if (isParty) {
     baseSlots = 9999;
     tierName = "Party Pack VIP (Unlimited)";
+    tierLevel = 4;
     isUnlimited = true;
   } else if (isLarge) {
     baseSlots = 6;
     tierName = "Large Root Beer (6 Slots)";
+    tierLevel = 3;
   } else if (isMedium) {
     baseSlots = 4;
     tierName = "Medium Root Beer (4 Slots)";
+    tierLevel = 2;
   } else if (isSmall) {
     baseSlots = 2;
     tierName = "Small Root Beer (2 Slots)";
+    tierLevel = 1;
   }
 
   const adUntilStr = localStorage.getItem("weather:ad-unlocked-slots-until");
@@ -129,6 +136,7 @@ export function getUserSlotLimits() {
     citySlots: totalSlots,
     aiSlots: totalSlots,
     baseSlots,
+    tierLevel,
     isUnlimited,
     hasAdBonus,
     adHoursLeft,
@@ -469,8 +477,424 @@ function ArtGalleryPage() {
           )}
         </section>
 
+        {/* VISUAL ARTWORK SLOTS SECTION */}
+        <section className="space-y-4 pt-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold tracking-tight">🖼️ {t("artwork_slots_title", "Your Artwork Slots")}</h2>
+              <p className="text-xs text-muted-foreground">
+                {t("slots_sub", "Your active creations, 24-hour ad bonuses, and permanent Root Beer tier slots.")}
+              </p>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-muted border border-border/60">
+              {slotLimits.isUnlimited ? "Unlimited" : `${savedArtworks.length} / ${slotLimits.aiSlots} Active`}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {/* SLOT 1: Free Forever */}
+            <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-xs flex flex-col min-h-[220px]">
+              <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground">Slot 1 • Free Forever</span>
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  ✨ Permanent
+                </span>
+              </div>
+              {savedArtworks[0] ? (
+                <div className="flex-1 flex flex-col">
+                  <div
+                    className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
+                    onClick={() => setPreviewImage(savedArtworks[0].url)}
+                  >
+                    <img
+                      src={savedArtworks[0].url}
+                      alt={savedArtworks[0].title}
+                      loading="lazy"
+                      className="h-full w-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                  <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                    <p className="text-xs font-medium text-foreground truncate">{savedArtworks[0].title}</p>
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                      <button
+                        onClick={() => handleApplyWallpaper("Custom", savedArtworks[0].url)}
+                        className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+                      >
+                        {t("apply", "Apply")}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSavedArt(savedArtworks[0].id)}
+                        className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
+                      >
+                        {t("delete", "Delete")}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
+                    ✨
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Empty Slot 1</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Paint custom art or upload a photo</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsAiExpanded(true);
+                      window.scrollTo({ top: 120, behavior: "smooth" });
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
+                  >
+                    + Paint with AI
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* SLOT 2: 24h Ad or Small Root Beer */}
+            {(() => {
+              const isSlot2Unlocked = slotLimits.aiSlots >= 2;
+              const isPermanentSlot2 = slotLimits.tierLevel >= 1;
+              const item = savedArtworks[1];
+
+              return (
+                <div
+                  className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col min-h-[220px] ${
+                    isSlot2Unlocked ? "border-border/60 bg-card" : "border-amber-500/30 bg-amber-500/5 border-dashed"
+                  }`}
+                >
+                  <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">Slot 2 • Ad / Small Tier</span>
+                    {isPermanentSlot2 ? (
+                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        🍺 Small Tier
+                      </span>
+                    ) : isSlot2Unlocked ? (
+                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        ⏳ {slotLimits.adHoursLeft}h left
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        🔒 Locked
+                      </span>
+                    )}
+                  </div>
+
+                  {isSlot2Unlocked ? (
+                    item ? (
+                      <div className="flex-1 flex flex-col">
+                        <div
+                          className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
+                          onClick={() => setPreviewImage(item.url)}
+                        >
+                          <img
+                            src={item.url}
+                            alt={item.title}
+                            loading="lazy"
+                            className="h-full w-full object-cover group-hover:scale-105 transition"
+                          />
+                        </div>
+                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                          <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                            <button
+                              onClick={() => handleApplyWallpaper("Custom", item.url)}
+                              className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+                            >
+                              {t("apply", "Apply")}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSavedArt(item.id)}
+                              className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
+                            >
+                              {t("delete", "Delete")}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 text-lg">
+                          ✨
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Empty Slot 2</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {isPermanentSlot2 ? "Permanent slot ready" : `Unlocked for ${slotLimits.adHoursLeft} more hours`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setIsAiExpanded(true);
+                            window.scrollTo({ top: 120, behavior: "smooth" });
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
+                        >
+                          + Paint with AI
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 text-lg">
+                        🔒
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Slot 2 is Locked</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Unlock for 24h with a quick ad, or make permanent for $1
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={handleWatchAd}
+                          disabled={isWatchingAd}
+                          className="px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold hover:bg-emerald-500/20 transition cursor-pointer"
+                        >
+                          {isWatchingAd ? "Ad... ⏳" : "📺 24h Ad"}
+                        </button>
+                        <button
+                          onClick={() => setPaymentModalTier("small_root_beer_tier")}
+                          className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition cursor-pointer"
+                        >
+                          🍺 Small ($1)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* SLOTS 3 & 4: Medium Root Beer Tier ($3) */}
+            {[2, 3].map((slotIndex) => {
+              const slotNumber = slotIndex + 1;
+              const isUnlocked = slotLimits.aiSlots >= slotNumber;
+              const item = savedArtworks[slotIndex];
+
+              return (
+                <div
+                  key={`slot-${slotNumber}`}
+                  className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col min-h-[220px] ${
+                    isUnlocked ? "border-border/60 bg-card" : "border-border/40 bg-muted/10 border-dashed"
+                  }`}
+                >
+                  <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">Slot {slotNumber} • Medium Tier</span>
+                    {isUnlocked ? (
+                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        🍺 Unlocked
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        🔒 Medium Tier
+                      </span>
+                    )}
+                  </div>
+
+                  {isUnlocked ? (
+                    item ? (
+                      <div className="flex-1 flex flex-col">
+                        <div
+                          className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
+                          onClick={() => setPreviewImage(item.url)}
+                        >
+                          <img
+                            src={item.url}
+                            alt={item.title}
+                            loading="lazy"
+                            className="h-full w-full object-cover group-hover:scale-105 transition"
+                          />
+                        </div>
+                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                          <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                            <button
+                              onClick={() => handleApplyWallpaper("Custom", item.url)}
+                              className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+                            >
+                              {t("apply", "Apply")}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSavedArt(item.id)}
+                              className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
+                            >
+                              {t("delete", "Delete")}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
+                          ✨
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Empty Slot {slotNumber}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Permanent slot ready for art</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setIsAiExpanded(true);
+                            window.scrollTo({ top: 120, behavior: "smooth" });
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
+                        >
+                          + Paint with AI
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
+                      <span className="text-2xl">🔒</span>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Slot {slotNumber} Locked</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Unlocks with Medium Root Beer (4 Slots + 30 Days Ad-Free)
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setPaymentModalTier("medium_root_beer_tier")}
+                        className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition cursor-pointer mt-1"
+                      >
+                        🍺 Medium Tier ($3)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* SLOTS 5 & 6: Large Root Beer Tier ($5) */}
+            {[4, 5].map((slotIndex) => {
+              const slotNumber = slotIndex + 1;
+              const isUnlocked = slotLimits.aiSlots >= slotNumber;
+              const item = savedArtworks[slotIndex];
+
+              return (
+                <div
+                  key={`slot-${slotNumber}`}
+                  className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col min-h-[220px] ${
+                    isUnlocked ? "border-border/60 bg-card" : "border-border/40 bg-muted/10 border-dashed"
+                  }`}
+                >
+                  <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">Slot {slotNumber} • Large Tier</span>
+                    {isUnlocked ? (
+                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        🍺 Unlocked
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        🔒 Large Tier
+                      </span>
+                    )}
+                  </div>
+
+                  {isUnlocked ? (
+                    item ? (
+                      <div className="flex-1 flex flex-col">
+                        <div
+                          className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
+                          onClick={() => setPreviewImage(item.url)}
+                        >
+                          <img
+                            src={item.url}
+                            alt={item.title}
+                            loading="lazy"
+                            className="h-full w-full object-cover group-hover:scale-105 transition"
+                          />
+                        </div>
+                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                          <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                            <button
+                              onClick={() => handleApplyWallpaper("Custom", item.url)}
+                              className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+                            >
+                              {t("apply", "Apply")}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSavedArt(item.id)}
+                              className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
+                            >
+                              {t("delete", "Delete")}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
+                          ✨
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Empty Slot {slotNumber}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Permanent slot ready for art</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setIsAiExpanded(true);
+                            window.scrollTo({ top: 120, behavior: "smooth" });
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
+                        >
+                          + Paint with AI
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
+                      <span className="text-2xl">🔒</span>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Slot {slotNumber} Locked</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Unlocks with Large Root Beer (6 Slots + 1 Year Ad-Free)
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setPaymentModalTier("large_root_beer_tier")}
+                        className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition cursor-pointer mt-1"
+                      >
+                        🍺 Large Tier ($5)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Party Pack VIP Card */}
+          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">👑</span>
+              <div>
+                <p className="text-xs font-bold text-foreground">Party Pack VIP — Unlimited Slots Forever</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Never worry about limits again. Unlimited art slots, all mascots, and Ad-Free Forever!
+                </p>
+              </div>
+            </div>
+            {!slotLimits.isUnlimited ? (
+              <button
+                onClick={() => setPaymentModalTier("party_pack_root_beer_tier")}
+                className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition cursor-pointer shrink-0 shadow-xs"
+              >
+                🎉 Party Pack VIP ($10)
+              </button>
+            ) : (
+              <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-xs font-bold shrink-0">
+                ✨ Unlimited VIP Active
+              </span>
+            )}
+          </div>
+        </section>
+
         {/* City Wallpapers Section (Wallpapers First) */}
-        <section className="space-y-4">
+        <section className="space-y-4 pt-4 border-t border-border/40">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold tracking-tight">{t("city_wallpapers", "City & Landmark Wallpapers")}</h2>
@@ -555,56 +979,6 @@ function ArtGalleryPage() {
             ))}
           </div>
         </section>
-
-        {/* My Saved & Uploaded Art Section */}
-        {savedArtworks.length > 0 && (
-          <section className="space-y-4 pt-4 border-t border-border/40">
-            <div>
-              <h2 className="text-base font-bold tracking-tight">{t("my_saved_art", "My Saved & Uploaded Art")}</h2>
-              <p className="text-xs text-muted-foreground">
-                {t("saved_art_sub", "Your custom creations and personal uploads saved locally.")}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {savedArtworks.map((art) => (
-                <div
-                  key={art.id}
-                  className="group relative rounded-xl border border-border/60 bg-card overflow-hidden shadow-xs flex flex-col"
-                >
-                  <div
-                    className="aspect-video w-full bg-muted cursor-pointer overflow-hidden"
-                    onClick={() => setPreviewImage(art.url)}
-                  >
-                    <img
-                      src={art.url}
-                      alt={art.title}
-                      loading="lazy"
-                      className="h-full w-full object-cover group-hover:scale-105 transition"
-                    />
-                  </div>
-                  <div className="p-2 space-y-1.5">
-                    <p className="text-[11px] font-medium text-foreground truncate">{art.title}</p>
-                    <div className="flex items-center justify-between gap-1">
-                      <button
-                        onClick={() => handleApplyWallpaper("Custom", art.url)}
-                        className="text-[10px] font-semibold text-primary hover:underline cursor-pointer"
-                      >
-                        {t("apply", "Apply")}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSavedArt(art.id)}
-                        className="text-[10px] font-semibold text-destructive hover:underline cursor-pointer"
-                      >
-                        {t("delete", "Delete")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </main>
 
       {/* Image Preview Modal */}
