@@ -58,6 +58,21 @@ const DEFAULT_PLACE: Place = {
 
 const LAST_PLACE_KEY = "weather:last-place";
 
+const SKY_GRADIENTS: Record<string, string> = {
+  "clear-day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
+  "day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
+  "clear-night": "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
+  "night": "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
+  "cloudy-day": "linear-gradient(180deg, oklch(0.8 0.03 248), oklch(0.92 0.02 250))",
+  "cloudy": "linear-gradient(180deg, oklch(0.8 0.03 248), oklch(0.92 0.02 250))",
+  "cloudy-night": "linear-gradient(180deg, oklch(0.24 0.04 265), oklch(0.15 0.03 268))",
+  "fog": "linear-gradient(180deg, oklch(0.84 0.015 255), oklch(0.94 0.008 255))",
+  "rain": "linear-gradient(180deg, oklch(0.66 0.07 252), oklch(0.82 0.035 248))",
+  "snow": "linear-gradient(180deg, oklch(0.87 0.035 280), oklch(0.96 0.015 275))",
+  "storm": "linear-gradient(180deg, oklch(0.56 0.06 268), oklch(0.72 0.04 262))",
+  "sunset": "linear-gradient(180deg, oklch(0.68 0.16 38), oklch(0.75 0.12 60) 50%, oklch(0.88 0.08 85))",
+};
+
 function loadLastPlace(): Place | null {
   try {
     const raw = localStorage.getItem(LAST_PLACE_KEY);
@@ -545,16 +560,31 @@ function Index() {
     );
   };
 
-  const activeSky =
+  const rawSky =
     skyPref === "auto"
       ? weather
         ? skyKey(weather.current.code, weather.current.is_day)
-        : "day"
+        : "clear-day"
       : skyPref;
+
+  const activeSky =
+    rawSky === "day"
+      ? "clear-day"
+      : rawSky === "night"
+      ? "clear-night"
+      : rawSky === "cloudy"
+      ? "cloudy-day"
+      : rawSky;
+
+  const activeGradient =
+    SKY_GRADIENTS[activeSky] ||
+    SKY_GRADIENTS[rawSky] ||
+    SKY_GRADIENTS["clear-day"];
 
   return (
     <div
-      className={`min-h-screen text-foreground transition-colors duration-500 sky-${activeSky}`}
+      style={{ background: activeGradient }}
+      className={`min-h-screen text-foreground transition-all duration-700 sky sky-${activeSky}`}
     >
       {/* Top Application Header */}
       <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur-md">
