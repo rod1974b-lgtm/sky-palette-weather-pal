@@ -219,7 +219,7 @@ function ArtGalleryPage() {
         title,
         image: images[0]!,
         region: getCityRegion(cityKey),
-        isFreeForever: true, // Primary landmark is 100% free forever
+        isFreeForever: true,
       });
     }
     return list;
@@ -237,9 +237,15 @@ function ArtGalleryPage() {
 
   const handleApplyWallpaper = (cityName: string, imageUrl: string) => {
     saveCustomArtChoice(cityName, imageUrl);
+    const key = cityName.toLowerCase().trim();
+    try {
+      localStorage.setItem(`weather:custom-bg:${key}`, imageUrl);
+      localStorage.setItem(`weather:custom-art:${key}`, imageUrl);
+      localStorage.setItem("weather:custom-bg-current", imageUrl);
+    } catch {}
     window.dispatchEvent(
       new CustomEvent("weather:custom-bg-change", {
-        detail: { city: cityName.toLowerCase(), url: imageUrl },
+        detail: { city: key, url: imageUrl },
       })
     );
     alert(`Applied wallpaper for ${cityName}!`);
@@ -500,57 +506,63 @@ function ArtGalleryPage() {
                   ✨ Permanent
                 </span>
               </div>
-              {savedArtworks[0] ? (
-                <div className="flex-1 flex flex-col">
-                  <div
-                    className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
-                    onClick={() => setPreviewImage(savedArtworks[0].url)}
-                  >
-                    <img
-                      src={savedArtworks[0].url}
-                      alt={savedArtworks[0].title}
-                      loading="lazy"
-                      className="h-full w-full object-cover group-hover:scale-105 transition"
-                    />
-                  </div>
-                  <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                    <p className="text-xs font-medium text-foreground truncate">{savedArtworks[0].title}</p>
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-                      <button
-                        onClick={() => handleApplyWallpaper("Custom", savedArtworks[0].url)}
-                        className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+              {(() => {
+                const item = savedArtworks[0];
+                if (item) {
+                  return (
+                    <div className="flex-1 flex flex-col">
+                      <div
+                        className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
+                        onClick={() => setPreviewImage(item.url)}
                       >
-                        {t("apply", "Apply")}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSavedArt(savedArtworks[0].id)}
-                        className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
-                      >
-                        {t("delete", "Delete")}
-                      </button>
+                        <img
+                          src={item.url}
+                          alt={item.title}
+                          loading="lazy"
+                          className="h-full w-full object-cover group-hover:scale-105 transition"
+                        />
+                      </div>
+                      <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                        <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                          <button
+                            onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
+                            className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+                          >
+                            {t("apply", "Apply")}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSavedArt(item.id)}
+                            className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
+                          >
+                            {t("delete", "Delete")}
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                  );
+                }
+                return (
+                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
+                      ✨
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Empty Slot 1</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Paint custom art or upload a photo</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsAiExpanded(true);
+                        window.scrollTo({ top: 120, behavior: "smooth" });
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
+                    >
+                      + Paint with AI
+                    </button>
                   </div>
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
-                    ✨
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-foreground">Empty Slot 1</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Paint custom art or upload a photo</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setIsAiExpanded(true);
-                      window.scrollTo({ top: 120, behavior: "smooth" });
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
-                  >
-                    + Paint with AI
-                  </button>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* SLOT 2: 24h Ad or Small Root Beer */}
@@ -600,7 +612,7 @@ function ArtGalleryPage() {
                           <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
                           <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
                             <button
-                              onClick={() => handleApplyWallpaper("Custom", item.url)}
+                              onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
                               className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
                             >
                               {t("apply", "Apply")}
@@ -712,7 +724,7 @@ function ArtGalleryPage() {
                           <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
                           <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
                             <button
-                              onClick={() => handleApplyWallpaper("Custom", item.url)}
+                              onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
                               className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
                             >
                               {t("apply", "Apply")}
@@ -811,7 +823,7 @@ function ArtGalleryPage() {
                           <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
                           <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
                             <button
-                              onClick={() => handleApplyWallpaper("Custom", item.url)}
+                              onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
                               className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
                             >
                               {t("apply", "Apply")}
