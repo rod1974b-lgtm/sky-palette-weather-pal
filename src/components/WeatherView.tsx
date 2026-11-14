@@ -679,15 +679,16 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
       {/* 2. STREAMLINED HERO CARD (Expanded Height & Crisp Artwork) */}
       <section className="relative overflow-hidden rounded-3xl border border-border/80 p-5 sm:p-6 shadow-lg bg-card text-card-foreground min-h-[290px] sm:min-h-[320px] flex flex-col justify-between">
-        {heroBgUrl && (
+               {heroBgUrl && (
           <div
             className="absolute inset-0 bg-cover bg-center transition-all duration-700 pointer-events-none"
             style={{
-              backgroundImage: `url(${heroBgUrl})`,
+              backgroundImage: `url("${heroBgUrl}")`,
               filter: "brightness(1.02) saturate(1.15)",
             }}
           />
         )}
+
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/20 pointer-events-none" />
 
         <div className="relative z-10 flex flex-col justify-between flex-1 w-full">
