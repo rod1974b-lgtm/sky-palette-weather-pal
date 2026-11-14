@@ -106,7 +106,7 @@ async function fetchUSGSEarthquakes(lat: number, lon: number): Promise<TickerAle
     const quakes: TickerAlertItem[] = [];
     for (const f of data.features || []) {
       const [qLon, qLat] = f.geometry.coordinates;
-      const mag = f.properties.mag;
+      const mag = Number(f.properties?.mag ?? 0);
       const placeName = f.properties.place;
       const time = f.properties.time;
 

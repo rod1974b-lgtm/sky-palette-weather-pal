@@ -491,8 +491,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const minTemp = todayDaily ? Math.round(todayDaily.min) : tempVal;
 
   // UV & Humidity
-  const uvInfo = getUvIndexLabel(w.current.uv, t);
-  const uvValFormatted = typeof w.current.uv === "number" ? w.current.uv.toFixed(1) : "0.0";
+  const uvNum = typeof w.current.uv === "number" && !isNaN(w.current.uv) ? w.current.uv : 0;
+  const uvInfo = getUvIndexLabel(uvNum, t);
+  const uvValFormatted = uvNum.toFixed(1);
 
   // Wind speed & direction
   const windDirStr = getWindDirectionLabel(w.current.wind_dir ?? 0);
