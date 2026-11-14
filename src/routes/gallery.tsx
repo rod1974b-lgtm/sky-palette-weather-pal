@@ -100,104 +100,184 @@ export function getUserSlotLimits() {
   const isMedium = localStorage.getItem("thankyou_unlocked_medium_root_beer_tier") === "true";
   const isSmall = localStorage.getItem("thankyou_unlocked_small_root_beer_tier") === "true";
 
-  let baseSlots = 1;
   let tierLevel = 0;
+  let baseSlots = 1;
   let isUnlimited = false;
 
   if (isParty) {
-    baseSlots = 9999;
     tierLevel = 4;
+    baseSlots = 999;
     isUnlimited = true;
   } else if (isLarge) {
-    baseSlots = 6;
     tierLevel = 3;
+    baseSlots = 6;
   } else if (isMedium) {
-    baseSlots = 4;
     tierLevel = 2;
+    baseSlots = 4;
   } else if (isSmall) {
-    baseSlots = 2;
     tierLevel = 1;
+    baseSlots = 2;
   }
 
-  const adUntilStr = localStorage.getItem("weather:ad-unlocked-slots-until");
-  const adUntil = adUntilStr ? parseInt(adUntilStr, 10) : 0;
-  const now = Date.now();
-  const hasAdBonus = adUntil > now;
-  const adHoursLeft = hasAdBonus ? Math.ceil((adUntil - now) / (1000 * 60 * 60)) : 0;
+  let hasAdBonus = false;
+  let adHoursLeft = 0;
+  try {
+    const adTimestamp = localStorage.getItem("weather:gallery-ad-bonus-time");
+    if (adTimestamp) {
+      const elapsed = Date.now() - parseInt(adTimestamp, 10);
+      const remainingMs = 24 * 60 * 60 * 1000 - elapsed;
+      if (remainingMs > 0) {
+        hasAdBonus = true;
+        adHoursLeft = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+      } else {
+        localStorage.removeItem("weather:gallery-ad-bonus-time");
+      }
+    }
+  } catch {}
 
-  const totalSlots = isUnlimited ? Infinity : baseSlots + (hasAdBonus ? 1 : 0);
+  const effectiveAiSlots = isUnlimited ? 999 : baseSlots + (hasAdBonus ? 1 : 0);
+  const effectiveCitySlots = isUnlimited ? 999 : 1 + (hasAdBonus ? 1 : 0);
 
   return {
-    citySlots: totalSlots,
-    aiSlots: totalSlots,
+    citySlots: effectiveCitySlots,
+    aiSlots: effectiveAiSlots,
     baseSlots,
-    tierLevel,
     isUnlimited,
     hasAdBonus,
     adHoursLeft,
+    tierLevel,
   };
 }
 
-function getTierShortName(level: number, t: TFunction): string {
-  switch (level) {
-    case 4: return t("tier_short_party", "Party VIP");
-    case 3: return t("tier_short_large", "Large");
-    case 2: return t("tier_short_medium", "Medium");
-    case 1: return t("tier_short_small", "Small");
-    default: return t("tier_short_free", "Free");
+function getTierFullName(tierLevel: number, t: TFunction): string {
+  switch (tierLevel) {
+    case 4:
+      return `🎉 ${t("tier_party_vip", "Party Pack VIP (Unlimited Slots & Ad-Free Forever)")}`;
+    case 3:
+      return `👑 ${t("tier_large", "Large Root Beer Tier (6 Slots + 1 Year Ad-Free)")}`;
+    case 2:
+      return `🌟 ${t("tier_medium", "Medium Root Beer Tier (4 Slots + 30 Days Ad-Free)")}`;
+    case 1:
+      return `🍺 ${t("tier_small", "Small Root Beer Tier (2 Permanent Slots)")}`;
+    default:
+      return `🆓 ${t("tier_free", "Free Tier (1 Slot + Watch Ad for +1 Slot / 24h)")}`;
   }
 }
 
-function getTierFullName(level: number, t: TFunction): string {
-  switch (level) {
-    case 4: return t("tier_full_party", "Party Pack VIP (Unlimited)");
-    case 3: return t("tier_full_large", "Large Root Beer (6 Slots)");
-    case 2: return t("tier_full_medium", "Medium Root Beer (4 Slots)");
-    case 1: return t("tier_full_small", "Small Root Beer (2 Slots)");
-    default: return t("tier_full_free", "Free Tier");
+function getTierShortName(tierLevel: number, t: TFunction): string {
+  switch (tierLevel) {
+    case 4:
+      return t("tier_short_party", "Party VIP (Unlimited)");
+    case 3:
+      return t("tier_short_large", "Large Tier (6 Slots)");
+    case 2:
+      return t("tier_short_medium", "Medium Tier (4 Slots)");
+    case 1:
+      return t("tier_short_small", "Small Tier (2 Slots)");
+    default:
+      return t("tier_short_free", "Free Tier (1 Slot)");
   }
 }
 
-function ArtGalleryPage() {
+// Client-Side Canvas Image Compression helper
+function compressImageDataUrl(dataUrl: string, maxDim = 1024, quality = 0.82): Promise<string> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !dataUrl.startsWith("data:")) {
+      return resolve(dataUrl);
+    }
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(dataUrl);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      try {
+        const webp = canvas.toDataURL("image/webp", quality);
+        if (webp.startsWith("data:image/webp")) return resolve(webp);
+      } catch {}
+
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+function compressImageFile(file: File, maxDim = 1024, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const src = e.target?.result as string;
+      compressImageDataUrl(src, maxDim, quality).then(resolve).catch(reject);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function safeSetStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("weather:custom-bg:") && k !== key && k !== "weather:custom-bg:current") {
+          localStorage.removeItem(k);
+        }
+      }
+      localStorage.setItem(key, value);
+    } catch {}
+  }
+}
+
+export function ArtGalleryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Active City state (persisted from main screen)
   const [currentPlace, setCurrentPlace] = useState<Place>(() => {
-    if (typeof window === "undefined") {
-      return { name: "Bangkok", country: "Thailand", lat: 13.7563, lon: 100.5018 };
+    if (typeof window !== "undefined") {
+      try {
+        const last = localStorage.getItem("weather:last-place");
+        if (last) return JSON.parse(last);
+      } catch {}
     }
-    try {
-      const saved = localStorage.getItem("weather:last-place");
-      if (saved) return JSON.parse(saved);
-    } catch {}
     return { name: "Bangkok", country: "Thailand", lat: 13.7563, lon: 100.5018 };
   });
 
-  // Slot System & Perks state
-  const [slotLimits, setSlotLimits] = useState(getUserSlotLimits);
-  const [paymentModalTier, setPaymentModalTier] = useState<string | null>(null);
-  const [isWatchingAd, setIsWatchingAd] = useState(false);
-
-  // Gallery Filters & UI
-  const [selectedRegion, setSelectedRegion] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isAiExpanded, setIsAiExpanded] = useState(false);
-
-  // AI Generator state
   const [aiPrompt, setAiPrompt] = useState("");
-  const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+  const [isAiExpanded, setIsAiExpanded] = useState(false);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [paymentModalTier, setPaymentModalTier] = useState<string | null>(null);
 
-  // Saved Art state
   const [savedArtworks, setSavedArtworks] = useState<SavedItem[]>([]);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [slotLimits, setSlotLimits] = useState(getUserSlotLimits);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Refresh slots on mount and storage events
   useEffect(() => {
-    setSlotLimits(getUserSlotLimits());
     try {
       const raw = localStorage.getItem("weather:custom-art-saved");
       if (raw) setSavedArtworks(JSON.parse(raw));
@@ -208,33 +288,38 @@ function ArtGalleryPage() {
     setSavedArtworks(items);
     try {
       localStorage.setItem("weather:custom-art-saved", JSON.stringify(items));
-    } catch {}
+    } catch {
+      try {
+        localStorage.setItem("weather:custom-art-saved", JSON.stringify(items.slice(0, 6)));
+      } catch {}
+    }
   };
 
   const handleWatchAd = () => {
+    if (slotLimits.hasAdBonus) {
+      alert(t("alert_ad_already_active", `You already have an active Ad Slot (+1 slot) for ${slotLimits.adHoursLeft} more hours!`, { hours: slotLimits.adHoursLeft }));
+      return;
+    }
     setIsWatchingAd(true);
     setTimeout(() => {
-      const until = Date.now() + 24 * 60 * 60 * 1000;
-      localStorage.setItem("weather:ad-unlocked-slots-until", until.toString());
-      setSlotLimits(getUserSlotLimits());
+      try {
+        localStorage.setItem("weather:gallery-ad-bonus-time", Date.now().toString());
+        setSlotLimits(getUserSlotLimits());
+        alert(t("alert_ad_watched_success", "🎉 Ad complete! +1 Temporary Slot unlocked for the next 24 hours. Support with Root Beer to keep it permanently!"));
+      } catch {}
       setIsWatchingAd(false);
-      alert(t("alert_ad_watched", "✨ Ad watched! +1 City slot & +1 AI slot unlocked for the next 24 hours."));
-    }, 1500);
+    }, 2000);
   };
 
-  // Curated Landmark items
   const landmarkItems = useMemo(() => {
-    const list: Array<{ city: string; title: string; image: string; region: string; isFreeForever: boolean }> = [];
-    for (const [cityKey, images] of Object.entries(LANDMARK_WATERCOLORS)) {
-      if (!images || images.length === 0) continue;
-      const formattedCity = cityKey.charAt(0).toUpperCase() + cityKey.slice(1);
-      const title = LANDMARK_TITLES[cityKey]?.[0] || `${formattedCity} Landmark`;
-      list.push({
-        city: formattedCity,
-        title,
-        image: images[0]!,
-        region: getCityRegion(cityKey),
-        isFreeForever: true,
+    const list: { city: string; image: string; title: string; region: string }[] = [];
+    for (const [cityKey, urls] of Object.entries(LANDMARK_WATERCOLORS)) {
+      const capCity = cityKey.charAt(0).toUpperCase() + cityKey.slice(1);
+      const region = getCityRegion(cityKey);
+      urls.forEach((url, idx) => {
+        const titleKey = `${cityKey}_${idx}`;
+        const title = LANDMARK_TITLES[titleKey] || `${capCity} Watercolor Landmark #${idx + 1}`;
+        list.push({ city: capCity, image: url, title, region });
       });
     }
     return list;
@@ -258,10 +343,10 @@ function ArtGalleryPage() {
       const cityKey = cityName.toLowerCase().trim();
       const currentCityKey = currentPlace.name.toLowerCase().trim();
 
-      localStorage.setItem(`weather:custom-bg:${cityKey}`, imageUrl);
-      localStorage.setItem(`weather:custom-bg:${currentCityKey}`, imageUrl);
-      localStorage.setItem("weather:custom-bg:current", imageUrl);
-      localStorage.setItem("weather:custom-bg-synced-at", Date.now().toString());
+      safeSetStorage(`weather:custom-bg:${cityKey}`, imageUrl);
+      safeSetStorage(`weather:custom-bg:${currentCityKey}`, imageUrl);
+      safeSetStorage("weather:custom-bg:current", imageUrl);
+      safeSetStorage("weather:custom-bg-synced-at", Date.now().toString());
 
       window.dispatchEvent(
         new CustomEvent("weather:custom-bg-change", {
@@ -313,14 +398,16 @@ function ArtGalleryPage() {
       });
 
       if (res?.imageUrl) {
+        const optimizedUrl = await compressImageDataUrl(res.imageUrl, 1024, 0.82);
+
         const newItem: SavedItem = {
           id: `ai-${Date.now()}`,
-          url: res.imageUrl,
+          url: optimizedUrl,
           title: `${currentPlace.name} — ${aiPrompt.slice(0, 30)}...`,
           timestamp: Date.now(),
         };
         saveArtworkList([newItem, ...savedArtworks]);
-        handleApplyWallpaper(currentPlace.name, res.imageUrl);
+        handleApplyWallpaper(currentPlace.name, optimizedUrl);
         setAiPrompt("");
         setUploadedPhoto(null);
         setIsAiExpanded(false);
@@ -334,23 +421,36 @@ function ArtGalleryPage() {
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const photoUrl = reader.result as string;
-      setUploadedPhoto(photoUrl);
+    try {
+      const compressedUrl = await compressImageFile(file, 1024, 0.82);
+      setUploadedPhoto(compressedUrl);
       const newItem: SavedItem = {
         id: `photo-${Date.now()}`,
-        url: photoUrl,
+        url: compressedUrl,
         title: `${currentPlace.name} — ${file.name.slice(0, 24)}`,
         timestamp: Date.now(),
       };
       saveArtworkList([newItem, ...savedArtworks]);
-      handleApplyWallpaper(currentPlace.name, photoUrl);
-    };
-    reader.readAsDataURL(file);
+      handleApplyWallpaper(currentPlace.name, compressedUrl);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const photoUrl = reader.result as string;
+        setUploadedPhoto(photoUrl);
+        const newItem: SavedItem = {
+          id: `photo-${Date.now()}`,
+          url: photoUrl,
+          title: `${currentPlace.name} — ${file.name.slice(0, 24)}`,
+          timestamp: Date.now(),
+        };
+        saveArtworkList([newItem, ...savedArtworks]);
+        handleApplyWallpaper(currentPlace.name, photoUrl);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDeleteSavedArt = (id: string) => {
@@ -458,104 +558,222 @@ function ArtGalleryPage() {
           {isAiExpanded && (
             <div className="mt-4 pt-4 border-t border-border/40 space-y-3">
               <div>
-                <label className="text-xs font-medium text-foreground block mb-1">
-                  {t("scene_description", "Describe your custom watercolor scene")}
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  {t("describe_scene", `Describe the scene in ${currentPlace.name}`)}:
                 </label>
-                <textarea
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder={`${t("scene_placeholder", "e.g. Misty sunrise over")} ${currentPlace.name}...`}
-                  rows={2}
-                  className="w-full rounded-xl border border-border/60 bg-background/80 p-2.5 text-xs shadow-xs focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              {/* Photo Upload Attachment */}
-              <div className="flex items-center gap-3">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handlePhotoUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-xl border border-border/60 bg-muted/40 hover:bg-muted text-xs font-medium transition cursor-pointer"
-                >
-                  📷 {uploadedPhoto ? t("change_photo", "Change Photo") : t("upload_photo", "Upload Reference Photo")}
-                </button>
-                {uploadedPhoto && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder={t("ai_prompt_placeholder", `e.g. sunset glow, river reflections, floating market lanterns in ${currentPlace.name}...`)}
+                    disabled={isGenerating}
+                    className="flex-1 rounded-xl border border-border/60 bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
                   <button
-                    type="button"
-                    onClick={() => setUploadedPhoto(null)}
-                    className="text-xs text-destructive hover:underline cursor-pointer"
+                    onClick={handleGenerateAi}
+                    disabled={isGenerating || !aiPrompt.trim()}
+                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
                   >
-                    {t("remove_photo", "Remove Photo")}
+                    {isGenerating ? t("painting_dots", "Painting... 🎨") : t("paint_art_btn", "Paint Artwork 🖌️")}
                   </button>
-                )}
+                </div>
               </div>
 
               {aiError && (
-                <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-destructive">
+                <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-xl p-2.5">
                   {aiError}
-                </div>
+                </p>
               )}
 
-              <button
-                onClick={handleGenerateAi}
-                disabled={isGenerating || !aiPrompt.trim()}
-                className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
-              >
-                {isGenerating ? t("painting_scene", "Painting Scene... ⏳") : t("paint_watercolor", "Paint Watercolor 🎨")}
-              </button>
+              <div className="flex items-center gap-3 pt-1 text-xs text-muted-foreground">
+                <span>{t("or_upload_own", "Or upload your own picture")}:</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-semibold text-primary hover:underline cursor-pointer"
+                >
+                  📁 {t("choose_photo_btn", "Choose Photo")}
+                </button>
+              </div>
             </div>
           )}
         </section>
 
-        {/* 6 Visual Slots Rack */}
-        <section className="space-y-4 pt-2">
+        {/* Visual Slot Rack (Slots 1 to 6 & Party VIP) */}
+        <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold tracking-tight">{t("artwork_slots_title", "Your Artwork Slots")}</h2>
-              <p className="text-xs text-muted-foreground">
-                {t("slots_sub", "Your active creations, 24-hour ad bonuses, and permanent Root Beer tier slots.")}
-              </p>
-            </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-muted border border-border/60">
-              {slotLimits.isUnlimited ? t("unlimited", "Unlimited") : `${savedArtworks.length} / ${slotLimits.aiSlots} ${t("active_status", "Active")}`}
-            </span>
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <span>🖼️</span>
+              <span>{t("my_artwork_slots", "My Artwork Slots")}</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                ({savedArtworks.length} / {slotLimits.isUnlimited ? "∞" : slotLimits.aiSlots} {t("active", "active")})
+              </span>
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              {t("tap_apply_hero", "Tap Apply to display on your weather hero card")}
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {/* SLOT 1: Free Forever */}
-            <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-xs flex flex-col min-h-[220px]">
-              <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground">{t("slot_1_free", "Slot 1 • Free Forever")}</span>
-                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  {t("badge_permanent", "✨ Permanent")}
-                </span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {/* Slot 1: Free Forever */}
+            <div className="rounded-2xl border border-primary/30 bg-card p-2.5 flex flex-col justify-between shadow-xs min-h-[170px] relative overflow-hidden">
+              <div className="flex items-center justify-between text-[10px] font-bold text-primary mb-1.5">
+                <span>{t("slot_1_label", "Slot 1 • Free Forever")}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">✓ {t("free", "Free")}</span>
               </div>
-              {(() => {
-                const item = savedArtworks[0];
-                if (item) {
-                  return (
-                    <div className="flex-1 flex flex-col">
-                      <div
-                        className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
-                        onClick={() => setPreviewImage(item.url)}
+              {savedArtworks[0] ? (
+                <div className="flex-1 flex flex-col justify-between space-y-1.5">
+                  <div
+                    onClick={() => setZoomedImage({ url: savedArtworks[0].url, title: savedArtworks[0].title })}
+                    className="relative aspect-4/3 rounded-xl overflow-hidden bg-muted cursor-pointer group"
+                  >
+                    <img
+                      src={savedArtworks[0].url}
+                      alt={savedArtworks[0].title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    />
+                  </div>
+                  <p className="text-xs font-medium text-foreground truncate">{savedArtworks[0].title}</p>
+                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-border/40">
+                    <button
+                      onClick={() => handleApplyWallpaper(currentPlace.name, savedArtworks[0].url)}
+                      className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+                    >
+                      {t("apply", "Apply")}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSavedArt(savedArtworks[0].id)}
+                      className="px-2 py-1 rounded-lg border border-border/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-[11px] transition cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => setIsAiExpanded(true)}
+                  className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border/60 rounded-xl p-2 text-center hover:border-primary/40 transition cursor-pointer"
+                >
+                  <span className="text-xl mb-1">✨</span>
+                  <span className="text-[11px] font-semibold text-muted-foreground">{t("empty_slot_1", "Empty Slot 1")}</span>
+                  <span className="text-[9px] text-primary mt-0.5">{t("paint_with_ai", "+ Paint with AI")}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Slot 2: Ad Bonus (24h) or Small Root Beer Tier */}
+            <div className="rounded-2xl border border-border/80 bg-card p-2.5 flex flex-col justify-between shadow-xs min-h-[170px] relative overflow-hidden">
+              <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground mb-1.5">
+                <span>{t("slot_2_label", "Slot 2 • Ad / Small Tier")}</span>
+                {slotLimits.tierLevel >= 1 ? (
+                  <span className="text-amber-600 dark:text-amber-400">🍺 {t("unlocked", "Unlocked")}</span>
+                ) : slotLimits.hasAdBonus ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">📺 {slotLimits.adHoursLeft}h</span>
+                ) : (
+                  <span className="text-muted-foreground">🔒</span>
+                )}
+              </div>
+              {slotLimits.aiSlots >= 2 ? (
+                savedArtworks[1] ? (
+                  <div className="flex-1 flex flex-col justify-between space-y-1.5">
+                    <div
+                      onClick={() => setZoomedImage({ url: savedArtworks[1].url, title: savedArtworks[1].title })}
+                      className="relative aspect-4/3 rounded-xl overflow-hidden bg-muted cursor-pointer group"
+                    >
+                      <img
+                        src={savedArtworks[1].url}
+                        alt={savedArtworks[1].title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      />
+                    </div>
+                    <p className="text-xs font-medium text-foreground truncate">{savedArtworks[1].title}</p>
+                    <div className="flex items-center justify-between gap-1 pt-1 border-t border-border/40">
+                      <button
+                        onClick={() => handleApplyWallpaper(currentPlace.name, savedArtworks[1].url)}
+                        className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
                       >
-                        <img
-                          src={item.url}
-                          alt={item.title}
-                          loading="lazy"
-                          className="h-full w-full object-cover group-hover:scale-105 transition"
-                        />
-                      </div>
-                      <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                        {t("apply", "Apply")}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSavedArt(savedArtworks[1].id)}
+                        className="px-2 py-1 rounded-lg border border-border/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-[11px] transition cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setIsAiExpanded(true)}
+                    className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border/60 rounded-xl p-2 text-center hover:border-primary/40 transition cursor-pointer"
+                  >
+                    <span className="text-xl mb-1">✨</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">{t("empty_slot_2", "Empty Slot 2")}</span>
+                    <span className="text-[9px] text-primary mt-0.5">
+                      {slotLimits.hasAdBonus
+                        ? t("unlocked_hours_left", `Unlocked for ${slotLimits.adHoursLeft} more hours`, { hours: slotLimits.adHoursLeft })
+                        : t("paint_with_ai", "+ Paint with AI")}
+                    </span>
+                  </div>
+                )
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 rounded-xl p-2 text-center space-y-1">
+                  <span className="text-base">🔒</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    {t("slot_2_unlock_desc", "Watch an ad for 24h or get Small Root Beer ($1) to keep forever.")}
+                  </p>
+                  <button
+                    onClick={handleWatchAd}
+                    className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    📺 {t("watch_ad", "Watch Ad")}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Slots 3 & 4: Medium Root Beer Tier ($3) */}
+            {[2, 3].map((slotIndex) => {
+              const slotNumber = slotIndex + 1;
+              const isUnlocked = slotLimits.aiSlots >= slotNumber;
+              const item = savedArtworks[slotIndex];
+
+              return (
+                <div
+                  key={slotIndex}
+                  className="rounded-2xl border border-border/80 bg-card p-2.5 flex flex-col justify-between shadow-xs min-h-[170px] relative overflow-hidden"
+                >
+                  <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground mb-1.5">
+                    <span>{t("slot_n_label", `Slot ${slotNumber} • Medium Tier`, { n: slotNumber })}</span>
+                    {isUnlocked ? (
+                      <span className="text-amber-600 dark:text-amber-400">🍺 {t("unlocked", "Unlocked")}</span>
+                    ) : (
+                      <span className="text-muted-foreground">🔒</span>
+                    )}
+                  </div>
+
+                  {isUnlocked ? (
+                    item ? (
+                      <div className="flex-1 flex flex-col justify-between space-y-1.5">
+                        <div
+                          onClick={() => setZoomedImage({ url: item.url, title: item.title })}
+                          className="relative aspect-4/3 rounded-xl overflow-hidden bg-muted cursor-pointer group"
+                        >
+                          <img
+                            src={item.url}
+                            alt={item.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          />
+                        </div>
                         <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
-                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-border/40">
                           <button
                             onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
                             className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
@@ -564,251 +782,35 @@ function ArtGalleryPage() {
                           </button>
                           <button
                             onClick={() => handleDeleteSavedArt(item.id)}
-                            className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
+                            className="px-2 py-1 rounded-lg border border-border/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-[11px] transition cursor-pointer"
                           >
-                            {t("delete", "Delete")}
+                            ✕
                           </button>
                         </div>
                       </div>
-                    </div>
-                  );
-                }
-                return (
-                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
-                      ✨
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-foreground">{t("empty_slot_1", "Empty Slot 1")}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{t("slot_empty_desc", "Paint custom art or upload a photo")}</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setIsAiExpanded(true);
-                        window.scrollTo({ top: 120, behavior: "smooth" });
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
-                    >
-                      {t("btn_paint_with_ai", "+ Paint with AI")}
-                    </button>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* SLOT 2: 24h Ad or Small Root Beer */}
-            {(() => {
-              const isSlot2Unlocked = slotLimits.aiSlots >= 2;
-              const isPermanentSlot2 = slotLimits.tierLevel >= 1;
-              const item = savedArtworks[1];
-
-              return (
-                <div
-                  className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col min-h-[220px] ${
-                    isSlot2Unlocked ? "border-border/60 bg-card" : "border-amber-500/30 bg-amber-500/5 border-dashed"
-                  }`}
-                >
-                  <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground">{t("slot_2_tier", "Slot 2 • Ad / Small Tier")}</span>
-                    {isPermanentSlot2 ? (
-                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                        {t("badge_small_tier", "🍺 Small Tier")}
-                      </span>
-                    ) : isSlot2Unlocked ? (
-                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                        ⏳ {slotLimits.adHoursLeft}h {t("hours_left", "left")}
-                      </span>
                     ) : (
-                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                        {t("badge_locked", "🔒 Locked")}
-                      </span>
-                    )}
-                  </div>
-
-                  {isSlot2Unlocked ? (
-                    item ? (
-                      <div className="flex-1 flex flex-col">
-                        <div
-                          className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
-                          onClick={() => setPreviewImage(item.url)}
-                        >
-                          <img
-                            src={item.url}
-                            alt={item.title}
-                            loading="lazy"
-                            className="h-full w-full object-cover group-hover:scale-105 transition"
-                          />
-                        </div>
-                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                          <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-                            <button
-                              onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
-                              className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
-                            >
-                              {t("apply", "Apply")}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSavedArt(item.id)}
-                              className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
-                            >
-                              {t("delete", "Delete")}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
-                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 text-lg">
-                          ✨
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-foreground">{t("empty_slot_2", "Empty Slot 2")}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {isPermanentSlot2 ? t("permanent_slot_ready", "Permanent slot ready") : `${t("unlocked_for", "Unlocked for")} ${slotLimits.adHoursLeft} ${t("more_hours", "more hours")}`}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setIsAiExpanded(true);
-                            window.scrollTo({ top: 120, behavior: "smooth" });
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
-                        >
-                          {t("btn_paint_with_ai", "+ Paint with AI")}
-                        </button>
+                      <div
+                        onClick={() => setIsAiExpanded(true)}
+                        className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border/60 rounded-xl p-2 text-center hover:border-primary/40 transition cursor-pointer"
+                      >
+                        <span className="text-xl mb-1">✨</span>
+                        <span className="text-[11px] font-semibold text-muted-foreground">
+                          {t("empty_slot_n", `Empty Slot ${slotNumber}`, { n: slotNumber })}
+                        </span>
+                        <span className="text-[9px] text-primary mt-0.5">{t("paint_with_ai", "+ Paint with AI")}</span>
                       </div>
                     )
                   ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 text-lg">
-                        🔒
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{t("slot_2_locked", "Slot 2 is Locked")}</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {t("slot_2_locked_sub", "Unlock for 24h with a quick ad, or make permanent for $1")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          onClick={handleWatchAd}
-                          disabled={isWatchingAd}
-                          className="px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold hover:bg-emerald-500/20 transition cursor-pointer"
-                        >
-                          {isWatchingAd ? t("loading_ad_short", "Ad... ⏳") : t("btn_24h_ad", "📺 24h Ad")}
-                        </button>
-                        <button
-                          onClick={() => setPaymentModalTier("small_root_beer_tier")}
-                          className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition cursor-pointer"
-                        >
-                          {t("btn_small_price", "🍺 Small ($1)")}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* SLOTS 3 & 4: Medium Root Beer Tier ($3) */}
-            {[2, 3].map((slotIndex) => {
-              const slotNumber = slotIndex + 1;
-              const isUnlocked = slotLimits.aiSlots >= slotNumber;
-              const item = savedArtworks[slotIndex];
-
-              return (
-                <div
-                  key={`slot-${slotNumber}`}
-                  className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col min-h-[220px] ${
-                    isUnlocked ? "border-border/60 bg-card" : "border-border/40 bg-muted/10 border-dashed"
-                  }`}
-                >
-                  <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground">
-                      {t("slot_num_medium", `Slot ${slotNumber} • Medium Tier`, { num: slotNumber })}
-                    </span>
-                    {isUnlocked ? (
-                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                        {t("badge_unlocked", "🍺 Unlocked")}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                        {t("badge_medium_tier", "🔒 Medium Tier")}
-                      </span>
-                    )}
-                  </div>
-
-                  {isUnlocked ? (
-                    item ? (
-                      <div className="flex-1 flex flex-col">
-                        <div
-                          className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
-                          onClick={() => setPreviewImage(item.url)}
-                        >
-                          <img
-                            src={item.url}
-                            alt={item.title}
-                            loading="lazy"
-                            className="h-full w-full object-cover group-hover:scale-105 transition"
-                          />
-                        </div>
-                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                          <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-                            <button
-                              onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
-                              className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
-                            >
-                              {t("apply", "Apply")}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSavedArt(item.id)}
-                              className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
-                            >
-                              {t("delete", "Delete")}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
-                          ✨
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-foreground">
-                            {t("empty_slot_num", `Empty Slot ${slotNumber}`, { num: slotNumber })}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">{t("slot_ready_desc", "Permanent slot ready for art")}</p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setIsAiExpanded(true);
-                            window.scrollTo({ top: 120, behavior: "smooth" });
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
-                        >
-                          {t("btn_paint_with_ai", "+ Paint with AI")}
-                        </button>
-                      </div>
-                    )
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
-                      <span className="text-2xl">🔒</span>
-                      <div>
-                        <p className="text-xs font-bold text-foreground">
-                          {t("slot_num_locked", `Slot ${slotNumber} Locked`, { num: slotNumber })}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {t("unlocks_with_medium", "Unlocks with Medium Root Beer (4 Slots + 30 Days Ad-Free)")}
-                        </p>
-                      </div>
+                    <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 rounded-xl p-2 text-center space-y-1">
+                      <span className="text-base">🔒</span>
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        {t("slot_medium_unlock_desc", "Unlocked with Medium Root Beer ($3). Includes 30 days ad-free.")}
+                      </p>
                       <button
                         onClick={() => setPaymentModalTier("medium_root_beer_tier")}
-                        className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition cursor-pointer mt-1"
+                        className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                       >
-                        {t("btn_medium_price", "🍺 Medium Tier ($3)")}
+                        ⚡ {t("unlock_tier", "Unlock")}
                       </button>
                     </div>
                   )}
@@ -816,7 +818,7 @@ function ArtGalleryPage() {
               );
             })}
 
-            {/* SLOTS 5 & 6: Large Root Beer Tier ($5) */}
+            {/* Slots 5 & 6: Large Root Beer Tier ($5) */}
             {[4, 5].map((slotIndex) => {
               const slotNumber = slotIndex + 1;
               const isUnlocked = slotLimits.aiSlots >= slotNumber;
@@ -824,96 +826,70 @@ function ArtGalleryPage() {
 
               return (
                 <div
-                  key={`slot-${slotNumber}`}
-                  className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col min-h-[220px] ${
-                    isUnlocked ? "border-border/60 bg-card" : "border-border/40 bg-muted/10 border-dashed"
-                  }`}
+                  key={slotIndex}
+                  className="rounded-2xl border border-border/80 bg-card p-2.5 flex flex-col justify-between shadow-xs min-h-[170px] relative overflow-hidden"
                 >
-                  <div className="px-3 py-2 border-b border-border/40 bg-muted/30 flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground">
-                      {t("slot_num_large", `Slot ${slotNumber} • Large Tier`, { num: slotNumber })}
-                    </span>
+                  <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground mb-1.5">
+                    <span>{t("slot_n_label", `Slot ${slotNumber} • Large Tier`, { n: slotNumber })}</span>
                     {isUnlocked ? (
-                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                        {t("badge_unlocked", "🍺 Unlocked")}
-                      </span>
+                      <span className="text-amber-600 dark:text-amber-400">👑 {t("unlocked", "Unlocked")}</span>
                     ) : (
-                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                        {t("badge_large_tier", "🔒 Large Tier")}
-                      </span>
+                      <span className="text-muted-foreground">🔒</span>
                     )}
                   </div>
 
                   {isUnlocked ? (
                     item ? (
-                      <div className="flex-1 flex flex-col">
+                      <div className="flex-1 flex flex-col justify-between space-y-1.5">
                         <div
-                          className="relative aspect-video w-full bg-muted cursor-pointer overflow-hidden group"
-                          onClick={() => setPreviewImage(item.url)}
+                          onClick={() => setZoomedImage({ url: item.url, title: item.title })}
+                          className="relative aspect-4/3 rounded-xl overflow-hidden bg-muted cursor-pointer group"
                         >
                           <img
                             src={item.url}
                             alt={item.title}
-                            loading="lazy"
-                            className="h-full w-full object-cover group-hover:scale-105 transition"
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                           />
                         </div>
-                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                          <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-                            <button
-                              onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
-                              className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
-                            >
-                              {t("apply", "Apply")}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSavedArt(item.id)}
-                              className="px-2.5 py-1 rounded-lg border border-destructive/30 text-destructive text-[11px] font-semibold hover:bg-destructive/10 transition cursor-pointer"
-                            >
-                              {t("delete", "Delete")}
-                            </button>
-                          </div>
+                        <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-border/40">
+                          <button
+                            onClick={() => handleApplyWallpaper(currentPlace.name, item.url)}
+                            className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer"
+                          >
+                            {t("apply", "Apply")}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSavedArt(item.id)}
+                            className="px-2 py-1 rounded-lg border border-border/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-[11px] transition cursor-pointer"
+                          >
+                            ✕
+                          </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg">
-                          ✨
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-foreground">
-                            {t("empty_slot_num", `Empty Slot ${slotNumber}`, { num: slotNumber })}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">{t("slot_ready_desc", "Permanent slot ready for art")}</p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setIsAiExpanded(true);
-                            window.scrollTo({ top: 120, behavior: "smooth" });
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition cursor-pointer shadow-xs"
-                        >
-                          {t("btn_paint_with_ai", "+ Paint with AI")}
-                        </button>
+                      <div
+                        onClick={() => setIsAiExpanded(true)}
+                        className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border/60 rounded-xl p-2 text-center hover:border-primary/40 transition cursor-pointer"
+                      >
+                        <span className="text-xl mb-1">✨</span>
+                        <span className="text-[11px] font-semibold text-muted-foreground">
+                          {t("empty_slot_n", `Empty Slot ${slotNumber}`, { n: slotNumber })}
+                        </span>
+                        <span className="text-[9px] text-primary mt-0.5">{t("paint_with_ai", "+ Paint with AI")}</span>
                       </div>
                     )
                   ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2.5">
-                      <span className="text-2xl">🔒</span>
-                      <div>
-                        <p className="text-xs font-bold text-foreground">
-                          {t("slot_num_locked", `Slot ${slotNumber} Locked`, { num: slotNumber })}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {t("unlocks_with_large", "Unlocks with Large Root Beer (6 Slots + 365 Days Ad-Free)")}
-                        </p>
-                      </div>
+                    <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 rounded-xl p-2 text-center space-y-1">
+                      <span className="text-base">🔒</span>
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        {t("slot_large_unlock_desc", "Unlocked with Large Root Beer ($5). Includes 1 year ad-free.")}
+                      </p>
                       <button
                         onClick={() => setPaymentModalTier("large_root_beer_tier")}
-                        className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition cursor-pointer mt-1"
+                        className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                       >
-                        {t("btn_large_price", "🍺 Large Tier ($5)")}
+                        👑 {t("unlock_tier", "Unlock")}
                       </button>
                     </div>
                   )}
@@ -922,61 +898,65 @@ function ArtGalleryPage() {
             })}
           </div>
 
-          {/* Party Pack VIP Card */}
-          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">👑</span>
+          {/* Party Pack VIP Banner */}
+          <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🎉</span>
               <div>
-                <p className="text-xs font-bold text-foreground">{t("party_pack_vip_title", "Party Pack VIP — Unlimited Slots Forever")}</p>
+                <p className="font-bold text-amber-800 dark:text-amber-200">
+                  {t("party_pack_vip_title", "Party Pack ($10) • Unlimited Slots & Ad-Free Forever")}
+                </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {t("party_pack_vip_desc", "Never worry about limits again. Unlimited art slots, all mascots, and Ad-Free Forever!")}
+                  {slotLimits.isUnlimited
+                    ? t("party_pack_active_desc", "You have unlimited slots and ad-free experience unlocked permanently!")
+                    : t("party_pack_upgrade_desc", "Never worry about slot limits or expiring timers ever again.")}
                 </p>
               </div>
             </div>
-            {!slotLimits.isUnlimited ? (
+            {!slotLimits.isUnlimited && (
               <button
                 onClick={() => setPaymentModalTier("party_pack_root_beer_tier")}
-                className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition cursor-pointer shrink-0 shadow-xs"
+                className="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 transition cursor-pointer text-xs shrink-0"
               >
-                {t("btn_party_price", "🎉 Party Pack VIP ($10)")}
+                🎉 {t("get_party_pack", "Get Party Pack")}
               </button>
-            ) : (
-              <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-xs font-bold shrink-0">
-                {t("badge_vip_active", "✨ Unlimited VIP Active")}
-              </span>
             )}
           </div>
         </section>
 
-        {/* City Wallpapers Section */}
-        <section className="space-y-4 pt-4 border-t border-border/40">
+        {/* Curated City Landmarks Catalog */}
+        <section className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold tracking-tight">{t("city_wallpapers", "City & Landmark Wallpapers")}</h2>
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <span>🏛️</span>
+                <span>{t("city_landmarks_title", "Worldwide City Landmarks")}</span>
+              </h2>
               <p className="text-xs text-muted-foreground">
-                {t("wallpapers_sub", "Set as forecast wallpaper or jump directly into that city's live forecast.")}
+                {t("free_city_desc", "Every city gets 1 Free Authentic Wallpaper forever. Tap Set Wallpaper to display live.")}
               </p>
             </div>
 
+            {/* Search Input */}
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t("search_landmarks", "Search landmarks or cities...")}
-              className="w-full sm:w-64 rounded-xl border border-border/60 bg-card/80 px-3 py-1.5 text-xs shadow-xs focus:ring-1 focus:ring-primary"
+              placeholder={t("search_cities_placeholder", "Search city or landmark...")}
+              className="w-full sm:w-60 rounded-xl border border-border/60 bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
           </div>
 
-          {/* Region Filter Chips */}
+          {/* Region Tabs */}
           <div className="flex flex-wrap gap-1.5">
             {REGIONS.map((r) => (
               <button
                 key={r.id}
                 onClick={() => setSelectedRegion(r.id)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+                className={`px-3 py-1 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   selectedRegion === r.id
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "border border-border/60 bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "border border-border/60 bg-card hover:bg-muted text-muted-foreground"
                 }`}
               >
                 {r.label}
@@ -984,36 +964,34 @@ function ArtGalleryPage() {
             ))}
           </div>
 
-          {/* Landmark Cards Grid */}
+          {/* Grid of Landmark Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {filteredLandmarks.map((item, idx) => (
               <div
                 key={`${item.city}-${idx}`}
-                className="group relative rounded-2xl border border-border/60 bg-card overflow-hidden shadow-xs hover:shadow-md transition flex flex-col"
+                className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-xs hover:shadow-md transition flex flex-col justify-between"
               >
                 <div
-                  className="relative aspect-video w-full overflow-hidden bg-muted cursor-pointer"
-                  onClick={() => setPreviewImage(item.image)}
+                  onClick={() => setZoomedImage({ url: item.image, title: `${item.city} — ${item.title}` })}
+                  className="relative aspect-16/10 bg-muted cursor-pointer group overflow-hidden"
                 >
                   <img
                     src={item.image}
                     alt={item.title}
                     loading="lazy"
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  
-                  {/* Free Forever Badge */}
-                  {item.isFreeForever && (
-                    <div className="absolute top-2.5 right-2.5 rounded-full bg-emerald-500/90 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
-                      {t("badge_free_forever", "✨ Free Forever")}
-                    </div>
-                  )}
-
-                  <div className="absolute bottom-2 left-3 right-3 text-white">
-                    <p className="text-xs font-bold leading-tight drop-shadow-md">{item.city}</p>
-                    <p className="text-[10px] text-white/80 truncate drop-shadow-sm">{item.title}</p>
+                  <div className="absolute top-2 left-2 rounded-full bg-black/60 px-2.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-md">
+                    📍 {item.city}
                   </div>
+                  <div className="absolute top-2 right-2 rounded-full bg-emerald-500/80 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-md">
+                    ✓ {t("free_city_slot", "Free City Wallpaper")}
+                  </div>
+                </div>
+
+                <div className="p-3 space-y-1">
+                  <p className="text-xs font-bold text-foreground line-clamp-1">{item.title}</p>
+                  <p className="text-[11px] text-muted-foreground">{item.city} Watercolor</p>
                 </div>
 
                 <div className="p-3 flex items-center justify-between gap-2 border-t border-border/40 mt-auto">
@@ -1025,9 +1003,9 @@ function ArtGalleryPage() {
                   </button>
                   <button
                     onClick={() => handleViewWeather(item.city)}
-                    className="flex-1 py-1.5 rounded-xl bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer text-center"
+                    className="py-1.5 px-3 rounded-xl bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90 transition cursor-pointer text-center"
                   >
-                    {t("view_weather", "View Weather 🌤️")}
+                    {t("view_forecast", "Forecast")} →
                   </button>
                 </div>
               </div>
@@ -1036,41 +1014,56 @@ function ArtGalleryPage() {
         </section>
       </main>
 
-      {/* Image Preview Modal */}
-      {previewImage && (
+      {/* Lightbox Modal */}
+      {zoomedImage && (
         <div
-          onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setZoomedImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm cursor-pointer"
         >
-          <div className="relative max-w-3xl max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-3xl w-full rounded-2xl overflow-hidden bg-card border border-border/80 shadow-2xl p-2"
+          >
             <img
-              src={previewImage}
-              alt="Artwork preview"
-              className="max-h-[85vh] w-auto object-contain rounded-2xl"
+              src={zoomedImage.url}
+              alt={zoomedImage.title}
+              className="w-full max-h-[80vh] object-contain rounded-xl"
             />
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute top-3 right-3 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm cursor-pointer"
-            >
-              ✕
-            </button>
+            <div className="p-3 flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-foreground truncate">{zoomedImage.title}</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleApplyWallpaper(currentPlace.name, zoomedImage.url);
+                    setZoomedImage(null);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition cursor-pointer"
+                >
+                  {t("apply_to_hero", "Apply to Hero Card")}
+                </button>
+                <button
+                  onClick={() => setZoomedImage(null)}
+                  className="px-3 py-1.5 rounded-xl border border-border/60 hover:bg-muted text-xs font-semibold transition cursor-pointer"
+                >
+                  ✕ {t("close", "Close")}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Root Beer Payment Modal */}
+      {/* Payment / Tier Upgrade Modal */}
       {paymentModalTier && (
         <PaymentModal
-          tierId={paymentModalTier}
-          onClose={() => setPaymentModalTier(null)}
-          onSuccess={() => {
-            setSlotLimits(getUserSlotLimits());
+          isOpen={true}
+          onClose={() => {
             setPaymentModalTier(null);
+            setSlotLimits(getUserSlotLimits());
           }}
+          tierId={paymentModalTier}
         />
       )}
     </div>
   );
 }
-
-export default ArtGalleryPage;
