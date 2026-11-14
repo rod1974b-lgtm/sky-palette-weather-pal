@@ -177,10 +177,10 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
                 <span className="text-base">🍺</span>
                 <div>
                   <div className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                    Buy Me a Root Beer
+                    {t("buy_root_beer", "Buy Me a Root Beer")}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
-                    Support app & unlock bonus art
+                    {t("support_app_sub", "Support app & unlock bonus art")}
                   </div>
                 </div>
               </div>
@@ -230,7 +230,7 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
                     : "bg-muted hover:bg-muted/80 text-foreground"
                 }`}
               >
-                °C • Metric
+                °C • {t("metric", "Metric")}
               </button>
               <button
                 type="button"
@@ -241,7 +241,7 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
                     : "bg-muted hover:bg-muted/80 text-foreground"
                 }`}
               >
-                °F • US
+                °F • {t("imperial", "US")}
               </button>
             </div>
           </div>
@@ -351,7 +351,7 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
         </div>
       )}
 
-      {/* Payment Selection Modal (Card / Stripe, Buy Me a Coffee, PayPal, Google Play) */}
+      {/* Payment Selection Modal */}
       {paymentTierId && (
         <PaymentModal
           tierId={paymentTierId}
