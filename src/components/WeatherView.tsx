@@ -2,7 +2,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { type Weather, type WeatherUnit, type Place } from "@/lib/weather";
+import {
+  type Weather,
+  type WeatherUnit,
+  type Place,
+  aqiCategory,
+} from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { useTranslation } from "react-i18next";
 import {
@@ -135,6 +140,77 @@ function getWindDirectionLabel(deg: number): string {
   return dirs[Math.round(deg / 22.5) % 16] || "N";
 }
 
+// Localized AQI Health Advisories
+function getAqiAdvisory(
+  level: "good" | "moderate" | "sensitive" | "unhealthy" | "very_unhealthy" | "hazardous",
+  lang: string,
+  t: TFunction
+): { label: string; advice: string } {
+  switch (level) {
+    case "good":
+      return {
+        label: t("aqi_good", lang === "th" ? "คุณภาพอากาศดี" : "Good"),
+        advice: t(
+          "aqi_good_desc",
+          lang === "th"
+            ? "อากาศบริสุทธิ์ เหมาะอย่างยิ่งสำหรับกิจกรรมและออกกำลังกายกลางแจ้ง"
+            : "Air quality is ideal for all outdoor activities and exercise."
+        ),
+      };
+    case "moderate":
+      return {
+        label: t("aqi_moderate", lang === "th" ? "ปานกลาง" : "Moderate"),
+        advice: t(
+          "aqi_moderate_desc",
+          lang === "th"
+            ? "คุณภาพอากาศยอมรับได้ ผู้ที่ไวต่อฝุ่นละอองควรสังเกตอาการหากอยู่กลางแจ้งนาน"
+            : "Air quality is acceptable; unusually sensitive individuals should observe symptoms."
+        ),
+      };
+    case "sensitive":
+      return {
+        label: t("aqi_sensitive", lang === "th" ? "เริ่มมีผลกระทบต่อสุขภาพ" : "Unhealthy for Sensitive Groups"),
+        advice: t(
+          "aqi_sensitive_desc",
+          lang === "th"
+            ? "เด็ก ผู้สูงอายุ และผู้ป่วยทางเดินหายใจควรสวมหน้ากากอนามัย และลดกิจกรรมกลางแจ้ง"
+            : "Children, seniors, and sensitive individuals should wear a mask and limit outdoor exertion."
+        ),
+      };
+    case "unhealthy":
+      return {
+        label: t("aqi_unhealthy", lang === "th" ? "มีผลกระทบต่อสุขภาพ" : "Unhealthy"),
+        advice: t(
+          "aqi_unhealthy_desc",
+          lang === "th"
+            ? "ทุกคนควรสวมหน้ากาก N95 กลางแจ้ง หลีกเลี่ยงการออกกำลังกายกลางแจ้ง และปิดหน้าต่าง"
+            : "Everyone should wear an N95 mask outdoors, avoid outdoor workouts, and close windows."
+        ),
+      };
+    case "very_unhealthy":
+      return {
+        label: t("aqi_very_unhealthy", lang === "th" ? "มีผลกระทบต่อสุขภาพมาก" : "Very Unhealthy"),
+        advice: t(
+          "aqi_very_unhealthy_desc",
+          lang === "th"
+            ? "แจ้งเตือนสุขภาพ: ควรสวมหน้ากาก N95 ทุกครั้งที่ออกนอกอาคาร และเปิดเครื่องฟอกอากาศ"
+            : "Health alert: Wear an N95 mask outdoors, keep windows sealed, and use air purifiers."
+        ),
+      };
+    case "hazardous":
+    default:
+      return {
+        label: t("aqi_hazardous", lang === "th" ? "อันตรายร้ายแรง" : "Hazardous"),
+        advice: t(
+          "aqi_hazardous_desc",
+          lang === "th"
+            ? "ภาวะฉุกเฉินด้านมลพิษ: งดกิจกรรมกลางแจ้งทุกชนิด สวมหน้ากาก N95 มิดชิดตลอดเวลา"
+            : "Emergency conditions: Avoid all outdoor physical activity. Keep an N95 mask sealed."
+        ),
+      };
+  }
+}
+
 const TAG_TRANSLATION_MAP: Record<string, string> = {
   "TMD Alert": "alert_thunderstorm_tag",
   "TMD Warning": "alert_thunderstorm_tag",
@@ -178,6 +254,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "Thermal insulated winter coat & gloves",
     lightJacket: "Light jacket or sweater for breezy air",
     warmBeanie: "Knit beanie, scarf & thermal socks",
+    n95Mask: "😷 N95 particulate mask for PM2.5 / smog",
   },
   th: {
     umbrella: "ร่มพับหรือเสื้อกันฝน",
@@ -188,6 +265,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "เสื้อกันหนาวหนาพิเศษ & ถุงมือ",
     lightJacket: "เสื้อคลุมบางหรือสเวตเตอร์",
     warmBeanie: "หมวกไหมพรม ผ้าพันคอ & ถุงเท้าหนา",
+    n95Mask: "😷 หน้ากาก N95 ป้องกันฝุ่น PM2.5 / ควันพิษ",
   },
   es: {
     umbrella: "Paraguas compacto o impermeable",
@@ -198,6 +276,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "Abrigo térmico de invierno y guantes",
     lightJacket: "Chaqueta ligera o suéter",
     warmBeanie: "Gorro de lana, bufanda y calcetines térmicos",
+    n95Mask: "😷 Mascarilla N95 para partículas PM2.5 y humo",
   },
   ja: {
     umbrella: "折りたたみ傘またはレインコート",
@@ -208,6 +287,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "厚手の防寒コート＆手袋",
     lightJacket: "薄手のジャケットやカーディガン",
     warmBeanie: "ニット帽、マフラー、厚手の靴下",
+    n95Mask: "😷 微粒子・PM2.5対策用N95マスク",
   },
   zh: {
     umbrella: "便携折叠伞或雨衣",
@@ -218,6 +298,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "保暖厚羽绒服与手套",
     lightJacket: "薄款夹克或针织开衫",
     warmBeanie: "保暖针织帽、围巾与厚袜子",
+    n95Mask: "😷 N95 防霾防颗粒物口罩",
   },
   hi: {
     umbrella: "छाता या रेनकोट",
@@ -228,6 +309,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "गर्म कोट और दस्ताने",
     lightJacket: "हल्की जैकेट",
     warmBeanie: "टोपी और मफलर",
+    n95Mask: "😷 स्मॉग और PM2.5 के लिए N95 मास्क",
   },
   fr: {
     umbrella: "Parapluie compact ou imperméable",
@@ -238,6 +320,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "Manteau d'hiver chaud & gants",
     lightJacket: "Veste légère ou pull fin",
     warmBeanie: "Bonnet en laine, écharpe & chaussettes chaudes",
+    n95Mask: "😷 Masque N95 / FFP2 anti-particules PM2.5",
   },
   de: {
     umbrella: "Kompakter Regenschirm oder Regenmantel",
@@ -248,6 +331,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "Warmer Wintermantel & Handschuhe",
     lightJacket: "Leichte Jacke oder Pullover",
     warmBeanie: "Wollmütze, Schal & Thermosocken",
+    n95Mask: "😷 N95 / FFP2 Feinstaubmaske gegen PM2.5",
   },
   pt: {
     umbrella: "Guarda-chuva compacto ou capa de chuva",
@@ -258,6 +342,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "Casaco de inverno térmico & luvas",
     lightJacket: "Jaqueta leve ou suéter",
     warmBeanie: "Gorro de lã, cachecol e meias quentes",
+    n95Mask: "😷 Máscara N95 contra partículas PM2.5 e fumaça",
   },
   ru: {
     umbrella: "Компактный зонт или дождевик",
@@ -268,6 +353,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "Теплое зимнее пальто/пуховик и перчатки",
     lightJacket: "Легкая ветровка или джемпер",
     warmBeanie: "Вязаная шапка, шарф и теплые носки",
+    n95Mask: "😷 Респиратор N95 от смога и PM2.5",
   },
   ar: {
     umbrella: "مظلة مدمجة أو معطف مطر",
@@ -278,6 +364,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "معطف شتوي دافئ وقفازات",
     lightJacket: "سترة خفيفة أو كنزة",
     warmBeanie: "قبعة صوفية ووشاح",
+    n95Mask: "😷 كمامة N95 واقية من الغبار وPM2.5",
   },
   ko: {
     umbrella: "접이식 우산 또는 우비",
@@ -286,8 +373,9 @@ const ACCESSORY_LABELS = {
     water: "휴대용 물병 또는 시원한 물",
     windbreaker: "방풍 윈드브레이커",
     heavyCoat: "두꺼운 겨울 패딩 코트 & 장갑",
-    lightJacket: "가벼운 재킷 หรือ 가디건",
+    lightJacket: "가벼운 재킷 ಅಥವಾ 가디건",
     warmBeanie: "비니 모자, 목도리 & 보온 양말",
+    n95Mask: "😷 미세먼지(PM2.5) 차단 N95 마스크",
   },
   id: {
     umbrella: "Payung lipat atau jas hujan",
@@ -298,16 +386,18 @@ const ACCESSORY_LABELS = {
     heavyCoat: "Mantel musim dingin tebal & sarung tangan",
     lightJacket: "Jaket tipis atau sweter",
     warmBeanie: "Kupluk rajut, syal & kaus kaki tebal",
+    n95Mask: "😷 Masker N95 pelindung debu PM2.5 & polusi",
   },
   vi: {
-    umbrella: "Ô gấp gọn หรือ áo mưa",
+    umbrella: "Ô gấp gọn hoặc áo mưa",
     sunglasses: "Kính râm chống tia UV & mũ rộng vành",
     sunscreen: "Kem chống nắng kháng nước SPF 50+",
     water: "Bình nước mát",
     windbreaker: "Áo khoác gió thoáng khí",
     heavyCoat: "Áo khoác ấm mùa đông & găng tay",
-    lightJacket: "Áo khoác nhẹ หรือ áo len mỏng",
+    lightJacket: "Áo khoác nhẹ hoặc áo len mỏng",
     warmBeanie: "Mũ len, khăn quàng & tất ấm",
+    n95Mask: "😷 Khẩu trang N95 chống bụi mịn PM2.5",
   },
 };
 
@@ -440,11 +530,13 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           w.place.country,
           w.place.lat,
           w.place.lon
-        ).then((res) => {
-          if (res?.initialBg && !res.initialBg.startsWith("linear-gradient") && isCurrent) {
-            setHeroBgUrl(res.initialBg);
-          }
-        }).catch(() => {});
+        )
+          .then((res) => {
+            if (res?.initialBg && !res.initialBg.startsWith("linear-gradient") && isCurrent) {
+              setHeroBgUrl(res.initialBg);
+            }
+          })
+          .catch(() => {});
       }
     }
 
@@ -476,7 +568,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         if (ctx) {
           ctx.drawImage(img, 0, 0, 16, 16);
           const data = ctx.getImageData(0, 0, 16, 16).data;
-          let r = 0, g = 0, b = 0;
+          let r = 0,
+            g = 0,
+            b = 0;
           for (let i = 0; i < data.length; i += 4) {
             r += data[i];
             g += data[i + 1];
@@ -597,9 +691,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const pressureVal = Math.round(w.current?.pressure ?? 1013);
   const visUnitStr = unit === "imperial" ? "mi" : "km";
   const rawVis = typeof w.current?.vis === "number" ? w.current.vis : 10;
-  const visVal = unit === "imperial"
-    ? (rawVis / 1.60934).toFixed(1)
-    : rawVis.toFixed(1);
+  const visVal = unit === "imperial" ? (rawVis / 1.60934).toFixed(1) : rawVis.toFixed(1);
 
   // Rain chance
   const rainChanceVal = todayDaily?.pop ?? 0;
@@ -622,6 +714,16 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
   // Active Alerts combined
   const alertsToDisplay = activeAlerts.length > 0 ? activeAlerts : disasters;
+
+  // Air Quality & PM2.5 calculation
+  const aqiVal = typeof w.current?.aqi === "number" ? Math.round(w.current.aqi) : undefined;
+  const pm25Val = typeof w.current?.pm25 === "number" ? w.current.pm25 : undefined;
+  const pm10Val = typeof w.current?.pm10 === "number" ? w.current.pm10 : undefined;
+
+  // Compute AQI category & localized advice
+  const effectiveAqi = aqiVal !== undefined ? aqiVal : (pm25Val ? Math.round(pm25Val * 3) : 35);
+  const aqiCategoryInfo = aqiCategory(effectiveAqi);
+  const aqiAdvisoryInfo = getAqiAdvisory(aqiCategoryInfo.level, lang, t);
 
   // What to Wear Advice calculation
   const locWearCat =
@@ -720,8 +822,15 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     }
   }
 
-  // Accessories logic
+  // Accessories logic with automatic N95 mask recommendation when PM2.5 or AQI is elevated
   const accessories: string[] = [];
+
+  // 1. High Pollution Alert: Prioritize N95 Mask
+  if ((pm25Val && pm25Val >= 35.5) || (aqiVal && aqiVal >= 101)) {
+    accessories.push(locAccessory.n95Mask || "😷 N95 Mask for PM2.5");
+  }
+
+  // 2. Weather conditions
   if (isRaining) accessories.push(locAccessory.umbrella);
   if (tempC <= 5) accessories.push(locAccessory.heavyCoat, locAccessory.warmBeanie);
   if (uvNum >= 6) accessories.push(locAccessory.sunglasses, locAccessory.sunscreen);
@@ -981,6 +1090,47 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Live Air Quality & PM2.5 Health Impact Banner */}
+        {(aqiVal !== undefined || pm25Val !== undefined) && (
+          <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition mt-1.5 ${aqiCategoryInfo.bg}`}>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl shrink-0 mt-0.5">🍃</span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    {t("air_quality", "Air Quality (AQI)")}
+                  </span>
+                  <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full border ${aqiCategoryInfo.color} ${aqiCategoryInfo.bg}`}>
+                    {aqiVal !== undefined ? aqiVal : (pm25Val ? Math.round(pm25Val * 3) : "--")} • {aqiAdvisoryInfo.label}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                  {aqiAdvisoryInfo.advice}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs shrink-0 self-end sm:self-center border-t sm:border-t-0 sm:border-l border-border/40 pt-2 sm:pt-0 sm:pl-3">
+              {pm25Val !== undefined && (
+                <div className="text-right">
+                  <span className="text-[10px] text-muted-foreground block font-medium">PM2.5</span>
+                  <span className="font-bold text-foreground">
+                    {pm25Val} <span className="text-[10px] font-normal text-muted-foreground">µg/m³</span>
+                  </span>
+                </div>
+              )}
+              {pm10Val !== undefined && (
+                <div className="text-right">
+                  <span className="text-[10px] text-muted-foreground block font-medium">PM10</span>
+                  <span className="font-bold text-foreground">
+                    {pm10Val} <span className="text-[10px] font-normal text-muted-foreground">µg/m³</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 5. WHAT TO WEAR TODAY (Directly under Current Conditions) */}
