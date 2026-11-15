@@ -28,6 +28,7 @@ import {
 } from "@/lib/monetization";
 import { getTmdAlertsFn } from "@/lib/tmdAlerts.functions";
 import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
+import { CityComparison } from "@/components/CityComparison";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -370,8 +371,9 @@ function Index() {
   const [searching, setSearching] = useState<boolean>(false);
   const searchAbortRef = useRef<AbortController | null>(null);
 
-  // Favorites
+  // Favorites & Multi-City Comparison view toggle
   const [favorites, setFavorites] = useState<Place[]>([]);
+  const [showComparison, setShowComparison] = useState<boolean>(false);
 
   // Alerts
   const [alerts, setAlerts] = useState<TickerAlertItem[]>([]);
@@ -804,31 +806,67 @@ function Index() {
           )}
         </section>
 
-        {/* Favorite Cities Chips */}
-        {favorites.length > 0 && (
-          <section className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-muted-foreground mr-1">
-              ★ {t("favorites", "Favorites")}:
+        {/* Favorite Cities Chips & Comparison Hub Toggle */}
+        <section className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {favorites.length > 0 && (
+              <>
+                <span className="text-xs font-semibold text-muted-foreground mr-1">
+                  ★ {t("favorites", "Favorites")}:
+                </span>
+                {favorites.map((fav) => {
+                  const active = isSamePlace(fav, place);
+                  const localizedFavCity = getLocalizedCity(fav.name, currentLang);
+                  return (
+                    <button
+                      key={`${fav.name}-${fav.lat}`}
+                      type="button"
+                      onClick={() => handleSelectPlace(fav)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+                        active
+                          ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                          : "border border-border/60 bg-card/80 text-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      {localizedFavCity}
+                    </button>
+                  );
+                })}
+              </>
+            )}
+          </div>
+
+          {/* Toggle Multi-City Comparison Hub */}
+          <button
+            type="button"
+            onClick={() => setShowComparison((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition cursor-pointer active:scale-95 ${
+              showComparison
+                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                : "border-border/60 bg-card/80 text-foreground hover:bg-muted/80"
+            }`}
+            title={showComparison ? t("hide_comparison", "Hide Comparison Hub") : t("compare_cities", "Compare Cities")}
+          >
+            <span>📊</span>
+            <span>
+              {showComparison
+                ? t("hide_comparison", currentLang === "th" ? "ซ่อนเปรียบเทียบ" : "Hide Compare")
+                : t("compare_cities", currentLang === "th" ? "เปรียบเทียบเมือง" : "Compare Cities")}
             </span>
-            {favorites.map((fav) => {
-              const active = isSamePlace(fav, place);
-              const localizedFavCity = getLocalizedCity(fav.name, currentLang);
-              return (
-                <button
-                  key={`${fav.name}-${fav.lat}`}
-                  type="button"
-                  onClick={() => handleSelectPlace(fav)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
-                    active
-                      ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                      : "border border-border/60 bg-card/80 text-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  {localizedFavCity}
-                </button>
-              );
-            })}
-          </section>
+          </button>
+        </section>
+
+        {/* Multi-City Weather Comparison Hub (When toggled or when viewing comparisons) */}
+        {showComparison && (
+          <CityComparison
+            favorites={favorites}
+            currentPlace={place}
+            unit={unit}
+            onSelectPlace={(selected) => {
+              handleSelectPlace(selected);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
         )}
 
         {/* Error Notification */}
@@ -851,6 +889,19 @@ function Index() {
             onSelectBackground={handleSelectCustomBg}
             onOpenAiGallery={() => navigate({ to: "/gallery" })}
             customBgUrl={customBgUrl}
+          />
+        )}
+
+        {/* Multi-City Comparison Hub Footer Card (Shown if not toggled above and favorites exist) */}
+        {!showComparison && favorites.length > 1 && (
+          <CityComparison
+            favorites={favorites}
+            currentPlace={place}
+            unit={unit}
+            onSelectPlace={(selected) => {
+              handleSelectPlace(selected);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
         )}
       </main>
