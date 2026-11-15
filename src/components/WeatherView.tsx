@@ -26,6 +26,7 @@ import {
 import { WeatherMascot } from "@/components/WeatherMascot";
 import { AstronomyTracker } from "@/components/AstronomyTracker";
 import { WeatherRadar } from "@/components/WeatherRadar";
+import { WeatherPostcardModal } from "@/components/WeatherPostcardModal";
 
 export interface TickerAlertItem {
   id: string;
@@ -420,10 +421,11 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   customBgUrl,
 }) => {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language || "en";
+  const lang = i18n.language?.toLowerCase().split("-")[0] || "en";
   const w = weather || weatherProp;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [postcardOpen, setPostcardOpen] = useState(false);
   const [activeWallpaperUrl, setActiveWallpaperUrl] = useState<string | null>(customBgUrl || null);
   const [artIndex, setArtIndex] = useState(0);
   const [savedSlots, setSavedSlots] = useState<SavedItem[]>([]);
@@ -729,27 +731,39 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       )}
 
-      {/* 2. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> REFRESH -> FAVORITE */}
-      <div className="flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-card border border-border/60 shadow-xs">
-        <button
-          type="button"
-          onClick={cycleNextArtwork}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-muted/70 hover:bg-muted text-foreground transition cursor-pointer active:scale-95"
-          title={t("cycle_art_desc", "Cycle to next watercolor art or saved slot")}
-        >
-          <span>🎨</span>
-          <span>{t("next_artwork", "Next Art")}</span>
-        </button>
+      {/* 2. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> POSTCARD -> REFRESH -> FAVORITE */}
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-card border border-border/60 shadow-xs flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={cycleNextArtwork}
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-muted/70 hover:bg-muted text-foreground transition cursor-pointer active:scale-95"
+            title={t("cycle_art_desc", "Cycle to next watercolor art or saved slot")}
+          >
+            <span>🎨</span>
+            <span>{t("next_artwork", "Next Art")}</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={openGalleryModal}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-primary/10 hover:bg-primary/20 text-primary transition cursor-pointer active:scale-95 border border-primary/20"
-          title={t("ai_gallery_slots", "AI Gallery & Wallpaper Slots")}
-        >
-          <span>🖼️</span>
-          <span>{t("ai_gallery", "AI Gallery")}</span>
-        </button>
+          <button
+            type="button"
+            onClick={openGalleryModal}
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-primary/10 hover:bg-primary/20 text-primary transition cursor-pointer active:scale-95 border border-primary/20"
+            title={t("ai_gallery_slots", "AI Gallery & Wallpaper Slots")}
+          >
+            <span>🖼️</span>
+            <span>{t("ai_gallery", "AI Gallery")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPostcardOpen(true)}
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition cursor-pointer active:scale-95 border border-amber-500/20"
+            title={t("share_postcard", lang === "th" ? "แชร์โปสการ์ด" : "Share Postcard")}
+          >
+            <span>💌</span>
+            <span>{t("weather_postcard", lang === "th" ? "โปสการ์ด" : "Postcard")}</span>
+          </button>
+        </div>
 
         <div className="flex items-center gap-1.5 ml-auto">
           <button
@@ -1171,6 +1185,17 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           city={w.place.name}
           onSelectBackground={handleSelectBackground}
           onSelectBg={handleSelectBackground}
+        />
+      )}
+
+      {/* Weather Postcard Sharing Modal */}
+      {postcardOpen && (
+        <WeatherPostcardModal
+          isOpen={postcardOpen}
+          onClose={() => setPostcardOpen(false)}
+          weather={w}
+          unit={unit}
+          backgroundUrl={displayBg}
         />
       )}
     </div>
