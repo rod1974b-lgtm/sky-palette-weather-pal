@@ -1,5 +1,5 @@
 // src/routes/index.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -175,7 +175,7 @@ async function fetchOpenMeteoAlerts(
     const maxTemp = data.daily?.temperature_2m_max?.[0] ?? 0;
     const minTemp = data.daily?.temperature_2m_min?.[0] ?? 0;
 
-    // 1. Severe Thunderstorm / Squalls / Hail (WMO 95, 96, 99 in current or near-term hourly)
+    // 1. Severe Thunderstorm / Squalls / Hail
     const currentCode = weatherData?.current?.code ?? -1;
     const nearHourlyThunder = weatherData?.hourly?.slice(0, 12).some((h) => [95, 96, 99].includes(h.code));
     if ([95, 96, 99].includes(currentCode) || nearHourlyThunder) {
@@ -271,7 +271,7 @@ async function fetchOpenMeteoAlerts(
       });
     }
 
-    // 6. Dense Fog Advisory (WMO 45, 48 or visibility < 1 km)
+    // 6. Dense Fog Advisory
     if (
       currentCode === 45 ||
       currentCode === 48 ||
@@ -364,10 +364,11 @@ function Index() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Search autocomplete
+  // Search autocomplete & cancellation
   const [query, setQuery] = useState<string>("");
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [searching, setSearching] = useState<boolean>(false);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   // Favorites
   const [favorites, setFavorites] = useState<Place[]>([]);
@@ -456,12 +457,16 @@ function Index() {
     };
   }, []);
 
-  // 2. Fetch Weather and Global Disaster & Meteorological Alerts
-  const fetchAllWeatherData = async (targetPlace: Place, currentUnit: WeatherUnit) => {
+  // 2. Fetch Weather and Global Disaster & Meteorological Alerts (with optional forceRefresh)
+  const fetchAllWeatherData = async (
+    targetPlace: Place,
+    currentUnit: WeatherUnit,
+    forceRefresh = false
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getWeather(targetPlace, currentUnit);
+      const data = await getWeather(targetPlace, currentUnit, forceRefresh);
       setWeather(data);
 
       const isUS = targetPlace.country === "United States" || targetPlace.country === "USA";
@@ -515,15 +520,18 @@ function Index() {
     return () => window.removeEventListener("weather:custom-bg-change", handleCustomBgChange);
   }, [place]);
 
-  // Periodic Auto-Refresh (Every 10 minutes)
+  // Periodic Auto-Refresh (Every 10 minutes) & Staleness-Guarded Visibility Handler
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchAllWeatherData(place, unit);
+      fetchAllWeatherData(place, unit, true);
     }, 10 * 60 * 1000);
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        fetchAllWeatherData(place, unit);
+        // Guard against tab-switch storms: only refetch if data is older than 10 minutes
+        if (!weather || Date.now() - weather.fetchedAt >= 10 * 60 * 1000) {
+          fetchAllWeatherData(place, unit);
+        }
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -532,29 +540,45 @@ function Index() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [place, unit]);
+  }, [place, unit, weather?.fetchedAt]);
 
-  // Debounced City Search
+  // Debounced City Search with In-Flight Request Cancellation
   useEffect(() => {
     if (!query.trim() || query.length < 2) {
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
+      }
       setSuggestions([]);
       return;
     }
 
     const timer = setTimeout(async () => {
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
+      }
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+
       setSearching(true);
       try {
-        const results = await searchCity(query);
+        const results = await searchCity(query, currentLang, controller.signal);
         setSuggestions(results);
-      } catch {
-        setSuggestions([]);
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          setSuggestions([]);
+        }
       } finally {
         setSearching(false);
       }
     }, 300);
 
-    return () => clearTimeout(timer);
-  }, [query]);
+    return () => {
+      clearTimeout(timer);
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
+      }
+    };
+  }, [query, currentLang]);
 
   const handleSelectPlace = (newPlace: Place) => {
     setPlace(newPlace);
@@ -821,7 +845,7 @@ function Index() {
             activeAlerts={alerts}
             unit={unit}
             loading={loading}
-            onRefresh={() => fetchAllWeatherData(place, unit)}
+            onRefresh={() => fetchAllWeatherData(place, unit, true)}
             isFav={isFavorite(favorites, place)}
             onToggleFavorite={handleToggleFavorite}
             onSelectBackground={handleSelectCustomBg}
