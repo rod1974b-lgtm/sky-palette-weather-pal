@@ -1,7 +1,8 @@
+// src/routes/privacy.tsx
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 const DESC =
-  "Privacy Policy for My Weather Pal: private local weather, AI watercolor generation, on-device IndexedDB storage, and no advertising trackers.";
+  "Privacy Policy for My Weather Pal: private local weather, AI watercolor generation, on-device IndexedDB storage, and Google Play Data Safety.";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -28,22 +29,22 @@ function Privacy() {
       </Link>
 
       <h1 className="mt-4 text-3xl font-bold tracking-tight">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Last updated: November 2, 2026</p>
+      <p className="mt-2 text-sm text-muted-foreground">Last updated: November 15, 2026</p>
 
       <div className="mt-6 space-y-6 text-sm leading-relaxed text-foreground/90">
         <p>
           This Privacy Policy explains how <strong>My Weather Pal</strong> (Android package{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">{ANDROID_PACKAGE}</code> and web application,
-          "the App", "we", "us") handles information. We believe in private-by-default software: no account registration,
-          no advertising trackers, no surveillance, and zero personal profiling.
+          "the App", "we", "us") handles information. We are committed to private-by-default software: no mandatory accounts,
+          no surveillance, and transparent on-device storage.
         </p>
 
         {/* Section 1 */}
         <section className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">1. No Account Required</h2>
           <p>
-            You can use all features of My Weather Pal without signing up, logging in, or providing any personal details
-            such as your name, email address, phone number, or payment details.
+            You can use all features of My Weather Pal without signing up, logging in, or providing personal details
+            such as your name, email address, phone number, or social logins.
           </p>
         </section>
 
@@ -84,8 +85,8 @@ function Privacy() {
           <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
             <li>
               <strong>AI Scene Generation:</strong> When you describe a custom watercolor scene, the text prompt and city name
-              are transmitted securely over HTTPS to the AI generation gateway to synthesize the artwork. These prompts are
-              ephemeral, not linked to any user identity, and not used to build personal profiles.
+              are transmitted securely over HTTPS to synthesize the artwork. These prompts are ephemeral, not linked to any
+              user identity, and not used to build personal profiles.
             </li>
             <li>
               <strong>User-Uploaded Photos:</strong> If you select a photo from your camera or photo library as a custom
@@ -117,26 +118,26 @@ function Privacy() {
             <li>Sky background themes and clothing occasion filters (<code>weather:sky-pref</code>, <code>weather:wear-category</code>).</li>
             <li>Selected language preference (<code>weather:lang</code>).</li>
             <li>Cached weather forecasts for instant loading and offline viewing.</li>
-            <li>Your custom artwork collection and city background assignments.</li>
+            <li>Your custom artwork collection and city background assignments in IndexedDB.</li>
           </ul>
           <p>
-            This data never leaves your device. You can erase all stored data at any time by clearing the App data in
+            This data never leaves your device. You can erase all stored data at any time by clearing App storage in
             Android Settings or clearing browser site data.
           </p>
         </section>
 
         {/* Section 5 */}
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">5. Third-Party Data Providers</h2>
+          <h2 className="text-lg font-semibold text-foreground">5. Third-Party Data Providers & Android SDKs</h2>
           <p>
-            To deliver real-time weather, warnings, and artwork, the App connects over secure HTTPS to these services:
+            To deliver real-time weather, warnings, artwork, and app functionality, the App interacts with these services:
           </p>
           <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
             <li>
               <a className="underline hover:text-foreground" href="https://open-meteo.com/en/terms" target="_blank" rel="noreferrer">
                 Open-Meteo
               </a>{" "}
-              — Hourly/7-day weather forecasts, air quality (AQI), UV index, and river discharge flood advisories.
+              — Hourly/7-day weather forecasts, air quality (AQI), UV index, and river flood advisories.
             </li>
             <li>
               <a className="underline hover:text-foreground" href="https://photon.komoot.io" target="_blank" rel="noreferrer">
@@ -148,13 +149,13 @@ function Privacy() {
               <a className="underline hover:text-foreground" href="https://data.tmd.go.th" target="_blank" rel="noreferrer">
                 Thai Meteorological Department (TMD)
               </a>{" "}
-              — Official weather warnings, heavy rain alerts, and monsoon bulletins for Thailand.
+              — Official weather warnings and monsoon bulletins for Thailand.
             </li>
             <li>
               <a className="underline hover:text-foreground" href="https://www.usgs.gov/privacy-policies" target="_blank" rel="noreferrer">
                 USGS (United States Geological Survey)
               </a>{" "}
-              — Global earthquake and seismic activity feeds (M4.5+).
+              — Global seismic activity feeds (M4.5+).
             </li>
             <li>
               <a className="underline hover:text-foreground" href="https://www.weather.gov/privacy" target="_blank" rel="noreferrer">
@@ -163,32 +164,28 @@ function Privacy() {
               — Severe weather warnings and watches.
             </li>
             <li>
-              <a className="underline hover:text-foreground" href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" target="_blank" rel="noreferrer">
-                Wikimedia / Wikipedia API
-              </a>{" "}
-              — Public domain and Creative Commons landmark imagery for cities.
+              <strong>Google Play In-App Billing:</strong> Handles secure purchases of supporter tiers on the Android app without exposing your card details to us.
             </li>
             <li>
-              <strong>AI Gateway (OpenAI Image Model):</strong> On-demand watercolor generation for custom user prompts.
+              <strong>Google AdMob (Android App):</strong> Used exclusively to deliver optional, user-initiated rewarded video ads (for example, unlocking a temporary 24-hour gallery slot). For details, consult{" "}
+              <a className="underline hover:text-foreground" href="https://policies.google.com/technologies/ads" target="_blank" rel="noreferrer">
+                Google's Advertising Privacy Policy
+              </a>.
             </li>
             <li>
-              <strong>Median.co:</strong> The platform used to package the web application into an installable Android APK.
+              <strong>Median.co:</strong> The native application shell packaging the web experience for Android devices.
             </li>
           </ul>
-          <p>
-            These providers may receive your IP address and the parameters (such as coordinates or city name) required to
-            answer your request. Their handling of requests is governed by their respective privacy policies.
-          </p>
         </section>
 
         {/* Section 6 */}
         <section className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">6. What We Never Do</h2>
           <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
-            <li>We do <strong>not</strong> sell, rent, broker, or monetize your data.</li>
-            <li>We do <strong>not</strong> embed third-party advertising SDKs, banner networks, or cross-app trackers.</li>
+            <li>We do <strong>not</strong> sell, rent, broker, or monetize your personal data.</li>
+            <li>We do <strong>not</strong> track you across other apps or websites for targeted advertising.</li>
             <li>We do <strong>not</strong> access your address book, microphone, contacts, or calendar.</li>
-            <li>We do <strong>not</strong> transmit personal photos from your device to any cloud storage.</li>
+            <li>We do <strong>not</strong> transmit personal photos from your device to any cloud server.</li>
           </ul>
         </section>
 
@@ -200,8 +197,8 @@ function Privacy() {
             records. You retain complete authority over your data:
           </p>
           <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
-            <li><strong>Delete Stored Data:</strong> Clear the App storage or browser cache to wipe all saved cities, settings, and paintings immediately.</li>
-            <li><strong>Revoke Permissions:</strong> Disable Location access anytime in your device settings.</li>
+            <li><strong>Delete Stored Data:</strong> Clear App storage or browser cache to wipe all saved cities, settings, and paintings immediately.</li>
+            <li><strong>Revoke Permissions:</strong> Disable Location access anytime in Android device settings.</li>
             <li><strong>Uninstall:</strong> Removing the App completely removes all local data files created by the App.</li>
           </ul>
         </section>
