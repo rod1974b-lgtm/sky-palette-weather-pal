@@ -49,9 +49,21 @@ export type Weather = {
   }[];
 };
 
-const CACHE_KEY = "weather:last";
+const LEGACY_CACHE_KEY = "weather:last";
 const UNIT_KEY = "weather:unit-pref";
 const FAVORITES_KEY = "weather:favorites";
+const CACHE_PREFIX = "weather:cache:v2:";
+
+// Cache Time-To-Live Windows
+const FRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes: serve instantly without network
+const MAX_OFFLINE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours: keep available for offline
+
+// In-flight deduplication registry
+const inFlightRequests = new Map<string, Promise<Weather>>();
+
+// In-memory geocoding search cache
+const searchCache = new Map<string, { timestamp: number; results: Place[] }>();
+const SEARCH_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export function loadUnitPref(): WeatherUnit {
   try {
@@ -110,157 +122,267 @@ function formatSunTime(iso?: string): string {
   }
 }
 
-export async function searchCity(q: string, lang: string = "en"): Promise<Place[]> {
-  if (!q.trim()) return [];
+function buildCacheKey(lat: number, lon: number, unit: WeatherUnit): string {
+  return `${CACHE_PREFIX}${lat.toFixed(2)}_${lon.toFixed(2)}_${unit}`;
+}
+
+function getCachedWeather(key: string): { weather: Weather; isFresh: boolean } | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Weather;
+    if (!parsed?.current || typeof parsed.fetchedAt !== "number") return null;
+
+    const age = Date.now() - parsed.fetchedAt;
+    if (age > MAX_OFFLINE_AGE_MS) return null;
+
+    return {
+      weather: parsed,
+      isFresh: age < FRESH_TTL_MS,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function setCachedWeather(key: string, weather: Weather): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(weather));
+    localStorage.setItem(LEGACY_CACHE_KEY, JSON.stringify(weather));
+  } catch {}
+}
+
+/**
+ * Robust fetch with exponential backoff for HTTP 429 and transient 5xx errors
+ */
+async function fetchWithRetry(url: string, retries = 2, delayMs = 600, signal?: AbortSignal): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { signal });
+      if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt) + Math.random() * 200));
+          continue;
+        }
+      }
+      return res;
+    } catch (err: any) {
+      if (err?.name === "AbortError" || attempt === retries) throw err;
+      await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt)));
+    }
+  }
+  throw new Error("Network request failed after retries");
+}
+
+export async function searchCity(
+  q: string,
+  lang: string = "en",
+  signal?: AbortSignal
+): Promise<Place[]> {
+  const query = q.trim().toLowerCase();
+  if (!query) return [];
+
   const cleanLang = ((lang || "en").split("-")[0] ?? "en").toLowerCase();
+  const cacheKey = `${query}:${cleanLang}`;
+
+  // Check in-memory search cache
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_TTL_MS) {
+    return cached.results;
+  }
+
   const r = await fetch(
-    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&format=json&language=${cleanLang}`,
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&format=json&language=${cleanLang}`,
+    { signal }
   );
+
   if (!r.ok) throw new Error("Search failed");
   const j = await r.json();
-  return (j.results ?? []).map((x: any) => ({
+
+  const results: Place[] = (j.results ?? []).map((x: any) => ({
     name: x.admin1 && x.admin1 !== x.name ? `${x.name}, ${x.admin1}` : x.name,
     country: x.country,
     lat: x.latitude,
     lon: x.longitude,
   }));
+
+  // Store in search cache (clamp size to 40 entries)
+  if (searchCache.size > 40) {
+    const oldestKey = searchCache.keys().next().value;
+    if (oldestKey) searchCache.delete(oldestKey);
+  }
+  searchCache.set(cacheKey, { timestamp: Date.now(), results });
+
+  return results;
 }
 
-export async function fetchWeather(place: Place, unit: WeatherUnit = "metric"): Promise<Weather> {
+export async function fetchWeather(
+  place: Place,
+  unit: WeatherUnit = "metric",
+  forceRefresh = false
+): Promise<Weather> {
   const safeLat = typeof place?.lat === "number" && !isNaN(place.lat) ? place.lat : 13.7563;
   const safeLon = typeof place?.lon === "number" && !isNaN(place.lon) ? place.lon : 100.5018;
 
-  const tempUnit = unit === "imperial" ? "fahrenheit" : "celsius";
-  const windUnit = unit === "imperial" ? "mph" : "kmh";
-  const precipUnit = unit === "imperial" ? "inch" : "mm";
+  const cacheKey = buildCacheKey(safeLat, safeLon, unit);
 
-  const weatherUrl =
-    `https://api.open-meteo.com/v1/forecast?latitude=${safeLat}&longitude=${safeLon}` +
-    `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,uv_index,precipitation,is_day,surface_pressure,visibility` +
-    `&hourly=temperature_2m,weather_code,precipitation_probability,is_day` +
-    `&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max` +
-    `&temperature_unit=${tempUnit}&wind_speed_unit=${windUnit}&precipitation_unit=${precipUnit}` +
-    `&timezone=auto&forecast_days=7`;
-
-  // Fetch AQI, PM2.5, and PM10 simultaneously
-  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${safeLat}&longitude=${safeLon}&current=us_aqi,pm2_5,pm10`;
-
-  try {
-    const [weatherRes, aqiRes] = await Promise.allSettled([
-      fetch(weatherUrl).then((r) => {
-        if (!r.ok) throw new Error("Weather request failed");
-        return r.json();
-      }),
-      fetch(aqiUrl).then((r) => (r.ok ? r.json() : null)),
-    ]);
-
-    if (weatherRes.status === "rejected") {
-      throw new Error("Weather request failed");
+  // 1. Instant Cache Return if not force-refreshed and data is fresh (< 10 min)
+  if (!forceRefresh) {
+    const cachedEntry = getCachedWeather(cacheKey);
+    if (cachedEntry && cachedEntry.isFresh) {
+      return { ...cachedEntry.weather, place };
     }
+  }
 
-    const j = weatherRes.value;
-    let aqi: number | undefined;
-    let pm25: number | undefined;
-    let pm10: number | undefined;
+  // 2. In-flight promise deduplication (prevent concurrent twin calls)
+  const existingInFlight = inFlightRequests.get(cacheKey);
+  if (existingInFlight && !forceRefresh) {
+    return existingInFlight;
+  }
 
-    if (aqiRes.status === "fulfilled" && aqiRes.value?.current) {
-      const curAqi = aqiRes.value.current;
-      if (typeof curAqi.us_aqi === "number" && !isNaN(curAqi.us_aqi)) {
-        aqi = Math.round(curAqi.us_aqi);
-      }
-      if (typeof curAqi.pm2_5 === "number" && !isNaN(curAqi.pm2_5)) {
-        pm25 = Math.round(curAqi.pm2_5 * 10) / 10;
-      }
-      if (typeof curAqi.pm10 === "number" && !isNaN(curAqi.pm10)) {
-        pm10 = Math.round(curAqi.pm10 * 10) / 10;
-      }
-    }
+  const fetchPromise = (async () => {
+    const tempUnit = unit === "imperial" ? "fahrenheit" : "celsius";
+    const windUnit = unit === "imperial" ? "mph" : "kmh";
+    const precipUnit = unit === "imperial" ? "inch" : "mm";
 
-    const currentHourIso = j.current?.time ? j.current.time.slice(0, 13) + ":00" : "";
-    let startIdx = j.hourly?.time?.findIndex((t: string) => t >= currentHourIso) ?? 0;
-    if (startIdx === -1) startIdx = 0;
+    const weatherUrl =
+      `https://api.open-meteo.com/v1/forecast?latitude=${safeLat}&longitude=${safeLon}` +
+      `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,uv_index,precipitation,is_day,surface_pressure,visibility` +
+      `&hourly=temperature_2m,weather_code,precipitation_probability,is_day` +
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max` +
+      `&temperature_unit=${tempUnit}&wind_speed_unit=${windUnit}&precipitation_unit=${precipUnit}` +
+      `&timezone=auto&forecast_days=7`;
 
-    const totalHours = j.hourly?.time?.length ?? 0;
-    const count = Math.min(24, Math.max(0, totalHours - startIdx));
-    const hourly = [];
-
-    for (let idx = 0; idx < count; idx++) {
-      const dataIdx = startIdx + idx;
-      const prob = j.hourly.precipitation_probability?.[dataIdx] ?? 0;
-      hourly.push({
-        time: j.hourly.time[dataIdx],
-        temp: idx === 0 && j.current?.temperature_2m !== undefined ? j.current.temperature_2m : j.hourly.temperature_2m[dataIdx],
-        code: idx === 0 && j.current?.weather_code !== undefined ? j.current.weather_code : j.hourly.weather_code[dataIdx],
-        precipProb: prob,
-        pop: prob,
-        is_day: idx === 0 && j.current?.is_day !== undefined ? j.current.is_day : (j.hourly.is_day?.[dataIdx] ?? 1),
-      });
-    }
-
-    const sunrise = formatSunTime(j.daily?.sunrise?.[0]);
-    const sunset = formatSunTime(j.daily?.sunset?.[0]);
-
-    const windSpeed = j.current?.wind_speed_10m ?? 0;
-    const uvVal = j.current?.uv_index ?? 0;
-    const visibilityKm = typeof j.current?.visibility === "number" ? j.current.visibility / 1000 : 10;
-    const pressureHpa = typeof j.current?.surface_pressure === "number" ? j.current.surface_pressure : 1013;
-
-    const w: Weather = {
-      place,
-      fetchedAt: Date.now(),
-      unit,
-      current: {
-        temp: j.current?.temperature_2m ?? 0,
-        feels: j.current?.apparent_temperature ?? j.current?.temperature_2m ?? 0,
-        code: j.current?.weather_code ?? 0,
-        wind: windSpeed,
-        wind_speed: windSpeed,
-        wind_dir: j.current?.wind_direction_10m ?? 0,
-        humidity: j.current?.relative_humidity_2m ?? 0,
-        uv: uvVal,
-        uvIndex: Math.round(uvVal),
-        precipitation: j.current?.precipitation ?? 0,
-        pressure: pressureHpa,
-        vis: visibilityKm,
-        aqi,
-        pm25,
-        pm10,
-        is_day: j.current?.is_day ?? 1,
-      },
-      sun: { sunrise, sunset },
-      hourly,
-      daily: (j.daily?.time ?? []).map((d: string, i: number) => {
-        const pop = j.daily.precipitation_probability_max?.[i] ?? 0;
-        return {
-          date: d,
-          max: j.daily.temperature_2m_max[i],
-          min: j.daily.temperature_2m_min[i],
-          code: j.daily.weather_code[i],
-          precipProbMax: pop,
-          pop,
-          sunrise: j.daily.sunrise?.[i],
-          sunset: j.daily.sunset?.[i],
-        };
-      }),
-    };
+    // Fetch AQI, PM2.5, and PM10 simultaneously
+    const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${safeLat}&longitude=${safeLon}&current=us_aqi,pm2_5,pm10`;
 
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(w));
-    } catch {}
+      const [weatherRes, aqiRes] = await Promise.allSettled([
+        fetchWithRetry(weatherUrl).then((r) => {
+          if (!r.ok) throw new Error("Weather request failed");
+          return r.json();
+        }),
+        fetchWithRetry(aqiUrl).then((r) => (r.ok ? r.json() : null)),
+      ]);
 
-    return w;
-  } catch (err) {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached) as Weather;
-        if (parsed?.current && parsed?.place) {
-          return { ...parsed, place };
+      if (weatherRes.status === "rejected") {
+        throw new Error("Weather request failed");
+      }
+
+      const j = weatherRes.value;
+      let aqi: number | undefined;
+      let pm25: number | undefined;
+      let pm10: number | undefined;
+
+      if (aqiRes.status === "fulfilled" && aqiRes.value?.current) {
+        const curAqi = aqiRes.value.current;
+        if (typeof curAqi.us_aqi === "number" && !isNaN(curAqi.us_aqi)) {
+          aqi = Math.round(curAqi.us_aqi);
+        }
+        if (typeof curAqi.pm2_5 === "number" && !isNaN(curAqi.pm2_5)) {
+          pm25 = Math.round(curAqi.pm2_5 * 10) / 10;
+        }
+        if (typeof curAqi.pm10 === "number" && !isNaN(curAqi.pm10)) {
+          pm10 = Math.round(curAqi.pm10 * 10) / 10;
         }
       }
-    } catch {}
-    throw err;
-  }
+
+      const currentHourIso = j.current?.time ? j.current.time.slice(0, 13) + ":00" : "";
+      let startIdx = j.hourly?.time?.findIndex((t: string) => t >= currentHourIso) ?? 0;
+      if (startIdx === -1) startIdx = 0;
+
+      const totalHours = j.hourly?.time?.length ?? 0;
+      const count = Math.min(24, Math.max(0, totalHours - startIdx));
+      const hourly = [];
+
+      for (let idx = 0; idx < count; idx++) {
+        const dataIdx = startIdx + idx;
+        const prob = j.hourly.precipitation_probability?.[dataIdx] ?? 0;
+        hourly.push({
+          time: j.hourly.time[dataIdx],
+          temp: idx === 0 && j.current?.temperature_2m !== undefined ? j.current.temperature_2m : j.hourly.temperature_2m[dataIdx],
+          code: idx === 0 && j.current?.weather_code !== undefined ? j.current.weather_code : j.hourly.weather_code[dataIdx],
+          precipProb: prob,
+          pop: prob,
+          is_day: idx === 0 && j.current?.is_day !== undefined ? j.current.is_day : (j.hourly.is_day?.[dataIdx] ?? 1),
+        });
+      }
+
+      const sunrise = formatSunTime(j.daily?.sunrise?.[0]);
+      const sunset = formatSunTime(j.daily?.sunset?.[0]);
+
+      const windSpeed = j.current?.wind_speed_10m ?? 0;
+      const uvVal = j.current?.uv_index ?? 0;
+      const visibilityKm = typeof j.current?.visibility === "number" ? j.current.visibility / 1000 : 10;
+      const pressureHpa = typeof j.current?.surface_pressure === "number" ? j.current.surface_pressure : 1013;
+
+      const w: Weather = {
+        place,
+        fetchedAt: Date.now(),
+        unit,
+        current: {
+          temp: j.current?.temperature_2m ?? 0,
+          feels: j.current?.apparent_temperature ?? j.current?.temperature_2m ?? 0,
+          code: j.current?.weather_code ?? 0,
+          wind: windSpeed,
+          wind_speed: windSpeed,
+          wind_dir: j.current?.wind_direction_10m ?? 0,
+          humidity: j.current?.relative_humidity_2m ?? 0,
+          uv: uvVal,
+          uvIndex: Math.round(uvVal),
+          precipitation: j.current?.precipitation ?? 0,
+          pressure: pressureHpa,
+          vis: visibilityKm,
+          aqi,
+          pm25,
+          pm10,
+          is_day: j.current?.is_day ?? 1,
+        },
+        sun: { sunrise, sunset },
+        hourly,
+        daily: (j.daily?.time ?? []).map((d: string, i: number) => {
+          const pop = j.daily.precipitation_probability_max?.[i] ?? 0;
+          return {
+            date: d,
+            max: j.daily.temperature_2m_max[i],
+            min: j.daily.temperature_2m_min[i],
+            code: j.daily.weather_code[i],
+            precipProbMax: pop,
+            pop,
+            sunrise: j.daily.sunrise?.[i],
+            sunset: j.daily.sunset?.[i],
+          };
+        }),
+      };
+
+      setCachedWeather(cacheKey, w);
+      return w;
+    } catch (err) {
+      // 3. Fallback to location-specific cached forecast on network or rate-limit error
+      const cached = getCachedWeather(cacheKey);
+      if (cached?.weather?.current) {
+        return { ...cached.weather, place };
+      }
+
+      // Legacy fallback
+      try {
+        const legacyRaw = localStorage.getItem(LEGACY_CACHE_KEY);
+        if (legacyRaw) {
+          const parsed = JSON.parse(legacyRaw) as Weather;
+          if (parsed?.current && isSamePlace(parsed.place, place)) {
+            return { ...parsed, place };
+          }
+        }
+      } catch {}
+
+      throw err;
+    } finally {
+      inFlightRequests.delete(cacheKey);
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, fetchPromise);
+  return fetchPromise;
 }
 
 export const getWeather = fetchWeather;
