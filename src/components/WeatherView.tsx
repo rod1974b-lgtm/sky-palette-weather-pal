@@ -1,5 +1,5 @@
 // src/components/WeatherView.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { type Weather, type WeatherUnit, type Place } from "@/lib/weather";
@@ -10,6 +10,14 @@ import {
   getCityWeatherBackground,
 } from "@/lib/aiWatercolorGenerator";
 import { AiGalleryModal } from "@/components/AiGalleryModal";
+import {
+  type SavedItem,
+  getWallpaperItem,
+  setWallpaperItem,
+  deleteWallpaperItem,
+  getSavedArtworks,
+  migrateLegacyLocalStorage,
+} from "@/lib/wallpaperStorage";
 
 export interface TickerAlertItem {
   id: string;
@@ -292,7 +300,7 @@ const ACCESSORY_LABELS = {
     warmBeanie: "Kupluk rajut, syal & kaus kaki tebal",
   },
   vi: {
-    umbrella: "Ô gấp gọn hoặc áo mưa",
+    umbrella: "Ô gấp gọn หรือ áo mưa",
     sunglasses: "Kính râm chống tia UV & mũ rộng vành",
     sunscreen: "Kem chống nắng kháng nước SPF 50+",
     water: "Bình nước mát",
@@ -302,21 +310,6 @@ const ACCESSORY_LABELS = {
     warmBeanie: "Mũ len, khăn quàng & tất ấm",
   },
 };
-
-// Helper to load user's saved gallery slots (Slot 1, Slot 2, Slot 3...)
-function getSavedSlotArtworks(): { id: string; url: string; title: string }[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem("weather:custom-art-saved");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((item) => Boolean(item?.url));
-      }
-    }
-  } catch {}
-  return [];
-}
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
   weather,
@@ -338,29 +331,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const w = weather || weatherProp;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
-
-  const [heroBgUrl, setHeroBgUrl] = useState<string>(() => {
-    if (customBgUrl) return customBgUrl;
-    if (typeof window !== "undefined") {
-      const cityKey = w?.place?.name ? `weather:custom-bg:${w.place.name.toLowerCase().trim()}` : "";
-      const savedCity = cityKey ? localStorage.getItem(cityKey) : null;
-      const savedCurrent = localStorage.getItem("weather:custom-bg:current");
-      if (savedCity) return savedCity;
-      if (savedCurrent) return savedCurrent;
-
-      // Default to saved slots (Slot 1, Slot 2, Slot 3...)
-      const slots = getSavedSlotArtworks();
-      if (slots.length > 0) {
-        const cityMatch = w?.place?.name
-          ? slots.find((s) => s.title.toLowerCase().includes(w.place.name.toLowerCase().trim()))
-          : null;
-        const target = cityMatch || slots[0];
-        if (target?.url) return target.url;
-      }
-    }
-    return "";
-  });
-
+  const [heroBgUrl, setHeroBgUrl] = useState<string>(customBgUrl || "");
+  const [savedSlots, setSavedSlots] = useState<SavedItem[]>([]);
   const [artIndex, setArtIndex] = useState(0);
   const [isDarkArtwork, setIsDarkArtwork] = useState<boolean>(false);
 
@@ -386,7 +358,104 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     ? `weather:custom-bg:${w.place.name.toLowerCase().trim()}`
     : "";
 
-  // Auto-detect whether the hero background picture is dark or light
+  // 1. Initialize IndexedDB migration & load saved slot artworks
+  const reloadSlots = useCallback(async () => {
+    try {
+      await migrateLegacyLocalStorage();
+      const slots = await getSavedArtworks();
+      setSavedSlots(slots);
+      return slots;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    reloadSlots();
+  }, [reloadSlots]);
+
+  // 2. Load hero background from IndexedDB with city, slot, and landmark fallbacks
+  useEffect(() => {
+    if (!w?.place) return;
+    let isCurrent = true;
+
+    async function loadBackground() {
+      if (customBgUrl) {
+        if (isCurrent) setHeroBgUrl(customBgUrl);
+        return;
+      }
+
+      // 1. Check city-specific custom wallpaper from IndexedDB
+      if (cityStorageKey) {
+        const savedCityBg = await getWallpaperItem(cityStorageKey);
+        if (savedCityBg && isCurrent) {
+          setHeroBgUrl(savedCityBg);
+          return;
+        }
+      }
+
+      // 2. Check general current custom wallpaper
+      const savedCurrentBg = await getWallpaperItem("weather:custom-bg:current");
+      if (savedCurrentBg && isCurrent) {
+        setHeroBgUrl(savedCurrentBg);
+        return;
+      }
+
+      // 3. Check user's saved slots (Slot 1, Slot 2, Slot 3...)
+      const slots = await reloadSlots();
+      if (slots.length > 0) {
+        const cityMatch = slots.find((s) =>
+          s.title.toLowerCase().includes(w?.place?.name.toLowerCase().trim() || "")
+        );
+        const targetSlot = cityMatch || slots[0];
+        if (targetSlot?.url && isCurrent) {
+          setHeroBgUrl(targetSlot.url);
+          return;
+        }
+      }
+
+      // 4. Curated Landmark Watercolor Fallback
+      if (!isCurrent) return;
+      const conditionStr = getConditionLabel(w.current.code, t);
+      const landmarkArts = getAllAvailableArtworks(
+        w.place.name,
+        w.current.code,
+        conditionStr,
+        w.place.country,
+        w.place.lat,
+        w.place.lon
+      );
+
+      if (landmarkArts.length > 0 && isCurrent) {
+        setHeroBgUrl(landmarkArts[0]);
+      } else {
+        getCityWeatherBackground(
+          w.place.name,
+          conditionStr,
+          w.current.code,
+          w.current.temp,
+          (loadedUrl) => {
+            if (isCurrent) setHeroBgUrl(loadedUrl);
+          },
+          w.place.country,
+          w.place.lat,
+          w.place.lon
+        ).then((res) => {
+          if (res?.initialBg && !res.initialBg.startsWith("linear-gradient") && isCurrent) {
+            setHeroBgUrl(res.initialBg);
+          }
+        }).catch(() => {});
+      }
+    }
+
+    loadBackground();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [w?.place?.name, w?.current?.code, cityStorageKey, customBgUrl, reloadSlots, t]);
+
+  // 3. Auto-detect whether the hero background picture is dark or light
   useEffect(() => {
     if (!heroBgUrl) {
       setIsDarkArtwork(!w?.current?.is_day);
@@ -437,63 +506,39 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     }
   }, [customBgUrl]);
 
-  // Live listener for wallpaper changes from gallery
+  // 4. Live listener for wallpaper changes from gallery
   useEffect(() => {
     const handleBgChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ city?: string; currentCity?: string; url?: string }>;
       if (customEvent.detail?.url) {
         setHeroBgUrl(customEvent.detail.url);
       }
+      reloadSlots();
     };
+
     window.addEventListener("weather:custom-bg-change", handleBgChange);
     return () => {
       window.removeEventListener("weather:custom-bg-change", handleBgChange);
     };
-  }, [w?.place?.name]);
+  }, [reloadSlots]);
 
-  const handleSelectBackground = (url: string) => {
+  const handleSelectBackground = async (url: string) => {
     setHeroBgUrl(url);
     if (cityStorageKey) {
-      try {
-        if (url) {
-          localStorage.setItem(cityStorageKey, url);
-          localStorage.setItem("weather:custom-bg:current", url);
-        } else {
-          localStorage.removeItem(cityStorageKey);
-        }
-      } catch {}
+      if (url) {
+        await setWallpaperItem(cityStorageKey, url);
+        await setWallpaperItem("weather:custom-bg:current", url);
+      } else {
+        await deleteWallpaperItem(cityStorageKey);
+      }
     }
     if (onSelectBg) onSelectBg(url);
     if (onSelectBackground) onSelectBackground(url);
   };
 
-  useEffect(() => {
+  // Cycling artwork through Next Art button: Slot 1 -> Slot 2 -> Slot 3 -> ... -> Curated Landmarks
+  const handleCycleArtwork = async () => {
     if (!w?.place) return;
-
-    try {
-      const savedCityBg =
-        localStorage.getItem(cityStorageKey) ||
-        localStorage.getItem("weather:custom-bg:current");
-      if (savedCityBg) {
-        setHeroBgUrl(savedCityBg);
-        return;
-      }
-    } catch {}
-
-    // Check user's saved slots (Slot 1, Slot 2, Slot 3...)
-    const slots = getSavedSlotArtworks();
-    if (slots.length > 0) {
-      const cityMatch = slots.find((s) =>
-        s.title.toLowerCase().includes(w.place.name.toLowerCase().trim())
-      );
-      const targetSlot = cityMatch || slots[0];
-      if (targetSlot?.url) {
-        setHeroBgUrl(targetSlot.url);
-        return;
-      }
-    }
-
-    // Curated Landmark Watercolor Fallback
     const conditionStr = getConditionLabel(w.current.code, t);
     const landmarkArts = getAllAvailableArtworks(
       w.place.name,
@@ -504,27 +549,22 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       w.place.lon
     );
 
-    if (landmarkArts.length > 0) {
-      setHeroBgUrl(landmarkArts[0]);
-    } else {
-      getCityWeatherBackground(
-        w.place.name,
-        conditionStr,
-        w.current.code,
-        w.current.temp,
-        (loadedUrl) => {
-          setHeroBgUrl(loadedUrl);
-        },
-        w.place.country,
-        w.place.lat,
-        w.place.lon
-      ).then((res) => {
-        if (res?.initialBg && !res.initialBg.startsWith("linear-gradient")) {
-          setHeroBgUrl(res.initialBg);
-        }
-      }).catch(() => {});
+    const freshSlots = await reloadSlots();
+    const slotUrls = freshSlots.map((s) => s.url);
+    const allArts = Array.from(new Set([...slotUrls, ...landmarkArts]));
+    if (!allArts || allArts.length === 0) return;
+
+    const currentIdx = allArts.indexOf(heroBgUrl);
+    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % allArts.length : 0;
+    setArtIndex(nextIdx);
+    const nextUrl = allArts[nextIdx];
+    if (nextUrl) {
+      handleSelectBackground(nextUrl);
     }
-  }, [w?.place?.name, w?.current?.code, cityStorageKey]);
+  };
+
+  // Determine if active heroBgUrl is one of user's saved slots
+  const currentSlotIndex = savedSlots.findIndex((s) => s.url === heroBgUrl);
 
   if (!w) {
     return (
@@ -690,36 +730,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   if (tempC >= 12 && tempC <= 18 && accessories.length < 2) accessories.push(locAccessory.lightJacket);
 
   const finalAccessories = Array.from(new Set(accessories)).slice(0, 3);
-
-  // Cycling artwork through Next Art button: Slot 1 -> Slot 2 -> Slot 3 -> ... -> Curated Landmarks
-  const handleCycleArtwork = () => {
-    const conditionStr = getConditionLabel(w.current.code, t);
-    const landmarkArts = getAllAvailableArtworks(
-      w.place.name,
-      w.current.code,
-      conditionStr,
-      w.place.country,
-      w.place.lat,
-      w.place.lon
-    );
-
-    const savedSlots = getSavedSlotArtworks();
-    const slotUrls = savedSlots.map((s) => s.url);
-    const allArts = Array.from(new Set([...slotUrls, ...landmarkArts]));
-    if (!allArts || allArts.length === 0) return;
-
-    const currentIdx = allArts.indexOf(heroBgUrl);
-    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % allArts.length : 0;
-    setArtIndex(nextIdx);
-    const nextUrl = allArts[nextIdx];
-    if (nextUrl) {
-      handleSelectBackground(nextUrl);
-    }
-  };
-
-  // Determine if active heroBgUrl is one of user's saved slots
-  const savedSlotsList = getSavedSlotArtworks();
-  const currentSlotIndex = savedSlotsList.findIndex((s) => s.url === heroBgUrl);
 
   const cityBadgeClass =
     "inline-flex items-center gap-2 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]";
