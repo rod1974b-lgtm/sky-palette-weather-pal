@@ -20,7 +20,9 @@ export type Weather = {
     precipitation: number;
     pressure: number;
     vis: number; // visibility in km
-    aqi?: number | undefined;
+    aqi?: number | undefined;       // US AQI (0-500)
+    pm25?: number | undefined;      // PM2.5 in µg/m³
+    pm10?: number | undefined;      // PM10 in µg/m³
     is_day?: number;
   };
   sun: {
@@ -140,7 +142,8 @@ export async function fetchWeather(place: Place, unit: WeatherUnit = "metric"): 
     `&temperature_unit=${tempUnit}&wind_speed_unit=${windUnit}&precipitation_unit=${precipUnit}` +
     `&timezone=auto&forecast_days=7`;
 
-  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${safeLat}&longitude=${safeLon}&current=us_aqi`;
+  // Fetch AQI, PM2.5, and PM10 simultaneously
+  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${safeLat}&longitude=${safeLon}&current=us_aqi,pm2_5,pm10`;
 
   try {
     const [weatherRes, aqiRes] = await Promise.allSettled([
@@ -157,8 +160,20 @@ export async function fetchWeather(place: Place, unit: WeatherUnit = "metric"): 
 
     const j = weatherRes.value;
     let aqi: number | undefined;
-    if (aqiRes.status === "fulfilled" && aqiRes.value?.current?.us_aqi !== undefined) {
-      aqi = Math.round(aqiRes.value.current.us_aqi);
+    let pm25: number | undefined;
+    let pm10: number | undefined;
+
+    if (aqiRes.status === "fulfilled" && aqiRes.value?.current) {
+      const curAqi = aqiRes.value.current;
+      if (typeof curAqi.us_aqi === "number" && !isNaN(curAqi.us_aqi)) {
+        aqi = Math.round(curAqi.us_aqi);
+      }
+      if (typeof curAqi.pm2_5 === "number" && !isNaN(curAqi.pm2_5)) {
+        pm25 = Math.round(curAqi.pm2_5 * 10) / 10;
+      }
+      if (typeof curAqi.pm10 === "number" && !isNaN(curAqi.pm10)) {
+        pm10 = Math.round(curAqi.pm10 * 10) / 10;
+      }
     }
 
     const currentHourIso = j.current?.time ? j.current.time.slice(0, 13) + ":00" : "";
@@ -208,6 +223,8 @@ export async function fetchWeather(place: Place, unit: WeatherUnit = "metric"): 
         pressure: pressureHpa,
         vis: visibilityKm,
         aqi,
+        pm25,
+        pm10,
         is_day: j.current?.is_day ?? 1,
       },
       sun: { sunrise, sunset },
@@ -269,13 +286,58 @@ export function uvCategory(uv: number): string {
   return "Extreme";
 }
 
-export function aqiCategory(aqi: number): { label: string; color: string } {
-  if (aqi <= 50) return { label: "Good", color: "text-emerald-500" };
-  if (aqi <= 100) return { label: "Moderate", color: "text-yellow-500" };
-  if (aqi <= 150) return { label: "Unhealthy for Sensitive Groups", color: "text-orange-500" };
-  if (aqi <= 200) return { label: "Unhealthy", color: "text-red-500" };
-  if (aqi <= 300) return { label: "Very Unhealthy", color: "text-purple-500" };
-  return { label: "Hazardous", color: "text-rose-900" };
+export function aqiCategory(aqi: number): {
+  label: string;
+  color: string;
+  bg: string;
+  level: "good" | "moderate" | "sensitive" | "unhealthy" | "very_unhealthy" | "hazardous";
+} {
+  if (aqi <= 50) {
+    return {
+      label: "Good",
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10 border-emerald-500/30",
+      level: "good",
+    };
+  }
+  if (aqi <= 100) {
+    return {
+      label: "Moderate",
+      color: "text-amber-500",
+      bg: "bg-amber-500/10 border-amber-500/30",
+      level: "moderate",
+    };
+  }
+  if (aqi <= 150) {
+    return {
+      label: "Unhealthy for Sensitive Groups",
+      color: "text-orange-500",
+      bg: "bg-orange-500/10 border-orange-500/30",
+      level: "sensitive",
+    };
+  }
+  if (aqi <= 200) {
+    return {
+      label: "Unhealthy",
+      color: "text-rose-500",
+      bg: "bg-rose-500/10 border-rose-500/30",
+      level: "unhealthy",
+    };
+  }
+  if (aqi <= 300) {
+    return {
+      label: "Very Unhealthy",
+      color: "text-purple-500",
+      bg: "bg-purple-500/10 border-purple-500/30",
+      level: "very_unhealthy",
+    };
+  }
+  return {
+    label: "Hazardous",
+    color: "text-rose-900 dark:text-rose-400",
+    bg: "bg-rose-950/25 border-rose-900/40",
+    level: "hazardous",
+  };
 }
 
 export type SkyKey =
