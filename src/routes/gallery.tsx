@@ -1,5 +1,5 @@
-import type { TFunction } from "i18next";
 // src/routes/gallery.tsx
+import type { TFunction } from "i18next";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,9 @@ import {
 import { generateWatercolorFn } from "@/lib/aiWatercolor.functions";
 import { PaymentModal } from "@/components/PaymentModal";
 import type { Place } from "@/lib/weather";
+import {
+  showRewardedAdViaMedian,
+} from "@/lib/monetization";
 import {
   type SavedItem,
   getSavedArtworks,
@@ -287,18 +290,39 @@ export function ArtGalleryPage() {
 
   const handleWatchAd = () => {
     if (slotLimits.hasAdBonus) {
-      alert(t("alert_ad_already_active", `You already have an active Ad Slot (+1 slot) for ${slotLimits.adHoursLeft} more hours!`, { hours: slotLimits.adHoursLeft }));
+      alert(
+        t(
+          "alert_ad_already_active",
+          `You already have an active Ad Slot (+1 slot) for ${slotLimits.adHoursLeft} more hours!`,
+          { hours: slotLimits.adHoursLeft }
+        )
+      );
       return;
     }
+
     setIsWatchingAd(true);
-    setTimeout(() => {
-      try {
-        localStorage.setItem("weather:gallery-ad-bonus-time", Date.now().toString());
-        setSlotLimits(getUserSlotLimits());
-        alert(t("alert_ad_watched_success", "🎉 Ad complete! +1 Temporary Slot unlocked for the next 24 hours. Support with Root Beer to keep it permanently!"));
-      } catch {}
-      setIsWatchingAd(false);
-    }, 2000);
+
+    showRewardedAdViaMedian(
+      () => {
+        try {
+          localStorage.setItem("weather:gallery-ad-bonus-time", Date.now().toString());
+          setSlotLimits(getUserSlotLimits());
+          alert(
+            t(
+              "alert_ad_watched_success",
+              "🎉 Ad complete! +1 Temporary Slot unlocked for the next 24 hours. Support with Root Beer to keep it permanently!"
+            )
+          );
+        } catch {}
+        setIsWatchingAd(false);
+      },
+      (err) => {
+        setIsWatchingAd(false);
+        if (err?.message) {
+          alert(err.message);
+        }
+      }
+    );
   };
 
   const landmarkItems = useMemo(() => {
@@ -465,7 +489,7 @@ export function ArtGalleryPage() {
             📍 {currentPlace.name}
           </span>
           <button
-            onClick={() => setPaymentModalTier("small")}
+            onClick={() => setPaymentModalTier("small_root_beer_tier")}
             className="text-xs font-semibold px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:brightness-110 shadow transition"
           >
             🍺 {t("nav_support_root_beer", "Support with Root Beer")}
@@ -516,7 +540,7 @@ export function ArtGalleryPage() {
                 </button>
               )}
               <button
-                onClick={() => setPaymentModalTier("small")}
+                onClick={() => setPaymentModalTier("small_root_beer_tier")}
                 className="text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:brightness-110 shadow-lg transition"
               >
                 ⚡ {t("btn_unlock_more_slots", "Unlock More Slots")}
@@ -552,16 +576,16 @@ export function ArtGalleryPage() {
               const isTargeted = targetSlotIndex === slotIdx;
 
               let tierRequired = "Free";
-              let tierCode = "free";
+              let tierCode = "small_root_beer_tier";
               if (slotIdx === 1) {
                 tierRequired = slotLimits.hasAdBonus ? t("slot_ad_active", "Ad Bonus Active") : t("slot_small_or_ad", "Ad or Small Tier ($1)");
-                tierCode = "small";
+                tierCode = "small_root_beer_tier";
               } else if (slotIdx >= 2 && slotIdx <= 3) {
                 tierRequired = t("slot_medium_tier", "Medium Tier ($3)");
-                tierCode = "medium";
+                tierCode = "medium_root_beer_tier";
               } else if (slotIdx >= 4) {
                 tierRequired = t("slot_large_tier", "Large Tier ($5)");
-                tierCode = "large";
+                tierCode = "large_root_beer_tier";
               }
 
               return (
@@ -739,7 +763,7 @@ export function ArtGalleryPage() {
             </div>
             <button
               onClick={() => setIsAiExpanded(!isAiExpanded)}
-              className="text-xs text-amber-400 hover:text-amber-300 font-semibold self-start sm:self-auto"
+              className="text-xs text-amber-400 hover:text-amber-300 font-semibold self-start sm:self-auto cursor-pointer"
             >
               {isAiExpanded ? t("btn_collapse", "Collapse ▲") : t("btn_open_generator", "Open Studio ▼")}
             </button>
@@ -768,7 +792,7 @@ export function ArtGalleryPage() {
                   <button
                     onClick={handleGenerateAi}
                     disabled={isGenerating || !aiPrompt.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold text-sm hover:brightness-110 disabled:opacity-50 transition shadow-md flex items-center justify-center gap-2"
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold text-sm hover:brightness-110 disabled:opacity-50 transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {isGenerating ? "⏳ " + t("btn_painting", "Painting...") : "🎨 " + t("btn_generate_ai", "Generate")}
                   </button>
@@ -795,7 +819,7 @@ export function ArtGalleryPage() {
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+                  className="text-xs px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
                 >
                   📁 {t("btn_upload_photo", "Upload Photo")}
                 </button>
@@ -825,7 +849,7 @@ export function ArtGalleryPage() {
                 <button
                   key={region}
                   onClick={() => setSelectedRegion(region)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition ${
+                  className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition cursor-pointer ${
                     selectedRegion === region
                       ? "bg-amber-500 text-slate-950 font-bold"
                       : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
@@ -858,7 +882,7 @@ export function ArtGalleryPage() {
                   />
                   <button
                     onClick={() => setZoomedImage({ url: item.image, title: item.title })}
-                    className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition"
+                    className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition cursor-pointer"
                   >
                     🔍
                   </button>
@@ -873,13 +897,13 @@ export function ArtGalleryPage() {
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-700/60">
                     <button
                       onClick={() => handleApplyWallpaper(item.city, item.image)}
-                      className="flex-1 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition"
+                      className="flex-1 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer"
                     >
                       ✓ {t("btn_apply_wallpaper", "Apply Wallpaper")}
                     </button>
                     <button
                       onClick={() => handleViewWeather(item.city)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-slate-200 text-xs transition border border-slate-700"
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-slate-200 text-xs transition border border-slate-700 cursor-pointer"
                       title={t("btn_view_weather", "View Weather")}
                     >
                       ⛅
@@ -903,7 +927,7 @@ export function ArtGalleryPage() {
               <h3 className="font-bold text-sm text-white">{zoomedImage.title}</h3>
               <button
                 onClick={() => setZoomedImage(null)}
-                className="text-slate-400 hover:text-white text-lg font-bold"
+                className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -922,7 +946,7 @@ export function ArtGalleryPage() {
       {/* Payment / Tier Modal */}
       {paymentModalTier && (
         <PaymentModal
-          initialTier={paymentModalTier as any}
+          tierId={paymentModalTier}
           onClose={() => {
             setPaymentModalTier(null);
             setSlotLimits(getUserSlotLimits());
