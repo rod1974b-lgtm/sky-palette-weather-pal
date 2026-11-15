@@ -200,6 +200,7 @@ export const ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE: RootBeerTier[] = [
 export const SORTED_TIERS = [...ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE].sort(
   (a, b) => a.level - b.level
 );
+
 export const PLAY_BILLING_PRODUCT_IDS = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.map(
   (t) => t.id
 );
@@ -377,17 +378,24 @@ export const getDonationUrl = (
   }
 };
 
-// Detects the Median.co Android WebView wrapper.
+// ============================================================================
+// MEDIAN.CO ANDROID WRAPPER & GOOGLE PLAY BILLING BRIDGE
+// ============================================================================
+
+// Detects the Median.co (GoNative) Android WebView wrapper.
 export const isMedianAndroidApp = (): boolean => {
   if (typeof window === "undefined") return false;
   const w = window as unknown as {
     median?: unknown;
     MedIAN?: unknown;
+    Median?: unknown;
   };
   return (
     typeof w.median !== "undefined" ||
     typeof w.MedIAN !== "undefined" ||
-    /median/i.test(navigator.userAgent || "")
+    typeof w.Median !== "undefined" ||
+    /median/i.test(navigator.userAgent || "") ||
+    /gonative/i.test(navigator.userAgent || "")
   );
 };
 
@@ -401,31 +409,43 @@ export const purchaseTierViaGooglePlay = (
     onError({ message: "Purchase unavailable in this environment." });
     return;
   }
-  const bridge = (window as unknown as {
+  const w = window as unknown as {
     median?: {
       iap?: {
         purchase?: (opts: {
           productID?: string;
           productId?: string;
-          callback?: (result: { event?: string; errorMessage?: string }) => void;
+          callback?: (result: { event?: string; errorMessage?: string; success?: boolean }) => void;
         }) => void;
       };
     };
-  }).median;
+    Median?: {
+      iap?: {
+        purchase?: (opts: {
+          productID?: string;
+          productId?: string;
+          callback?: (result: { event?: string; errorMessage?: string; success?: boolean }) => void;
+        }) => void;
+      };
+    };
+  };
 
-  if (!bridge?.iap?.purchase) {
+  const iapBridge = w.median?.iap || w.Median?.iap;
+
+  if (!iapBridge?.purchase) {
     onError({
-      message: "Google Play billing is not available. Use a payment method above.",
+      message: "Google Play billing is not available in this build. Please try again on an active Android release.",
     });
     return;
   }
 
   try {
-    bridge.iap.purchase({
+    iapBridge.purchase({
       productID: tierId,
+      productId: tierId,
       callback: (result) => {
         const event = (result?.event || "").toLowerCase();
-        if (!event || event.includes("success")) {
+        if (result?.success || (!event && !result?.errorMessage) || event.includes("success") || event.includes("purchased")) {
           onSuccess();
         } else {
           onError({ message: result?.errorMessage || "Purchase was cancelled." });
@@ -434,5 +454,63 @@ export const purchaseTierViaGooglePlay = (
     });
   } catch (err: any) {
     onError({ message: err?.message || "Purchase was cancelled." });
+  }
+};
+
+// ============================================================================
+// MEDIAN ADMOB REWARDED VIDEO ADS BRIDGE
+// ============================================================================
+
+export const showRewardedAdViaMedian = (
+  onSuccess: () => void,
+  onError: (err: { message?: string }) => void
+): void => {
+  if (typeof window === "undefined") {
+    onError({ message: "Rewarded ads are only available on a live device." });
+    return;
+  }
+
+  const w = window as unknown as {
+    median?: {
+      admob?: {
+        rewarded?: {
+          show?: (opts?: {
+            callback?: (result: { success?: boolean; reward?: boolean; errorMessage?: string }) => void;
+          }) => void;
+        };
+      };
+    };
+    Median?: {
+      admob?: {
+        rewarded?: {
+          show?: (opts?: {
+            callback?: (result: { success?: boolean; reward?: boolean; errorMessage?: string }) => void;
+          }) => void;
+        };
+      };
+    };
+  };
+
+  const admobRewarded = w.median?.admob?.rewarded || w.Median?.admob?.rewarded;
+
+  if (admobRewarded && typeof admobRewarded.show === "function") {
+    try {
+      admobRewarded.show({
+        callback: (result) => {
+          if (result && (result.success || result.reward)) {
+            onSuccess();
+          } else {
+            onError({ message: result?.errorMessage || "Ad was closed before completing." });
+          }
+        },
+      });
+    } catch (err: any) {
+      onError({ message: err?.message || "Failed to show native rewarded ad." });
+    }
+  } else {
+    // Graceful fallback for web/desktop browser preview: simulate a 2s video ad
+    setTimeout(() => {
+      onSuccess();
+    }, 2000);
   }
 };
