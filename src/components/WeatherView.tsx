@@ -24,6 +24,7 @@ import {
   migrateLegacyLocalStorage,
 } from "@/lib/wallpaperStorage";
 import { WeatherMascot } from "@/components/WeatherMascot";
+import { AstronomyTracker } from "@/components/AstronomyTracker";
 
 export interface TickerAlertItem {
   id: string;
@@ -235,14 +236,14 @@ const WEAR_CATEGORIES = {
   ja: { casual: "カジュアル", business: "ビジネス", sports: "スポーツ" },
   zh: { casual: "休闲日常", business: "商务通勤", sports: "运动健身" },
   hi: { casual: "कैज़ुअल", business: "कार्यालय", sports: "खेलकूद" },
-  fr: { casual: "Décontracté", business: "Professionnel", sports: "Sport" },
-  de: { casual: "Freizeit", business: "Business", sports: "Sport" },
-  pt: { casual: "Casual", business: "Trabalho", sports: "Esporte" },
-  ru: { casual: "Повседневный", business: "Деловой", sports: "Спорт" },
-  ar: { casual: "يومي", business: "عمل", sports: "رياضة" },
-  ko: { casual: "캐주얼", business: "비즈니스", sports: "운동/스포츠" },
-  id: { casual: "Santai", business: "Kantor", sports: "Olahraga" },
-  vi: { casual: "Hàng ngày", business: "Công sở", sports: "Thể thao" },
+  fr: { casual: "Décontracté", business: "Bureau / Travail", sports: "Sport / Extérieur" },
+  de: { casual: "Freizeit", business: "Büro / Business", sports: "Sport / Outdoor" },
+  pt: { casual: "Casual", business: "Trabalho / Social", sports: "Esportivo / Ar livre" },
+  ru: { casual: "Повседневная", business: "Офис / Работа", sports: "Спорт / Активный отдых" },
+  ar: { casual: "يومي / كاجوال", business: "عمل / رسمي", sports: "رياضي / خارجي" },
+  ko: { casual: "캐주얼", business: "오피스 / 출근룩", sports: "운동 / 아웃도어" },
+  id: { casual: "Santai", business: "Kantor / Kerja", sports: "Olahraga / Luar ruangan" },
+  vi: { casual: "Thường ngày", business: "Công sở / Đi làm", sports: "Thể thao / Ngoài trời" },
 };
 
 const ACCESSORY_LABELS = {
@@ -299,7 +300,7 @@ const ACCESSORY_LABELS = {
     heavyCoat: "保暖厚羽绒服与手套",
     lightJacket: "薄款夹克或针织开衫",
     warmBeanie: "保暖针织帽、围巾与厚袜子",
-    n95Mask: "😷 N95 防霾防颗粒物口罩",
+    n95Mask: "😷 防霾防颗粒物 N95 口罩",
   },
   hi: {
     umbrella: "छाता या रेनकोट",
@@ -412,292 +413,150 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   onRefresh,
   onSelectBg,
   onSelectBackground,
-  isFav,
+  isFav = false,
   onToggleFavorite,
   onOpenAiGallery,
   customBgUrl,
 }) => {
   const { t, i18n } = useTranslation();
-  const lang = i18n?.language?.toLowerCase().split("-")[0] || "en";
+  const lang = i18n.language || "en";
   const w = weather || weatherProp;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const [heroBgUrl, setHeroBgUrl] = useState<string>(customBgUrl || "");
-  const [savedSlots, setSavedSlots] = useState<SavedItem[]>([]);
+  const [activeWallpaperUrl, setActiveWallpaperUrl] = useState<string | null>(customBgUrl || null);
   const [artIndex, setArtIndex] = useState(0);
-  const [isDarkArtwork, setIsDarkArtwork] = useState<boolean>(false);
+  const [savedSlots, setSavedSlots] = useState<SavedItem[]>([]);
+  const [wearCategory, setWearCategory] = useState<WearCategory>("casual");
 
-  // Clothing category selection with persistence
-  const [wearCategory, setWearCategory] = useState<WearCategory>(() => {
-    try {
-      const saved = localStorage.getItem("weather:wear-category") as WearCategory;
-      if (saved === "business" || saved === "sports" || saved === "casual") {
-        return saved;
-      }
-    } catch {}
-    return "casual";
-  });
+  // Load saved slots from IndexedDB with migration fallback
+  useEffect(() => {
+    migrateLegacyLocalStorage().then(() => {
+      getSavedArtworks().then((list) => {
+        setSavedSlots(list);
+      });
+    });
+  }, []);
+
+  // Listen for custom wallpaper updates across tabs/windows
+  useEffect(() => {
+    const handleStorageChange = () => {
+      getSavedArtworks().then((list) => {
+        setSavedSlots(list);
+      });
+    };
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("weather:custom-art-saved-updated", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("weather:custom-art-saved-updated", handleStorageChange);
+    };
+  }, []);
+
+  // Sync external customBgUrl
+  useEffect(() => {
+    if (customBgUrl) {
+      setActiveWallpaperUrl(customBgUrl);
+    }
+  }, [customBgUrl]);
+
+  // Read saved category choice
+  useEffect(() => {
+    const saved = localStorage.getItem("weather:wearCategory") as WearCategory;
+    if (saved && ["casual", "business", "sports"].includes(saved)) {
+      setWearCategory(saved);
+    }
+  }, []);
 
   const handleSelectCategory = (cat: WearCategory) => {
     setWearCategory(cat);
     try {
-      localStorage.setItem("weather:wear-category", cat);
+      localStorage.setItem("weather:wearCategory", cat);
     } catch {}
   };
 
-  const cityStorageKey = w?.place?.name
-    ? `weather:custom-bg:${w.place.name.toLowerCase().trim()}`
-    : "";
+  // Curated art catalog
+  const curatedArtworks = getAllAvailableArtworks();
 
-  // 1. Initialize IndexedDB migration & load saved slot artworks
-  const reloadSlots = useCallback(async () => {
-    try {
-      await migrateLegacyLocalStorage();
-      const slots = await getSavedArtworks();
-      setSavedSlots(slots);
-      return slots;
-    } catch {
-      return [];
-    }
-  }, []);
+  // Cycle next artwork: saved slots first, then curated
+  const cycleNextArtwork = useCallback(() => {
+    const combined: string[] = [
+      ...savedSlots.map((s) => s.dataUrl).filter(Boolean),
+      ...curatedArtworks.map((a) => a.url),
+    ];
 
-  useEffect(() => {
-    reloadSlots();
-  }, [reloadSlots]);
+    if (combined.length === 0) return;
 
-  // 2. Load hero background from IndexedDB with city, slot, and landmark fallbacks
-  useEffect(() => {
-    if (!w?.place) return;
-    let isCurrent = true;
+    const nextIdx = (artIndex + 1) % combined.length;
+    setArtIndex(nextIdx);
+    const chosen = combined[nextIdx];
+    setActiveWallpaperUrl(chosen);
 
-    async function loadBackground() {
-      if (customBgUrl) {
-        if (isCurrent) setHeroBgUrl(customBgUrl);
-        return;
-      }
+    if (onSelectBg) onSelectBg(chosen);
+    if (onSelectBackground) onSelectBackground(chosen);
+  }, [artIndex, curatedArtworks, savedSlots, onSelectBg, onSelectBackground]);
 
-      // 1. Check city-specific custom wallpaper from IndexedDB
-      if (cityStorageKey) {
-        const savedCityBg = await getWallpaperItem(cityStorageKey);
-        if (savedCityBg && isCurrent) {
-          setHeroBgUrl(savedCityBg);
-          return;
-        }
-      }
-
-      // 2. Check general current custom wallpaper
-      const savedCurrentBg = await getWallpaperItem("weather:custom-bg:current");
-      if (savedCurrentBg && isCurrent) {
-        setHeroBgUrl(savedCurrentBg);
-        return;
-      }
-
-      // 3. Check user's saved slots (Slot 1, Slot 2, Slot 3...)
-      const slots = await reloadSlots();
-      if (slots.length > 0) {
-        const cityMatch = slots.find((s) =>
-          s.title.toLowerCase().includes(w?.place?.name.toLowerCase().trim() || "")
-        );
-        const targetSlot = cityMatch || slots[0];
-        if (targetSlot?.url && isCurrent) {
-          setHeroBgUrl(targetSlot.url);
-          return;
-        }
-      }
-
-      // 4. Curated Landmark Watercolor Fallback
-      if (!isCurrent) return;
-      const conditionStr = getConditionLabel(w.current.code, t);
-      const landmarkArts = getAllAvailableArtworks(
-        w.place.name,
-        w.current.code,
-        conditionStr,
-        w.place.country,
-        w.place.lat,
-        w.place.lon
-      );
-
-      if (landmarkArts.length > 0 && isCurrent) {
-        setHeroBgUrl(landmarkArts[0]);
-      } else {
-        getCityWeatherBackground(
-          w.place.name,
-          conditionStr,
-          w.current.code,
-          w.current.temp,
-          (loadedUrl) => {
-            if (isCurrent) setHeroBgUrl(loadedUrl);
-          },
-          w.place.country,
-          w.place.lat,
-          w.place.lon
-        )
-          .then((res) => {
-            if (res?.initialBg && !res.initialBg.startsWith("linear-gradient") && isCurrent) {
-              setHeroBgUrl(res.initialBg);
-            }
-          })
-          .catch(() => {});
-      }
-    }
-
-    loadBackground();
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [w?.place?.name, w?.current?.code, cityStorageKey, customBgUrl, reloadSlots, t]);
-
-  // 3. Auto-detect whether the hero background picture is dark or light
-  useEffect(() => {
-    if (!heroBgUrl) {
-      setIsDarkArtwork(!w?.current?.is_day);
-      return;
-    }
-
-    let active = true;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = heroBgUrl;
-    img.onload = () => {
-      if (!active) return;
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = 16;
-        canvas.height = 16;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, 16, 16);
-          const data = ctx.getImageData(0, 0, 16, 16).data;
-          let r = 0,
-            g = 0,
-            b = 0;
-          for (let i = 0; i < data.length; i += 4) {
-            r += data[i];
-            g += data[i + 1];
-            b += data[i + 2];
-          }
-          const count = data.length / 4;
-          const brightness = (r / count) * 0.299 + (g / count) * 0.587 + (b / count) * 0.114;
-          setIsDarkArtwork(brightness < 128);
-        }
-      } catch {
-        setIsDarkArtwork(true);
-      }
-    };
-    img.onerror = () => {
-      if (active) setIsDarkArtwork(true);
-    };
-
-    return () => {
-      active = false;
-    };
-  }, [heroBgUrl, w?.current?.is_day]);
-
-  // Sync custom background if passed as prop
-  useEffect(() => {
-    if (customBgUrl) {
-      setHeroBgUrl(customBgUrl);
-    }
-  }, [customBgUrl]);
-
-  // 4. Live listener for wallpaper changes from gallery
-  useEffect(() => {
-    const handleBgChange = (e: Event) => {
-      const customEvent = e as CustomEvent<{ city?: string; currentCity?: string; url?: string }>;
-      if (customEvent.detail?.url) {
-        setHeroBgUrl(customEvent.detail.url);
-      }
-      reloadSlots();
-    };
-
-    window.addEventListener("weather:custom-bg-change", handleBgChange);
-    return () => {
-      window.removeEventListener("weather:custom-bg-change", handleBgChange);
-    };
-  }, [reloadSlots]);
-
-  const handleSelectBackground = async (url: string) => {
-    setHeroBgUrl(url);
-    if (cityStorageKey) {
-      if (url) {
-        await setWallpaperItem(cityStorageKey, url);
-        await setWallpaperItem("weather:custom-bg:current", url);
-      } else {
-        await deleteWallpaperItem(cityStorageKey);
-      }
-    }
+  const handleSelectBackground = (url: string) => {
+    setActiveWallpaperUrl(url);
     if (onSelectBg) onSelectBg(url);
     if (onSelectBackground) onSelectBackground(url);
   };
 
-  // Cycling artwork through Next Art button: Slot 1 -> Slot 2 -> Slot 3 -> ... -> Curated Landmarks
-  const handleCycleArtwork = async () => {
-    if (!w?.place) return;
-    const conditionStr = getConditionLabel(w.current.code, t);
-    const landmarkArts = getAllAvailableArtworks(
-      w.place.name,
-      w.current.code,
-      conditionStr,
-      w.place.country,
-      w.place.lat,
-      w.place.lon
-    );
-
-    const freshSlots = await reloadSlots();
-    const slotUrls = freshSlots.map((s) => s.url);
-    const allArts = Array.from(new Set([...slotUrls, ...landmarkArts]));
-    if (!allArts || allArts.length === 0) return;
-
-    const currentIdx = allArts.indexOf(heroBgUrl);
-    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % allArts.length : 0;
-    setArtIndex(nextIdx);
-    const nextUrl = allArts[nextIdx];
-    if (nextUrl) {
-      handleSelectBackground(nextUrl);
+  const openGalleryModal = () => {
+    if (onOpenAiGallery) {
+      onOpenAiGallery();
+    } else {
+      setGalleryOpen(true);
     }
   };
 
-  // Determine if active heroBgUrl is one of user's saved slots
-  const currentSlotIndex = savedSlots.findIndex((s) => s.url === heroBgUrl);
-
-  if (!w) {
+  if (loading && !w) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground animate-pulse">
-        <p className="text-sm">{t("search_placeholder", "Loading local weather...")}</p>
+      <div className="flex flex-col items-center justify-center min-h-[360px] p-8 text-center animate-pulse">
+        <div className="w-14 h-14 rounded-full border-4 border-primary border-t-transparent animate-spin mb-4" />
+        <p className="text-sm font-medium text-muted-foreground">{t("loading_weather", "Loading weather data...")}</p>
       </div>
     );
   }
 
-  const tempVal = Math.round(w.current.temp);
-  const feelsVal = Math.round(w.current.feels);
-  const conditionLabel = getConditionLabel(w.current.code, t);
+  if (!w) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[300px] p-6 text-center">
+        <span className="text-4xl mb-3">⛅</span>
+        <h3 className="text-base font-semibold text-foreground">{t("no_weather_data", "No weather data")}</h3>
+        <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+          {t("no_weather_desc", "Search for a city or use your current location to view live weather, air quality, and astronomy.")}
+        </p>
+      </div>
+    );
+  }
+
+  // Determine active background artwork
+  const fallbackBg = getCityWeatherBackground(
+    w.place.name,
+    w.current.code,
+    w.current.is_day === 1
+  );
+  const displayBg = activeWallpaperUrl || fallbackBg;
+
+  // Weather variables
   const tempUnitStr = unit === "imperial" ? "°F" : "°C";
-
-  // Daily High/Low
-  const todayDaily = w.daily[0];
-  const maxTemp = todayDaily ? Math.round(todayDaily.max) : tempVal;
-  const minTemp = todayDaily ? Math.round(todayDaily.min) : tempVal;
-
-  // UV & Humidity
-  const uvNum = typeof w.current.uv === "number" && !isNaN(w.current.uv) ? w.current.uv : 0;
-  const uvInfo = getUvIndexLabel(uvNum, t);
-  const uvValFormatted = uvNum.toFixed(1);
-
-  // Wind speed & direction
-  const windDirStr = getWindDirectionLabel(w.current.wind_dir ?? 0);
-  const windUnitStr = unit === "imperial" ? "mph" : "km/h";
-
-  // Pressure & Visibility with defensive optional chaining
-  const pressureVal = Math.round(w.current?.pressure ?? 1013);
+  const speedUnitStr = unit === "imperial" ? "mph" : "km/h";
+  const pressureUnitStr = "hPa";
   const visUnitStr = unit === "imperial" ? "mi" : "km";
-  const rawVis = typeof w.current?.vis === "number" ? w.current.vis : 10;
-  const visVal = unit === "imperial" ? (rawVis / 1.60934).toFixed(1) : rawVis.toFixed(1);
 
-  // Rain chance
+  const conditionLabel = getConditionLabel(w.current.code, t);
+  const feelsLikeVal = Math.round(w.current.apparent_temperature ?? w.current.temp);
+  const windDir = getWindDirectionLabel(w.current.wind_direction ?? 0);
+  const uvNum = typeof w.current.uv_index === "number" ? Math.round(w.current.uv_index) : 0;
+  const uvInfo = getUvIndexLabel(uvNum, t);
+
+  // Daily high / low
+  const todayDaily = w.daily[0];
+  const maxTemp = todayDaily ? Math.round(todayDaily.max) : Math.round(w.current.temp);
+  const minTemp = todayDaily ? Math.round(todayDaily.min) : Math.round(w.current.temp);
   const rainChanceVal = todayDaily?.pop ?? 0;
 
-  // Sunrise/Sunset formatting
+  // Sun times
   let sunriseStr = "--:--";
   let sunsetStr = "--:--";
   if (todayDaily?.sunrise) {
@@ -735,81 +594,64 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const tempC = unit === "imperial" ? ((w.current.temp - 32) * 5) / 9 : w.current.temp;
   const code = w.current.code;
   const isRaining = code >= 95 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
-  const isSnowing = (code >= 71 && code <= 77) || (code >= 85 && code <= 86);
-  const isVeryHot = tempC >= 32;
+  const isFreezing = tempC <= 0;
+  const isCold = tempC > 0 && tempC <= 14;
+  const isMild = tempC > 14 && tempC <= 23;
+  const isWarm = tempC > 23 && tempC <= 30;
+  const isVeryHot = tempC > 30;
 
   let clothingDescription = "";
   if (wearCategory === "business") {
-    if (isRaining) {
+    if (isFreezing || isCold) {
       clothingDescription =
         lang === "th"
-          ? "เสื้อเทรนช์โค้ทกันน้ำ รองเท้าหนังกันน้ำ และพกร่มทำงานคันใหญ่"
-          : "Tailored commuter trench coat, water-resistant dress shoes, and a sturdy business umbrella.";
-    } else if (isSnowing || tempC <= 5) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อโค้ทผ้าวูลตัวยาวทับชุดสูท ผ้าพันคอแคชเมียร์ และถุงมือหนังสุภาพ"
-          : "Tailored wool overcoat over suit, cashmere scarf, and insulated dress leather gloves.";
-    } else if (tempC <= 14) {
-      clothingDescription =
-        lang === "th"
-          ? "เบลเซอร์ผ้าวูล เสื้อเชิ้ตคัตติ้งเนี้ยบ หรือสเวตเตอร์บางสวมทับเชิ้ต"
-          : "Structured wool blazer, crisp dress shirt, and optional fine-knit sweater layer.";
+          ? "เสื้อโค้ตสูทผ้าวูล เสื้อเชิ้ตแขนยาว กางเกงสแล็ค และรองเท้าคัทชูหนังกันหนาว"
+          : "Tailored wool overcoat or blazer, dress shirt, formal trousers, and leather dress shoes.";
     } else if (isVeryHot) {
       clothingDescription =
         lang === "th"
-          ? "เสื้อเชิ้ตผ้าลินินหรือคอตตอนระบายอากาศ กางเกงสแล็คเนื้อเบาโทนสว่าง"
-          : "Breathable crisp cotton/linen dress shirt, lightweight tailored trousers, and leather loafers.";
+          ? "เสื้อเชิ้ตผ้าลินินหรือคอตตอนระบายอากาศ กางเกงสแล็คผ้าเบา พร้อมสูทบางสำหรับประชุม"
+          : "Breathable linen/cotton dress shirt, lightweight dress chinos, and loafers.";
     } else {
       clothingDescription =
         lang === "th"
-          ? "เสื้อเชิ้ตทำงานแขนยาว กางเกงสแล็คทรงพอดีตัว และเบลเซอร์มาตรฐาน"
-          : "Classic commuter button-down shirt, smart tailored trousers, and clean professional attire.";
+          ? "ชุดทำงานสุภาพ สูทเบลเซอร์ลำลอง เสื้อเชิ้ต หรือเดรสทำงานเรียบหรู"
+          : "Smart business casual blazer, crisp button-down, tailored trousers, and dress shoes.";
     }
   } else if (wearCategory === "sports") {
-    if (isRaining) {
+    if (isFreezing || isCold) {
       clothingDescription =
         lang === "th"
-          ? "เสื้อวิ่งกันน้ำมีฮู้ด กางเกงรัดรูปแห้งไว และรองเท้าวิ่งกริปเกาะถนนเปียก"
-          : "Waterproof running shell jacket, quick-dry tights, and trail shoes with wet-grip traction.";
-    } else if (isSnowing || tempC <= 5) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อเบสเลเยอร์เทอร์มอล แจ็กเก็ตฟลีซกันหนาว หมวกบีนี่ และถุงมือออกกำลังกาย"
-          : "Thermal compression base layer, insulated athletic fleece, moisture-wicking beanie & gloves.";
-    } else if (tempC <= 14) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อแขนยาวผ้าระบายอากาศ เสื้อกั๊กกันลม และกางเกงวอร์มออกกำลังกาย"
-          : "Long-sleeve technical athletic shirt, wind vest, and breathable running track pants.";
+          ? "ชุดวิ่งแขนยาวแนบเนื้อ เสื้อกั๊กกันลม กางเกงเลกกิ้งกันหนาว และรองเท้าวิ่งเสริมการยึดเกาะ"
+          : "Thermal compression base layer, windproof running vest, thermal tights, and running shoes.";
     } else if (isVeryHot) {
       clothingDescription =
         lang === "th"
-          ? "เสื้อกล้ามหรือเสื้อวิ่งระบายเหงื่อ กางเกงขาสั้นเบาพิเศษ และหมวกวิ่งกันแดด"
-          : "Ultra-breathable sweat-wicking singlet, split running shorts, and sun-protection sports cap.";
+          ? "เสื้อกล้ามหรือเสื้อวิ่งระบายเหงื่อ Quick-dry กางเกงขาสั้นวิ่ง หมวกวิ่ง และแว่นกันแดด"
+          : "Ultra-breathable singlet or quick-dry tee, running shorts, sweatband, and sports sunglasses.";
     } else {
       clothingDescription =
         lang === "th"
-          ? "เสื้อยืดกีฬาเนื้อดราย กางเกงจ็อกเกอร์ และรองเท้าผ้าใบซัพพอร์ตดี"
-          : "Performance technical tee, flexible training joggers, and supportive athletic sneakers.";
+          ? "เสื้อยืดกีฬาผ้าระบายอากาศ กางเกงวอร์มหรือเลกกิ้ง และรองเท้ากีฬาคู่โปรด"
+          : "Athletic moisture-wicking tee, comfortable joggers or shorts, and running sneakers.";
     }
   } else {
-    // Casual
-    if (isRaining) {
+    // casual default
+    if (isFreezing) {
       clothingDescription =
         lang === "th"
-          ? "เสื้อฮู้ดกันน้ำ กางเกงยีนส์พับขา รองเท้ากันน้ำ และร่มพกพาสีสดใส"
-          : "Lightweight hooded waterproof jacket, water-resistant sneakers, and a compact umbrella.";
-    } else if (isSnowing || tempC <= 5) {
+          ? "เสื้อขนเป็ดหนาพิเศษ เสื้อฮีทเทค กางเกงขายาวบุขน ถุงมือ และรองเท้าบูท"
+          : "Heavy down parka, thermal base layer, insulated trousers, warm boots, and fleece-lined gloves.";
+    } else if (isCold) {
       clothingDescription =
         lang === "th"
-          ? "เสื้อแจ็กเก็ตบุนวมหนานุ่ม เสื้อสเวตเตอร์ไหมพรม และรองเท้าบูทกันลื่น"
-          : "Puffer down jacket, cozy fleece/wool sweater, thermal beanie, and insulated boots.";
-    } else if (tempC <= 14) {
+          ? "เสื้อสเวตเตอร์หรือแจ็คเก็ตยีนส์ กางเกงขายาว และรองเท้าผ้าใบหุ้มส้น"
+          : "Cozy knit sweater or denim jacket, comfortable trousers/jeans, and sturdy sneakers.";
+    } else if (isMild) {
       clothingDescription =
         lang === "th"
-          ? "เสื้อแจ็กเก็ตยีนส์หรือคาร์ดิแกน สวมทับเสื้อยืด และกางเกงขายาวใส่สบาย"
-          : "Denim or bomber jacket layered over a casual tee, comfortable denim, and sneakers.";
+          ? "เสื้อยืดคอตตอนสบายๆ คลุมด้วยคาร์ดิแกนบาง และกางเกงยีนส์ตัวเก่ง"
+          : "Classic cotton t-shirt paired with a light cardigan or overshirt and comfortable chinos.";
     } else if (isVeryHot) {
       clothingDescription =
         lang === "th"
@@ -839,105 +681,43 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   if ((w.current.wind_speed ?? 0) >= 28) accessories.push(locAccessory.windbreaker);
   if (tempC >= 12 && tempC <= 18 && accessories.length < 2) accessories.push(locAccessory.lightJacket);
 
-  const finalAccessories = Array.from(new Set(accessories)).slice(0, 3);
-
-  const cityBadgeClass =
-    "inline-flex items-center gap-2 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]";
-
-  const tempBadgeClass =
-    "inline-flex items-baseline gap-1 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]";
-
   return (
-    <div className="space-y-4">
-      {/* 1. TOP ACTION BAR: Artwork Cycler, AI Gallery, Refresh, Favorite */}
-      <div className="flex items-center justify-between gap-2 px-1">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-          <span>🎨</span>
-          <span className="truncate max-w-[150px] sm:max-w-none font-semibold text-foreground">
-            {currentSlotIndex >= 0
-              ? t("slot_active_badge", `Slot ${currentSlotIndex + 1}`, { slot: currentSlotIndex + 1 })
-              : t("watercolor_sky", "AI Watercolor")}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Next Art Button */}
-          <button
-            type="button"
-            onClick={handleCycleArtwork}
-            className="flex items-center gap-1.5 rounded-xl border border-border/80 bg-card/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs backdrop-blur-md transition hover:bg-muted cursor-pointer"
-            title={t("next_art", "Cycle next artwork")}
-          >
-            <span className="text-sm">🖼️</span>
-            <span>{t("next_art", "Next Art")}</span>
-          </button>
-
-          {/* AI Gallery Button */}
-          <Link
-            to="/gallery"
-            className="flex items-center gap-1.5 rounded-xl border border-border/80 bg-card/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs backdrop-blur-md transition hover:bg-muted cursor-pointer"
-            title={t("art_gallery", "AI Gallery")}
-          >
-            <span className="text-sm">🎨</span>
-            <span>{t("art_gallery", "AI Gallery")}</span>
-          </Link>
-
-          {/* Refresh Button */}
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl border border-border/80 bg-card/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs backdrop-blur-md transition hover:bg-muted disabled:opacity-60 cursor-pointer"
-            title={t("refresh", "Refresh")}
-          >
-            <span className={`text-sm ${loading ? "animate-spin" : ""}`}>🔄</span>
-            <span className="hidden sm:inline">{t("refresh", "Refresh")}</span>
-          </button>
-
-          {/* Favorite Toggle Button */}
-          {onToggleFavorite && (
-            <button
-              type="button"
-              onClick={onToggleFavorite}
-              className="flex items-center justify-center rounded-xl border border-border/80 bg-card/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs backdrop-blur-md transition hover:bg-muted cursor-pointer"
-              title={isFav ? t("remove_favorite", "Remove from favorites") : t("add_favorite", "Add to favorites")}
-              aria-pressed={!!isFav}
-            >
-              <span className="inline-block text-sm">
-                {isFav ? "❤️" : "🤍"}
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 2. DISASTER & ADVISORY ALERT TICKER BANNER (Active Alerts / All Clear) */}
-      <section className="rounded-2xl border border-border/70 bg-card overflow-hidden shadow-xs text-card-foreground">
-        {alertsToDisplay.length > 0 ? (
-          <div className="flex items-center px-3.5 py-2.5 bg-amber-500/10 text-amber-900 dark:text-amber-200 border-b border-amber-500/20 text-xs">
-            <span className="font-bold flex items-center gap-1.5 shrink-0 mr-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-ping inline-block" />
-              <span className="sm:hidden">⚠️ ({alertsToDisplay.length})</span>
-              <span className="hidden sm:inline">
-                {t("alerts", "Weather Alerts")} ({alertsToDisplay.length})
-              </span>
-            </span>
-
-            <div className="overflow-hidden relative w-full flex items-center">
-              <div className="flex items-center gap-6 whitespace-nowrap animate-ticker hover:[animation-play-state:paused] py-0.5">
-                {alertsToDisplay.map((alt) => {
-                  const tagKey = alt.tagKey || (alt.tag ? TAG_TRANSLATION_MAP[alt.tag] : undefined);
-                  const displayTag = tagKey ? t(tagKey, alt.tag || "Advisory") : alt.tag || "Advisory";
+    <div className="space-y-4 max-w-2xl mx-auto w-full pb-8">
+      {/* 1. ACTIVE WEATHER & DISASTER ALERTS TICKER */}
+      {alertsToDisplay.length > 0 && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 overflow-hidden shadow-xs">
+          <div className="p-3 flex items-start gap-3">
+            <span className="text-xl shrink-0 animate-bounce">⚠️</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold uppercase tracking-wider text-destructive">
+                  {t("active_disaster_alerts", "Active Weather Alerts")}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/20 font-semibold text-destructive">
+                  {alertsToDisplay.length} {alertsToDisplay.length === 1 ? t("alert_single", "Alert") : t("alert_plural", "Alerts")}
+                </span>
+              </div>
+              <div className="mt-1 space-y-1.5">
+                {alertsToDisplay.map((alert, idx) => {
+                  const tagKey = alert.tag ? TAG_TRANSLATION_MAP[alert.tag] : undefined;
+                  const tagText = tagKey ? t(tagKey, alert.tag) : alert.tag;
+                  const headlineText =
+                    lang === "th" && alert.headlineTh
+                      ? alert.headlineTh
+                      : alert.headline || alert.text || t("alert_warning", "Warning issued");
 
                   return (
-                    <div key={alt.id} className="inline-flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md font-semibold text-[10px] uppercase bg-amber-500/20 text-amber-800 dark:text-amber-300">
-                        {displayTag}
-                      </span>
-                      <span className="font-medium">
-                        {lang === "th" && alt.headlineTh
-                          ? alt.headlineTh
-                          : (alt.headlineEn ?? alt.text ?? alt.headline ?? "")}
+                    <div
+                      key={alert.id || idx}
+                      className="text-xs text-foreground/90 flex items-baseline gap-1.5"
+                    >
+                      {tagText && (
+                        <span className="font-bold text-destructive shrink-0">
+                          [{tagText}]
+                        </span>
+                      )}
+                      <span className="line-clamp-2 leading-relaxed">
+                        {headlineText}
                       </span>
                     </div>
                   );
@@ -945,99 +725,153 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               </div>
             </div>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />
-            <span>
-              {t("all_clear", "ALL CLEAR")} — {t("all_clear_sub", "No severe weather watches active in this region")}
-            </span>
-          </div>
-        )}
-      </section>
+        </div>
+      )}
 
-      {/* 3. STREAMLINED HERO CARD (Expanded Height & Mascot Companion) */}
-      <section className="relative overflow-hidden rounded-3xl border border-border/80 p-5 sm:p-6 shadow-lg bg-card text-card-foreground min-h-[290px] sm:min-h-[320px] flex flex-col justify-between">
-        {heroBgUrl && (
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-all duration-700 pointer-events-none"
-            style={{
-              backgroundImage: `url("${heroBgUrl}")`,
-              filter: "brightness(1.02) saturate(1.15)",
-            }}
-          />
-        )}
+      {/* 2. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> REFRESH -> FAVORITE */}
+      <div className="flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-card border border-border/60 shadow-xs">
+        <button
+          type="button"
+          onClick={cycleNextArtwork}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-muted/70 hover:bg-muted text-foreground transition cursor-pointer active:scale-95"
+          title={t("cycle_art_desc", "Cycle to next watercolor art or saved slot")}
+        >
+          <span>🎨</span>
+          <span>{t("next_artwork", "Next Art")}</span>
+        </button>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/20 pointer-events-none" />
+        <button
+          type="button"
+          onClick={openGalleryModal}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-primary/10 hover:bg-primary/20 text-primary transition cursor-pointer active:scale-95 border border-primary/20"
+          title={t("ai_gallery_slots", "AI Gallery & Wallpaper Slots")}
+        >
+          <span>🖼️</span>
+          <span>{t("ai_gallery", "AI Gallery")}</span>
+        </button>
 
-        <div className="relative z-10 flex flex-col justify-between flex-1 w-full">
-          {/* Top: City Name & Mascot Companion */}
-          <div className="flex items-start justify-between gap-3">
-            <div className={cityBadgeClass}>
-              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="p-2 text-xs font-medium rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer active:scale-95"
+            title={t("refresh_weather", "Refresh Weather")}
+          >
+            🔄
+          </button>
+
+          {onToggleFavorite && (
+            <button
+              type="button"
+              onClick={onToggleFavorite}
+              className={`p-2 text-xs font-medium rounded-xl transition cursor-pointer active:scale-95 ${
+                isFav
+                  ? "text-rose-500 bg-rose-500/10 hover:bg-rose-500/20"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+              title={isFav ? t("remove_fav", "Remove Favorite") : t("add_fav", "Add Favorite")}
+            >
+              {isFav ? "❤️" : "🤍"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 3. WEATHER HERO CARD WITH WATERCOLOR ART & MASCOT */}
+      <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md text-foreground min-h-[300px] flex flex-col justify-between p-5 sm:p-6 transition-all duration-300">
+        {/* Watercolor Wallpaper Background with Contrast Overlay */}
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-all duration-700 pointer-events-none"
+          style={{ backgroundImage: `url(${displayBg})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/60 to-background/30 dark:from-background/95 dark:via-background/70 dark:to-background/40 pointer-events-none backdrop-blur-[1px]" />
+
+        {/* Card Header: Place & Weather Mascot Companion */}
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground drop-shadow-xs">
                 {w.place.name}
               </h2>
               {w.place.country && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-white/40 text-white/95">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-background/80 font-bold backdrop-blur-md border border-border/60 text-muted-foreground">
                   {w.place.country}
                 </span>
               )}
             </div>
-
-            {/* Weather Companion Mascot Widget */}
-            <WeatherMascot weather={w} />
+            <p className="text-xs text-muted-foreground font-medium">
+              {t("updated_just_now", "Live Conditions")} • {w.place.admin1 || w.place.country || ""}
+            </p>
           </div>
 
-          {/* Bottom Row: Large Temperature & Current Weather Icon */}
-          <div className="flex items-end justify-between pt-6">
-            <div className={tempBadgeClass}>
-              <span className="text-5xl sm:text-6xl font-black tracking-tighter">
-                {tempVal}
+          {/* Interactive Mascot Companion */}
+          <div className="shrink-0">
+            <WeatherMascot weather={w} />
+          </div>
+        </div>
+
+        {/* Card Body: Temperature & Weather Icon */}
+        <div className="relative z-10 my-4 flex items-center justify-between gap-4">
+          <div>
+            <div className="flex items-baseline">
+              <span className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground drop-shadow-sm">
+                {Math.round(w.current.temp)}
               </span>
-              <span className="text-2xl sm:text-3xl font-bold opacity-90">
+              <span className="text-2xl sm:text-3xl font-bold text-primary ml-1">
                 {tempUnitStr}
               </span>
             </div>
+            <p className="text-sm sm:text-base font-semibold text-foreground/90 capitalize mt-1 flex items-center gap-1.5">
+              <span>{conditionLabel}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+              {t("feels_like", "Feels like")} {feelsLikeVal}{tempUnitStr} • ↑{maxTemp}{tempUnitStr} ↓{minTemp}{tempUnitStr}
+            </p>
+          </div>
 
+          <div className="shrink-0 p-3 rounded-2xl bg-background/60 backdrop-blur-md border border-border/50 shadow-xs">
             <WeatherIcon
               code={w.current.code}
               isDay={w.current.is_day}
-              className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]"
+              className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-md"
             />
+          </div>
+        </div>
+
+        {/* Card Footer: Quick Stats */}
+        <div className="relative z-10 pt-3 border-t border-border/40 grid grid-cols-3 gap-2 text-center text-xs font-medium">
+          <div className="bg-background/60 backdrop-blur-md py-1.5 px-2 rounded-xl border border-border/40">
+            <span className="text-[10px] text-muted-foreground block">{t("humidity", "Humidity")}</span>
+            <span className="font-bold text-foreground">{w.current.humidity ?? "--"}%</span>
+          </div>
+          <div className="bg-background/60 backdrop-blur-md py-1.5 px-2 rounded-xl border border-border/40">
+            <span className="text-[10px] text-muted-foreground block">{t("wind", "Wind")}</span>
+            <span className="font-bold text-foreground">{Math.round(w.current.wind_speed ?? 0)} {speedUnitStr}</span>
+          </div>
+          <div className="bg-background/60 backdrop-blur-md py-1.5 px-2 rounded-xl border border-border/40">
+            <span className="text-[10px] text-muted-foreground block">{t("uv_index", "UV Index")}</span>
+            <span className={`font-bold ${uvInfo.color}`}>{uvNum} ({uvInfo.label})</span>
           </div>
         </div>
       </section>
 
-      {/* 4. CURRENT CONDITIONS DETAILS CARD */}
+      {/* 4. CURRENT CONDITIONS DETAILED METRICS GRID */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2 border-b border-border/50 pb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-foreground">
-              {conditionLabel}
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
-              {w.current.is_day ? t("daytime", "Daytime") : t("nighttime", "Nighttime")}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium">
-            <span>
-              ↑ {maxTemp}{tempUnitStr} • ↓ {minTemp}{tempUnitStr}
-            </span>
-            <span className="text-[11px] opacity-75">
-              • {t("now", "Now")}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 border-b border-border/50 pb-2.5">
+          <span className="text-base">📊</span>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("current_conditions", "Current Conditions")}
+          </h3>
         </div>
 
-        {/* 6 Key Environmental Metrics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
           {/* Feels Like */}
           <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
             <span className="text-[11px] text-muted-foreground font-medium">
               🌡️ {t("feels_like", "Feels Like")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {feelsVal}{tempUnitStr}
+              {feelsLikeVal}{tempUnitStr}
             </span>
           </div>
 
@@ -1047,7 +881,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               💧 {t("humidity", "Humidity")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {w.current.humidity}%
+              {w.current.humidity ?? "--"}%
             </span>
           </div>
 
@@ -1057,7 +891,27 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               💨 {t("wind", "Wind")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {Math.round(w.current.wind_speed)} {windUnitStr} {windDirStr}
+              {Math.round(w.current.wind_speed ?? 0)} {speedUnitStr} {windDir}
+            </span>
+          </div>
+
+          {/* Pressure */}
+          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
+            <span className="text-[11px] text-muted-foreground font-medium">
+              ⏱️ {t("pressure", "Pressure")}
+            </span>
+            <span className="text-sm font-bold text-foreground mt-1">
+              {Math.round(w.current.pressure ?? 1013)} {pressureUnitStr}
+            </span>
+          </div>
+
+          {/* Visibility */}
+          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
+            <span className="text-[11px] text-muted-foreground font-medium">
+              👁️ {t("visibility", "Visibility")}
+            </span>
+            <span className="text-sm font-bold text-foreground mt-1">
+              {w.current.visibility !== undefined ? Math.round(w.current.visibility) : "--"} {visUnitStr}
             </span>
           </div>
 
@@ -1066,15 +920,12 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             <span className="text-[11px] text-muted-foreground font-medium">
               ☀️ {t("uv_index", "UV Index")}
             </span>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="text-sm font-bold text-foreground">{uvValFormatted}</span>
-              <span className={`text-[11px] font-semibold ${uvInfo.color}`}>
-                ({uvInfo.label})
-              </span>
-            </div>
+            <span className={`text-sm font-bold mt-1 ${uvInfo.color}`}>
+              {uvNum} <span className="text-[11px] font-medium text-muted-foreground">({uvInfo.label})</span>
+            </span>
           </div>
 
-          {/* Rain Probability */}
+          {/* Rain Chance */}
           <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
             <span className="text-[11px] text-muted-foreground font-medium">
               🌧️ {t("rain_chance", "Rain Chance")}
@@ -1137,6 +988,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         )}
       </section>
 
+      {/* Sun Arc & Moon Phase Astronomy Tracker */}
+      <AstronomyTracker weather={w} />
+
       {/* 5. WHAT TO WEAR TODAY (Directly under Current Conditions) */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
@@ -1184,44 +1038,39 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
         </div>
 
-        <div className="space-y-2.5 text-xs">
-          <p className="text-foreground leading-relaxed">
-            {clothingDescription}
-          </p>
+        <p className="text-xs text-foreground/90 leading-relaxed font-medium">
+          {clothingDescription}
+        </p>
 
-          {finalAccessories.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[11px] font-semibold text-muted-foreground">
-                🎒 {t("essentials", "Recommended Gear")}:
-              </span>
-              {finalAccessories.map((acc, aIdx) => (
+        {accessories.length > 0 && (
+          <div className="pt-2 border-t border-border/40 space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              {t("recommended_accessories", "Recommended Gear")}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {accessories.map((acc, idx) => (
                 <span
-                  key={`acc-${aIdx}`}
-                  className="rounded-lg bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-medium border border-primary/20"
+                  key={idx}
+                  className="px-2.5 py-1 rounded-lg bg-muted/60 border border-border/50 text-xs font-medium text-foreground"
                 >
                   {acc}
                 </span>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
-      {/* 6. ROLLING 24-HOUR HOURLY FORECAST WITH PRINTED WEATHER WORDS */}
+      {/* 6. 24-HOUR HOURLY FORECAST WITH PRINTED CONDITIONS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-base">⏱️</span>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("hourly_forecast", "24-Hour Forecast")}
-            </h3>
-          </div>
-          <span className="text-[11px] text-muted-foreground">
-            {w.hourly.length} {t("hours", "hours")}
-          </span>
+        <div className="flex items-center gap-2">
+          <span className="text-base">🕒</span>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("hourly_forecast", "24-Hour Forecast")}
+          </h3>
         </div>
 
-        <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+        <div className="flex items-stretch gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
           {w.hourly.slice(0, 24).map((h, idx) => {
             const timeLabel = getHourlyTimeLabel(h.time, idx, t);
             const hourlyCondition = getConditionLabel(h.code, t);
@@ -1230,18 +1079,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
             return (
               <div
-                key={`hourly-${idx}`}
-                className="flex flex-col items-center justify-between p-2.5 rounded-xl bg-muted/30 border border-border/40 min-w-[76px] shrink-0 text-center space-y-1.5 hover:bg-muted/50 transition"
+                key={`hour-${idx}`}
+                className="flex-shrink-0 w-20 p-2.5 rounded-xl bg-muted/30 border border-border/40 flex flex-col items-center justify-between text-center gap-1.5 snap-start transition hover:bg-muted/50"
               >
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="text-[11px] font-semibold text-muted-foreground">
                   {timeLabel}
                 </span>
 
-                <WeatherIcon
-                  code={h.code}
-                  isDay={h.is_day}
-                  className="w-8 h-8 my-0.5"
-                />
+                <WeatherIcon code={h.code} isDay={h.is_day} className="w-8 h-8 shrink-0 my-1" />
 
                 <span className="text-xs font-bold text-foreground">
                   {hTemp}{tempUnitStr}
