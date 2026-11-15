@@ -107,7 +107,7 @@ async function fetchUSGSEarthquakes(lat: number, lon: number): Promise<TickerAle
     for (const f of data.features || []) {
       const [qLon, qLat] = f.geometry.coordinates;
       const mag = Number(f.properties?.mag ?? 0);
-      const placeName = f.properties.place;
+      const placeName = f.properties.place || "Unknown Location";
       const time = f.properties.time;
 
       if (now - time > 48 * 3600 * 1000) continue;
@@ -121,7 +121,11 @@ async function fetchUSGSEarthquakes(lat: number, lon: number): Promise<TickerAle
           id: `usgs-${f.id}`,
           severity: mag >= 6.0 ? "warning" : "advisory",
           category: "earthquake",
+          tag: mag >= 6.0 ? "Earthquake Alert" : "Earthquake",
+          tagKey: "alert_earthquake_tag",
           headline: `M${mag.toFixed(1)} Earthquake — ${placeName} (${Math.round(distKm)} km away)`,
+          headlineEn: `M${mag.toFixed(1)} Earthquake — ${placeName} (${Math.round(distKm)} km away)`,
+          headlineTh: `แผ่นดินไหวขนาด M${mag.toFixed(1)} — ${placeName} (ห่าง ${Math.round(distKm)} กม.)`,
           source: "USGS",
           timeAgo: formatTimeAgo(time),
         });
@@ -149,11 +153,15 @@ async function fetchTMDWarnings(place: Place): Promise<TickerAlertItem[]> {
   }
 }
 
-// Fetch Open-Meteo Severe Weather Alerts
-async function fetchOpenMeteoAlerts(lat: number, lon: number): Promise<TickerAlertItem[]> {
+// Fetch Open-Meteo Global Severe Weather Hazards
+async function fetchOpenMeteoAlerts(
+  lat: number,
+  lon: number,
+  weatherData?: Weather | null
+): Promise<TickerAlertItem[]> {
   try {
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,precipitation_probability_max,wind_speed_10m_max&timezone=auto`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,temperature_2m_max,temperature_2m_min&timezone=auto`,
       { signal: AbortSignal.timeout(4000) }
     );
     if (!res.ok) return [];
@@ -163,13 +171,39 @@ async function fetchOpenMeteoAlerts(lat: number, lon: number): Promise<TickerAle
     const rainSum = data.daily?.precipitation_sum?.[0] ?? 0;
     const rainProb = data.daily?.precipitation_probability_max?.[0] ?? 0;
     const maxWind = data.daily?.wind_speed_10m_max?.[0] ?? 0;
+    const maxGust = data.daily?.wind_gusts_10m_max?.[0] ?? 0;
+    const maxTemp = data.daily?.temperature_2m_max?.[0] ?? 0;
+    const minTemp = data.daily?.temperature_2m_min?.[0] ?? 0;
 
+    // 1. Severe Thunderstorm / Squalls / Hail (WMO 95, 96, 99 in current or near-term hourly)
+    const currentCode = weatherData?.current?.code ?? -1;
+    const nearHourlyThunder = weatherData?.hourly?.slice(0, 12).some((h) => [95, 96, 99].includes(h.code));
+    if ([95, 96, 99].includes(currentCode) || nearHourlyThunder) {
+      alerts.push({
+        id: "om-severe-thunderstorm",
+        severity: "warning",
+        category: "storm",
+        tag: "Severe Storm",
+        tagKey: "alert_thunderstorm_tag",
+        headline: "Severe Thunderstorm Warning: High lightning risk, hail, and squall gusts in area",
+        headlineEn: "Severe Thunderstorm Warning: High lightning risk, hail, and squall gusts in area",
+        headlineTh: "เตือนภัยพายุฝนฟ้าคะนองรุนแรง: มีความเสี่ยงฟ้าผ่า ลูกเห็บตก และลมกระโชกแรง",
+        source: "Open-Meteo",
+        timeAgo: "Active",
+      });
+    }
+
+    // 2. Heavy Rain & Flash Flood Risk
     if (rainSum >= 45) {
       alerts.push({
         id: "om-heavy-rain",
         severity: "warning",
         category: "flood",
+        tag: "Flood Watch",
+        tagKey: "alert_flood_tag",
         headline: `Heavy Rain Alert: Up to ${Math.round(rainSum)}mm expected (${rainProb}% chance)`,
+        headlineEn: `Heavy Rain Alert: Up to ${Math.round(rainSum)}mm expected (${rainProb}% chance)`,
+        headlineTh: `เตือนภัยฝนตกหนักมาก: คาดปริมาณฝนสะสมสูงถึง ${Math.round(rainSum)} มม. (โอกาส ${rainProb}%)`,
         source: "Open-Meteo",
         timeAgo: "Today",
       });
@@ -178,20 +212,82 @@ async function fetchOpenMeteoAlerts(lat: number, lon: number): Promise<TickerAle
         id: "om-moderate-rain",
         severity: "advisory",
         category: "rain",
+        tag: "Rain Advisory",
+        tagKey: "alert_rain_tag",
         headline: `Rain Advisory: ${Math.round(rainSum)}mm rain expected (${rainProb}% chance)`,
+        headlineEn: `Rain Advisory: ${Math.round(rainSum)}mm rain expected (${rainProb}% chance)`,
+        headlineTh: `ข้อแนะนำสภาพฝน: คาดว่าจะมีฝนตก ${Math.round(rainSum)} มม. (โอกาส ${rainProb}%)`,
         source: "Open-Meteo",
         timeAgo: "Today",
       });
     }
 
-    if (maxWind >= 60) {
+    // 3. High Wind & Gale Warning
+    const peakWind = Math.max(maxWind, maxGust);
+    if (peakWind >= 60) {
       alerts.push({
         id: "om-high-wind",
         severity: "warning",
         category: "storm",
-        headline: `High Wind Warning: Gusts up to ${Math.round(maxWind)} km/h`,
+        tag: "High Wind",
+        tagKey: "alert_hazard",
+        headline: `High Wind Warning: Dangerous gusts up to ${Math.round(peakWind)} km/h`,
+        headlineEn: `High Wind Warning: Dangerous gusts up to ${Math.round(peakWind)} km/h`,
+        headlineTh: `เตือนภัยลมกระโชกแรง: ความเร็วลมสูงสุด ${Math.round(peakWind)} กม./ชม.`,
         source: "Open-Meteo",
         timeAgo: "Today",
+      });
+    }
+
+    // 4. Extreme Heatwave Warning (>= 38°C)
+    if (maxTemp >= 38 || (weatherData?.current?.temp && weatherData.current.temp >= 38)) {
+      alerts.push({
+        id: "om-heatwave",
+        severity: "warning",
+        category: "heat",
+        tag: "Extreme Heat",
+        tagKey: "alert_hazard",
+        headline: `Extreme Heat Warning: Peak temperatures near ${Math.round(maxTemp)}°C — stay hydrated`,
+        headlineEn: `Extreme Heat Warning: Peak temperatures near ${Math.round(maxTemp)}°C — stay hydrated`,
+        headlineTh: `เตือนภัยอากาศร้อนจัด: อุณหภูมิสูงสุดแตะ ${Math.round(maxTemp)}°C — โปรดดื่มน้ำบ่อยๆ`,
+        source: "Open-Meteo",
+        timeAgo: "Today",
+      });
+    }
+
+    // 5. Severe Freeze / Frost Warning (<= -6°C)
+    if (minTemp <= -6 || (weatherData?.current?.temp && weatherData.current.temp <= -6)) {
+      alerts.push({
+        id: "om-freeze",
+        severity: "warning",
+        category: "snow",
+        tag: "Severe Freeze",
+        tagKey: "alert_hazard",
+        headline: `Severe Freeze Warning: Sub-zero lows near ${Math.round(minTemp)}°C — beware of black ice`,
+        headlineEn: `Severe Freeze Warning: Sub-zero lows near ${Math.round(minTemp)}°C — beware of black ice`,
+        headlineTh: `เตือนภัยความหนาวจัด: อุณหภูมิต่ำสุดลดลงถึง ${Math.round(minTemp)}°C — ระวังถนนลื่น`,
+        source: "Open-Meteo",
+        timeAgo: "Today",
+      });
+    }
+
+    // 6. Dense Fog Advisory (WMO 45, 48 or visibility < 1 km)
+    if (
+      currentCode === 45 ||
+      currentCode === 48 ||
+      (weatherData?.current?.vis !== undefined && weatherData.current.vis > 0 && weatherData.current.vis < 1.0)
+    ) {
+      alerts.push({
+        id: "om-dense-fog",
+        severity: "advisory",
+        category: "fog",
+        tag: "Dense Fog",
+        tagKey: "alert_hazard",
+        headline: "Dense Fog Advisory: Low visibility on roads — drive with extreme caution",
+        headlineEn: "Dense Fog Advisory: Low visibility on roads — drive with extreme caution",
+        headlineTh: "ข้อแนะนำหมอกหนาจัด: ทัศนวิสัยบนท้องถนนต่ำมาก โปรดเปิดไฟหน้ารถและระมัดระวัง",
+        source: "Open-Meteo",
+        timeAgo: "Now",
       });
     }
 
@@ -212,14 +308,21 @@ async function fetchNWSAlerts(lat: number, lon: number): Promise<TickerAlertItem
     const data = await res.json();
     const features = data.features || [];
 
-    return features.slice(0, 2).map((f: any) => ({
-      id: `nws-${f.id}`,
-      severity: f.properties.severity === "Severe" ? "warning" : "advisory",
-      category: f.properties.event?.toLowerCase().includes("flood") ? "flood" : "storm",
-      headline: `${f.properties.event}: ${f.properties.headline || f.properties.description?.slice(0, 100)}`,
-      source: "NWS",
-      timeAgo: "Active",
-    }));
+    return features.slice(0, 2).map((f: any) => {
+      const isFlood = f.properties.event?.toLowerCase().includes("flood");
+      return {
+        id: `nws-${f.id}`,
+        severity: f.properties.severity === "Severe" ? "warning" : "advisory",
+        category: isFlood ? "flood" : "storm",
+        tag: isFlood ? "Flood Watch" : "NWS Alert",
+        tagKey: isFlood ? "alert_flood_tag" : "alert_hazard",
+        headline: `${f.properties.event}: ${f.properties.headline || f.properties.description?.slice(0, 100)}`,
+        headlineEn: `${f.properties.event}: ${f.properties.headline || f.properties.description?.slice(0, 100)}`,
+        headlineTh: `ประกาศเตือน NWS: ${f.properties.event}`,
+        source: "NWS",
+        timeAgo: "Active",
+      };
+    });
   } catch {
     return [];
   }
@@ -353,7 +456,7 @@ function Index() {
     };
   }, []);
 
-  // 2. Fetch Weather and Disaster Alerts
+  // 2. Fetch Weather and Global Disaster & Meteorological Alerts
   const fetchAllWeatherData = async (targetPlace: Place, currentUnit: WeatherUnit) => {
     setLoading(true);
     setError(null);
@@ -361,13 +464,13 @@ function Index() {
       const data = await getWeather(targetPlace, currentUnit);
       setWeather(data);
 
+      const isUS = targetPlace.country === "United States" || targetPlace.country === "USA";
+
       const [quakeAlerts, tmdAlerts, omAlerts, nwsAlerts] = await Promise.allSettled([
         fetchUSGSEarthquakes(targetPlace.lat, targetPlace.lon),
         fetchTMDWarnings(targetPlace),
-        fetchOpenMeteoAlerts(targetPlace.lat, targetPlace.lon),
-        targetPlace.country === "United States" || targetPlace.country === "USA"
-          ? fetchNWSAlerts(targetPlace.lat, targetPlace.lon)
-          : Promise.resolve([]),
+        fetchOpenMeteoAlerts(targetPlace.lat, targetPlace.lon, data),
+        isUS ? fetchNWSAlerts(targetPlace.lat, targetPlace.lon) : Promise.resolve([]),
       ]);
 
       const combined: TickerAlertItem[] = [
@@ -711,7 +814,7 @@ function Index() {
           </div>
         )}
 
-        {/* Weather View Section */}
+        {/* Weather View Section with Active Ticker */}
         {weather && (
           <WeatherView
             weather={weather}
