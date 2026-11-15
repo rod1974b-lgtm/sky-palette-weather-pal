@@ -23,6 +23,7 @@ import {
   getSavedArtworks,
   migrateLegacyLocalStorage,
 } from "@/lib/wallpaperStorage";
+import { WeatherMascot } from "@/components/WeatherMascot";
 
 export interface TickerAlertItem {
   id: string;
@@ -373,7 +374,7 @@ const ACCESSORY_LABELS = {
     water: "휴대용 물병 또는 시원한 물",
     windbreaker: "방풍 윈드브레이커",
     heavyCoat: "두꺼운 겨울 패딩 코트 & 장갑",
-    lightJacket: "가벼운 재킷 ಅಥವಾ 가디건",
+    lightJacket: "가벼운 재킷 또는 가디건",
     warmBeanie: "비니 모자, 목도리 & 보온 양말",
     n95Mask: "😷 미세먼지(PM2.5) 차단 N95 마스크",
   },
@@ -954,7 +955,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         )}
       </section>
 
-      {/* 3. STREAMLINED HERO CARD (Expanded Height & Crisp Artwork) */}
+      {/* 3. STREAMLINED HERO CARD (Expanded Height & Mascot Companion) */}
       <section className="relative overflow-hidden rounded-3xl border border-border/80 p-5 sm:p-6 shadow-lg bg-card text-card-foreground min-h-[290px] sm:min-h-[320px] flex flex-col justify-between">
         {heroBgUrl && (
           <div
@@ -969,8 +970,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/20 pointer-events-none" />
 
         <div className="relative z-10 flex flex-col justify-between flex-1 w-full">
-          {/* Top: City Name */}
-          <div className="flex items-start justify-between">
+          {/* Top: City Name & Mascot Companion */}
+          <div className="flex items-start justify-between gap-3">
             <div className={cityBadgeClass}>
               <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                 {w.place.name}
@@ -981,6 +982,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 </span>
               )}
             </div>
+
+            {/* Weather Companion Mascot Widget */}
+            <WeatherMascot weather={w} />
           </div>
 
           {/* Bottom Row: Large Temperature & Current Weather Icon */}
