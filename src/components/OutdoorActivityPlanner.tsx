@@ -21,8 +21,7 @@ export interface ActivityScore {
 }
 
 // 14-language localization dictionary
-const PLANNER_I18N: Record<string, Record<string, string>> = {
-  en: {
+const PLANNER_EN = {
     title: "Outdoor Activity & Lifestyle Planner",
     subtitle: "Real-time condition ratings for your daily routines & outdoor plans",
     tab_all: "All",
@@ -67,7 +66,11 @@ const PLANNER_I18N: Record<string, Record<string, string>> = {
     air_quality: "Air Quality",
     humidity: "Humidity",
     wind_speed: "Wind",
-  },
+  };
+type PlannerKey = keyof typeof PLANNER_EN;
+
+const PLANNER_I18N: Record<string, Partial<Record<PlannerKey, string>>> = {
+  en: PLANNER_EN,
   th: {
     title: "วางแผนกิจกรรมกลางแจ้งและการใช้ชีวิต",
     subtitle: "ประเมินสภาพอากาศแบบเรียลไทม์สำหรับกิจวัตรและกิจกรรมนอกบ้าน",
@@ -674,25 +677,37 @@ export const OutdoorActivityPlanner: React.FC<OutdoorActivityPlannerProps> = ({
 }) => {
   const { i18n } = useTranslation();
   const lang = (i18n.language || "en").slice(0, 2).toLowerCase();
-  const dict = PLANNER_I18N[lang] || PLANNER_I18N.en;
+  const dict: Record<PlannerKey, string> = { ...PLANNER_EN, ...(PLANNER_I18N[lang] ?? {}) };
 
   const [activeTab, setActiveTab] = useState<"all" | "fitness" | "household" | "leisure">("all");
 
   // Core weather metrics
-  const now = weather.now;
+  const cur: Partial<Weather["current"]> = weather?.current ?? {};
+  const num = (v: unknown, fb: number) => (typeof v === "number" && !isNaN(v) ? v : fb);
+  const now = {
+    temp: num(cur.temp, 0),
+    humidity: num(cur.humidity, 0),
+    wind: num(cur.wind ?? cur.wind_speed, 0),
+    uv: num(cur.uv ?? cur.uvIndex, 0),
+    aqi: typeof cur.aqi === "number" ? cur.aqi : undefined,
+    is_day: num(cur.is_day, 1),
+    code: num(cur.code, 0),
+    precipitation: num(cur.precipitation, 0),
+  };
+  const daily = Array.isArray(weather?.daily) ? weather.daily : [];
   const temp = now.temp; // in active unit
   const tempC = unit === "imperial" ? ((temp - 32) * 5) / 9 : temp;
   const humidity = now.humidity;
   const windKmh = unit === "imperial" ? now.wind * 1.60934 : now.wind;
-  const uv = now.uv;
+  const uv = Math.round(now.uv * 10) / 10;
   const aqi = now.aqi ?? 30;
   const isDay = now.is_day === 1;
 
   // Rain probability today and over next 48 hours
-  const rainToday = weather.daily[0]?.precipProbMax ?? 0;
+  const rainToday = daily[0]?.precipProbMax ?? 0;
   const rainNext48h = Math.max(
-    weather.daily[0]?.precipProbMax ?? 0,
-    weather.daily[1]?.precipProbMax ?? 0
+    daily[0]?.precipProbMax ?? 0,
+    daily[1]?.precipProbMax ?? 0
   );
   const isStormCode = [95, 96, 99].includes(now.code);
   const isRainingCode = [51, 53, 55, 61, 63, 65, 80, 81, 82].includes(now.code);
