@@ -28,6 +28,7 @@ import { AstronomyTracker } from "@/components/AstronomyTracker";
 import { WeatherRadar } from "@/components/WeatherRadar";
 import { WeatherPostcardModal } from "@/components/WeatherPostcardModal";
 import { OutdoorActivityPlanner } from "@/components/OutdoorActivityPlanner";
+import { WeatherAlertWatcher } from "@/components/WeatherAlertWatcher";
 
 export interface TickerAlertItem {
   id: string;
@@ -64,346 +65,140 @@ type WearCategory = "casual" | "business" | "sports";
 
 const WMO_KEY_MAP: Record<number, { key: string; fallback: string }> = {
   0: { key: "cond_clear", fallback: "Clear sky" },
-  1: { key: "cond_partly_cloudy", fallback: "Partly cloudy" },
+  1: { key: "cond_mainly_clear", fallback: "Mainly clear" },
   2: { key: "cond_partly_cloudy", fallback: "Partly cloudy" },
   3: { key: "cond_overcast", fallback: "Overcast" },
   45: { key: "cond_fog", fallback: "Fog" },
-  48: { key: "cond_fog", fallback: "Fog" },
-  51: { key: "cond_drizzle", fallback: "Drizzle" },
-  53: { key: "cond_drizzle", fallback: "Drizzle" },
-  55: { key: "cond_drizzle", fallback: "Drizzle" },
-  56: { key: "cond_drizzle", fallback: "Drizzle" },
-  57: { key: "cond_drizzle", fallback: "Drizzle" },
-  61: { key: "cond_rain", fallback: "Rain" },
-  63: { key: "cond_rain", fallback: "Rain" },
-  65: { key: "cond_rain", fallback: "Heavy rain" },
-  66: { key: "cond_rain", fallback: "Freezing rain" },
-  67: { key: "cond_rain", fallback: "Freezing rain" },
-  71: { key: "cond_snow", fallback: "Snow" },
-  73: { key: "cond_snow", fallback: "Snow" },
-  75: { key: "cond_snow", fallback: "Heavy snow" },
-  77: { key: "cond_snow", fallback: "Snow grains" },
-  80: { key: "cond_shower", fallback: "Rain showers" },
-  81: { key: "cond_shower", fallback: "Rain showers" },
-  82: { key: "cond_shower", fallback: "Violent rain showers" },
-  85: { key: "cond_snow", fallback: "Snow showers" },
-  86: { key: "cond_snow", fallback: "Heavy snow showers" },
+  48: { key: "cond_depositing_rime_fog", fallback: "Depositing rime fog" },
+  51: { key: "cond_drizzle_light", fallback: "Light drizzle" },
+  53: { key: "cond_drizzle_mod", fallback: "Moderate drizzle" },
+  55: { key: "cond_drizzle_dense", fallback: "Dense drizzle" },
+  56: { key: "cond_freezing_drizzle_light", fallback: "Freezing drizzle (light)" },
+  57: { key: "cond_freezing_drizzle_dense", fallback: "Freezing drizzle (dense)" },
+  61: { key: "cond_rain_slight", fallback: "Slight rain" },
+  63: { key: "cond_rain_mod", fallback: "Moderate rain" },
+  65: { key: "cond_rain_heavy", fallback: "Heavy rain" },
+  66: { key: "cond_freezing_rain_light", fallback: "Freezing rain (light)" },
+  67: { key: "cond_freezing_rain_heavy", fallback: "Freezing rain (heavy)" },
+  71: { key: "cond_snow_slight", fallback: "Slight snow" },
+  73: { key: "cond_snow_mod", fallback: "Moderate snow" },
+  75: { key: "cond_snow_heavy", fallback: "Heavy snow" },
+  77: { key: "cond_snow_grains", fallback: "Snow grains" },
+  80: { key: "cond_rain_showers_slight", fallback: "Slight rain showers" },
+  81: { key: "cond_rain_showers_mod", fallback: "Moderate rain showers" },
+  82: { key: "cond_rain_showers_violent", fallback: "Violent rain showers" },
+  85: { key: "cond_snow_showers_slight", fallback: "Slight snow showers" },
+  86: { key: "cond_snow_showers_heavy", fallback: "Heavy snow showers" },
   95: { key: "cond_thunderstorm", fallback: "Thunderstorm" },
-  96: { key: "cond_thunderstorm", fallback: "Thunderstorm with hail" },
-  99: { key: "cond_thunderstorm", fallback: "Thunderstorm with heavy hail" },
+  96: { key: "cond_thunderstorm_slight_hail", fallback: "Thunderstorm with slight hail" },
+  99: { key: "cond_thunderstorm_heavy_hail", fallback: "Thunderstorm with heavy hail" },
 };
 
-function getConditionLabel(code: number, t: TFunction): string {
-  const map = WMO_KEY_MAP[code];
-  if (map) {
-    return t(map.key, map.fallback);
-  }
-  return t("cond_partly_cloudy", "Partly cloudy");
+function getConditionLabel(code: number | undefined, t: TFunction): string {
+  if (code === undefined || code === null) return t("cond_unknown", "Unknown");
+  const mapping = WMO_KEY_MAP[code];
+  if (!mapping) return t("cond_unknown", "Unknown");
+  return t(mapping.key, mapping.fallback);
 }
 
-function getHourlyTimeLabel(timeStr: string, index: number, t: TFunction): string {
-  if (index === 0) return t("now", "Now");
+function formatHourlyTime(timeStr: string): string {
   if (!timeStr) return "";
   try {
-    const parts = timeStr.split("T")[1];
-    if (parts) {
-      return parts.slice(0, 5);
-    }
     const d = new Date(timeStr);
-    return isNaN(d.getTime()) ? timeStr : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    return isNaN(d.getTime()) ? timeStr : d.toLocaleTimeString([], { hour: "numeric", hour12: true });
   } catch {
     return timeStr;
   }
 }
 
-function getDailyDayLabel(dateStr: string, index: number, t: TFunction): string {
-  if (index === 0) return t("today", "Today");
-  if (!dateStr) return "";
+function getDailyDayLabel(dateStr: string, idx: number, t: TFunction): string {
+  if (idx === 0) return t("day_today", "Today");
+  if (idx === 1) return t("day_tomorrow", "Tomorrow");
   try {
-    const parts = dateStr.split("-");
-    if (parts.length === 3) {
-      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, { weekday: "short" });
-    }
     const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, { weekday: "short" });
-  } catch {
-    return dateStr;
-  }
+    if (!isNaN(d.getTime())) {
+      const dayNum = d.getDay();
+      const keys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
+      const fallbacks = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return t(keys[dayNum], fallbacks[dayNum]);
+    }
+  } catch {}
+  return dateStr;
 }
 
-function getUvIndexLabel(uv: number, t: TFunction): { label: string; color: string } {
-  if (uv < 3) return { label: t("uv_low", "Low"), color: "text-emerald-500" };
-  if (uv < 6) return { label: t("uv_moderate", "Moderate"), color: "text-amber-500" };
-  if (uv < 8) return { label: t("uv_high", "High"), color: "text-orange-500" };
-  if (uv < 11) return { label: t("uv_very_high", "Very High"), color: "text-rose-500" };
-  return { label: t("uv_extreme", "Extreme"), color: "text-purple-500" };
+function getUvIndexInfo(uv: number | undefined, t: TFunction): { label: string; color: string } {
+  const val = uv ?? 0;
+  if (val <= 2) return { label: t("uv_low", "Low"), color: "text-emerald-500 dark:text-emerald-400" };
+  if (val <= 5) return { label: t("uv_moderate", "Moderate"), color: "text-amber-500 dark:text-amber-400" };
+  if (val <= 7) return { label: t("uv_high", "High"), color: "text-orange-500 dark:text-orange-400" };
+  if (val <= 10) return { label: t("uv_very_high", "Very High"), color: "text-rose-500 dark:text-rose-400" };
+  return { label: t("uv_extreme", "Extreme"), color: "text-purple-600 dark:text-purple-400 font-extrabold" };
 }
 
-function getWindDirectionLabel(deg: number): string {
+function degreesToCompass(deg: number | undefined, t: TFunction): string {
+  if (deg === undefined || deg === null) return "";
   const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-  return dirs[Math.round(deg / 22.5) % 16] || "N";
+  const val = Math.floor((deg / 22.5) + 0.5) % 16;
+  return t(`dir_${dirs[val].toLowerCase()}`, dirs[val]);
 }
 
-// Localized AQI Health Advisories
-function getAqiAdvisory(
-  level: "good" | "moderate" | "sensitive" | "unhealthy" | "very_unhealthy" | "hazardous",
-  lang: string,
-  t: TFunction
-): { label: string; advice: string } {
-  switch (level) {
-    case "good":
-      return {
-        label: t("aqi_good", lang === "th" ? "คุณภาพอากาศดี" : "Good"),
-        advice: t(
-          "aqi_good_desc",
-          lang === "th"
-            ? "อากาศบริสุทธิ์ เหมาะอย่างยิ่งสำหรับกิจกรรมและออกกำลังกายกลางแจ้ง"
-            : "Air quality is ideal for all outdoor activities and exercise."
-        ),
-      };
-    case "moderate":
-      return {
-        label: t("aqi_moderate", lang === "th" ? "ปานกลาง" : "Moderate"),
-        advice: t(
-          "aqi_moderate_desc",
-          lang === "th"
-            ? "คุณภาพอากาศยอมรับได้ ผู้ที่ไวต่อฝุ่นละอองควรสังเกตอาการหากอยู่กลางแจ้งนาน"
-            : "Air quality is acceptable; unusually sensitive individuals should observe symptoms."
-        ),
-      };
-    case "sensitive":
-      return {
-        label: t("aqi_sensitive", lang === "th" ? "เริ่มมีผลกระทบต่อสุขภาพ" : "Unhealthy for Sensitive Groups"),
-        advice: t(
-          "aqi_sensitive_desc",
-          lang === "th"
-            ? "เด็ก ผู้สูงอายุ และผู้ป่วยทางเดินหายใจควรสวมหน้ากากอนามัย และลดกิจกรรมกลางแจ้ง"
-            : "Children, seniors, and sensitive individuals should wear a mask and limit outdoor exertion."
-        ),
-      };
-    case "unhealthy":
-      return {
-        label: t("aqi_unhealthy", lang === "th" ? "มีผลกระทบต่อสุขภาพ" : "Unhealthy"),
-        advice: t(
-          "aqi_unhealthy_desc",
-          lang === "th"
-            ? "ทุกคนควรสวมหน้ากาก N95 กลางแจ้ง หลีกเลี่ยงการออกกำลังกายกลางแจ้ง และปิดหน้าต่าง"
-            : "Everyone should wear an N95 mask outdoors, avoid outdoor workouts, and close windows."
-        ),
-      };
-    case "very_unhealthy":
-      return {
-        label: t("aqi_very_unhealthy", lang === "th" ? "มีผลกระทบต่อสุขภาพมาก" : "Very Unhealthy"),
-        advice: t(
-          "aqi_very_unhealthy_desc",
-          lang === "th"
-            ? "แจ้งเตือนสุขภาพ: ควรสวมหน้ากาก N95 ทุกครั้งที่ออกนอกอาคาร และเปิดเครื่องฟอกอากาศ"
-            : "Health alert: Wear an N95 mask outdoors, keep windows sealed, and use air purifiers."
-        ),
-      };
-    case "hazardous":
-    default:
-      return {
-        label: t("aqi_hazardous", lang === "th" ? "อันตรายร้ายแรง" : "Hazardous"),
-        advice: t(
-          "aqi_hazardous_desc",
-          lang === "th"
-            ? "ภาวะฉุกเฉินด้านมลพิษ: งดกิจกรรมกลางแจ้งทุกชนิด สวมหน้ากาก N95 มิดชิดตลอดเวลา"
-            : "Emergency conditions: Avoid all outdoor physical activity. Keep an N95 mask sealed."
-        ),
-      };
+function getAqiAdvisory(aqi: number | undefined, pm25: number | undefined, t: TFunction, lang: string) {
+  const effectiveAqi = aqi !== undefined ? aqi : (pm25 ? Math.round(pm25 * 3) : undefined);
+  if (effectiveAqi === undefined) return null;
+
+  if (effectiveAqi <= 50) {
+    return {
+      label: t("aqi_good", lang === "th" ? "ดีมาก" : "Good"),
+      advice: t("aqi_good_advice", lang === "th" ? "คุณภาพอากาศดี เหมาะสำหรับกิจกรรมกลางแจ้งทุกชนิด" : "Air quality is satisfactory; enjoy outdoor activities!"),
+      color: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-500/10 border-emerald-500/30",
+    };
   }
+  if (effectiveAqi <= 100) {
+    return {
+      label: t("aqi_moderate", lang === "th" ? "ปานกลาง" : "Moderate"),
+      advice: t("aqi_mod_advice", lang === "th" ? "คุณภาพอากาศปานกลาง ผู้แพ้ง่ายควรสังเกตอาการ" : "Acceptable quality; sensitive groups should consider limiting prolonged exertion."),
+      color: "text-amber-600 dark:text-amber-400",
+      bg: "bg-amber-500/10 border-amber-500/30",
+    };
+  }
+  if (effectiveAqi <= 150) {
+    return {
+      label: t("aqi_sensitive", lang === "th" ? "เริ่มมีผลต่อสุขภาพ" : "Unhealthy for Sensitive"),
+      advice: t("aqi_sens_advice", lang === "th" ? "เด็ก ผู้สูงอายุ และผู้มีโรคทางเดินหายใจควรลดการออกกำลังกายกลางแจ้ง" : "Children, seniors, and sensitive individuals should limit prolonged outdoor exertion."),
+      color: "text-orange-600 dark:text-orange-400",
+      bg: "bg-orange-500/10 border-orange-500/30",
+    };
+  }
+  if (effectiveAqi <= 200) {
+    return {
+      label: t("aqi_unhealthy", lang === "th" ? "มีผลต่อสุขภาพ" : "Unhealthy"),
+      advice: t("aqi_unhealthy_advice", lang === "th" ? "ทุกคนควรสวมหน้ากาก N95 เมื่ออยู่กลางแจ้ง และงดการออกกำลังกายหนัก" : "Everyone should wear an N95 mask outdoors, avoid prolonged exertion, and keep windows closed."),
+      color: "text-rose-600 dark:text-rose-400",
+      bg: "bg-rose-500/10 border-rose-500/30",
+    };
+  }
+  return {
+    label: t("aqi_hazardous", lang === "th" ? "อันตรายมาก" : "Hazardous"),
+    advice: t("aqi_hazard_advice", lang === "th" ? "คำเตือนสุขภาพ: ควรสวมหน้ากาก N95 หลีกเลี่ยงกิจกรรมกลางแจ้งทั้งหมด และเปิดเครื่องฟอกอากาศ" : "Health alert: Wear an N95 mask outdoors, keep windows shut, and run air purifiers indoors."),
+    color: "text-purple-600 dark:text-purple-400 font-extrabold",
+    bg: "bg-purple-500/15 border-purple-500/40",
+  };
 }
 
 const TAG_TRANSLATION_MAP: Record<string, string> = {
-  "TMD Alert": "alert_thunderstorm_tag",
-  "TMD Warning": "alert_thunderstorm_tag",
-  "Earthquake": "alert_earthquake_tag",
-  "Earthquake Alert": "alert_earthquake_tag",
-  "Flood Watch": "alert_flood_tag",
-  "Rain Advisory": "alert_rain_tag",
-  "Severe Storm": "alert_thunderstorm_tag",
-  "High Wind": "alert_hazard",
-  "Extreme Heat": "alert_hazard",
-  "Severe Freeze": "alert_hazard",
-  "NWS Alert": "alert_hazard",
-  "Air Quality": "air_quality",
-  "Marine Warning": "alert_advisory",
-};
-
-const WEAR_CATEGORIES = {
-  en: { casual: "Casual", business: "Office / Business", sports: "Athletic / Outdoor" },
-  th: { casual: "ลำลอง / สบายๆ", business: "ทำงาน / สุภาพ", sports: "ออกกำลังกาย / ลุยๆ" },
-  es: { casual: "Casual", business: "Oficina / Negocios", sports: "Deportivo / Aire libre" },
-  ja: { casual: "カジュアル", business: "ビジネス", sports: "スポーツ" },
-  zh: { casual: "休闲日常", business: "商务通勤", sports: "运动健身" },
-  hi: { casual: "कैज़ुअल", business: "कार्यालय", sports: "खेलकूद" },
-  fr: { casual: "Décontracté", business: "Bureau / Travail", sports: "Sport / Extérieur" },
-  de: { casual: "Freizeit", business: "Büro / Business", sports: "Sport / Outdoor" },
-  pt: { casual: "Casual", business: "Trabalho / Social", sports: "Esportivo / Ar livre" },
-  ru: { casual: "Повседневная", business: "Офис / Работа", sports: "Спорт / Активный отдых" },
-  ar: { casual: "يومي / كاجوال", business: "عمل / رسمي", sports: "رياضي / خارجي" },
-  ko: { casual: "캐주얼", business: "오피스 / 출근룩", sports: "운동 / 아웃도어" },
-  id: { casual: "Santai", business: "Kantor / Kerja", sports: "Olahraga / Luar ruangan" },
-  vi: { casual: "Thường ngày", business: "Công sở / Đi làm", sports: "Thể thao / Ngoài trời" },
-};
-
-const ACCESSORY_LABELS = {
-  en: {
-    umbrella: "Compact umbrella or raincoat",
-    sunglasses: "UV-blocking sunglasses & sun hat",
-    sunscreen: "Water-resistant SPF 50+ sunscreen",
-    water: "Hydration flask or cold water",
-    windbreaker: "Windproof shell jacket",
-    heavyCoat: "Thermal insulated winter coat & gloves",
-    lightJacket: "Light jacket or sweater for breezy air",
-    warmBeanie: "Knit beanie, scarf & thermal socks",
-    n95Mask: "😷 N95 particulate mask for PM2.5 / smog",
-  },
-  th: {
-    umbrella: "ร่มพับพกพาหรือเสื้อกันฝน",
-    sunglasses: "แว่นกันแดด UV & หมวกปีกกว้าง",
-    sunscreen: "ครีมกันแดดกันน้ำ SPF 50+",
-    water: "กระบอกน้ำดื่มเย็นพกพา",
-    windbreaker: "เสื้อแจ็คเก็ตกันลม",
-    heavyCoat: "เสื้อกันหนาวหนาพิเศษ & ถุงมือ",
-    lightJacket: "เสื้อคลุมบางหรือสเวตเตอร์",
-    warmBeanie: "หมวกไหมพรม, ผ้าพันคอ & ถุงเท้าหนา",
-    n95Mask: "😷 หน้ากาก N95 ป้องกันฝุ่น PM2.5",
-  },
-  es: {
-    umbrella: "Paraguas compacto o impermeable",
-    sunglasses: "Gafas de sol UV y sombrero",
-    sunscreen: "Protector solar resistente al agua SPF 50+",
-    water: "Botella de agua fría",
-    windbreaker: "Chaqueta cortavientos",
-    heavyCoat: "Abrigo térmico de invierno y guantes",
-    lightJacket: "Chaqueta ligera o suéter",
-    warmBeanie: "Gorro de lana, bufanda y calcetines térmicos",
-    n95Mask: "😷 Mascarilla N95 para PM2.5",
-  },
-  ja: {
-    umbrella: "折りたたみ傘またはレインコート",
-    sunglasses: "UVカットサングラス＆帽子",
-    sunscreen: "ウォータープルーフ日焼け止め SPF50+",
-    water: "冷たいマイボトル",
-    windbreaker: "ウィンドブレーカー",
-    heavyCoat: "厚手の防寒コート＆手袋",
-    lightJacket: "薄手のジャケットまたはカーディガン",
-    warmBeanie: "ニット帽、マフラー＆厚手靴下",
-    n95Mask: "😷 PM2.5対策 N95マスク",
-  },
-  zh: {
-    umbrella: "便携雨伞或雨衣",
-    sunglasses: "防紫外线太阳镜与遮阳帽",
-    sunscreen: "防水防晒霜 SPF50+",
-    water: "随身冷水壶",
-    windbreaker: "防风外套",
-    heavyCoat: "保暖羽绒服与手套",
-    lightJacket: "薄外套或针织衫",
-    warmBeanie: "针织毛线帽、围巾与保暖袜",
-    n95Mask: "😷 N95防颗粒物口罩 (PM2.5)",
-  },
-  hi: {
-    umbrella: "कॉम्पैक्ट छाता या रेनकोट",
-    sunglasses: "यूवी धूप का चश्मा और टोपी",
-    sunscreen: "जल प्रतिरोधी सनस्क्रीन SPF 50+",
-    water: "पानी की बोतल",
-    windbreaker: "विंडप्रूफ जैकेट",
-    heavyCoat: "गर्म शीतकालीन कोट और दस्ताने",
-    lightJacket: "हल्की जैकेट या स्वेटर",
-    warmBeanie: "ऊनी टोपी, मफलर और मोज़े",
-    n95Mask: "😷 PM2.5 के लिए N95 मास्क",
-  },
-  fr: {
-    umbrella: "Parapluie compact ou imperméable",
-    sunglasses: "Lunettes de soleil anti-UV & chapeau",
-    sunscreen: "Crème solaire résistante à l'eau SPF 50+",
-    water: "Gourde d'eau fraîche",
-    windbreaker: "Veste coupe-vent",
-    heavyCoat: "Manteau chaud d'hiver & gants",
-    lightJacket: "Veste légère ou pull fin",
-    warmBeanie: "Bonnet en tricot, écharpe & chaussettes thermiques",
-    n95Mask: "😷 Masque N95 contre les particules PM2.5",
-  },
-  de: {
-    umbrella: "Kompakter Regenschirm oder Regenjacke",
-    sunglasses: "UV-Sonnenbrille & Sonnenhut",
-    sunscreen: "Wasserfeste Sonnencreme LSF 50+",
-    water: "Trinkflasche mit kaltem Wasser",
-    windbreaker: "Windjacke",
-    heavyCoat: "Gefütterter Wintermantel & Handschuhe",
-    lightJacket: "Leichte Übergangsjacke oder Pullover",
-    warmBeanie: "Strickmütze, Schal & Thermosocken",
-    n95Mask: "😷 N95-Atemschutzmaske für PM2.5",
-  },
-  pt: {
-    umbrella: "Guarda-chuva compacto ou capa de chuva",
-    sunglasses: "Óculos de sol UV e chapéu",
-    sunscreen: "Protetor solar resistente à água FPS 50+",
-    water: "Garrafa de água gelada",
-    windbreaker: "Jaqueta corta-vento",
-    heavyCoat: "Casaco térmico pesado e luvas",
-    lightJacket: "Jaqueta leve ou suéter",
-    warmBeanie: "Gorro de lã, cachecol e meias térmicas",
-    n95Mask: "😷 Máscara N95 para partículas PM2.5",
-  },
-  ru: {
-    umbrella: "Компактный зонт или дождевик",
-    sunglasses: "Солнцезащитные очки с защитой от УФ и панама",
-    sunscreen: "Водостойкий солнцезащитный крем SPF 50+",
-    water: "Бутылка с водой",
-    windbreaker: "Ветрозащитная куртка",
-    heavyCoat: "Теплое зимнее пальто и перчатки",
-    lightJacket: "Легкая ветровка или свитер",
-    warmBeanie: "Вязаная шапка, шарф и теплые носки",
-    n95Mask: "😷 Респиратор N95 от мелкодисперсной пыли PM2.5",
-  },
-  ar: {
-    umbrella: "مظلة صغيرة أو معطف واق من المطر",
-    sunglasses: "نظارات شمسية واقية وقبعة",
-    sunscreen: "واقي شمس مقاوم للماء SPF 50+",
-    water: "قارورة ماء بارد",
-    windbreaker: "سترة واقية من الرياح",
-    heavyCoat: "معطف شتوي دافئ وقفازات",
-    lightJacket: "جاكيت خفيف أو سترة مريحة",
-    warmBeanie: "قبعة صوفية، وشاح وجوارب دافئة",
-    n95Mask: "😷 كمامة N95 للوقاية من غبار PM2.5",
-  },
-  ko: {
-    umbrella: "휴대용 우산 또는 우비",
-    sunglasses: "자외선 차단 선글라스 & 모자",
-    sunscreen: "워터프루프 선크림 SPF 50+",
-    water: "휴대용 냉수 텀블러",
-    windbreaker: "방풍 바람막이 자켓",
-    heavyCoat: "두꺼운 패딩 코트 & 방한 장갑",
-    lightJacket: "가벼운 자켓 또는 가디건",
-    warmBeanie: "니트 모자, 목도리 & 보온 양말",
-    n95Mask: "😷 PM2.5 미세먼지 차단 N95 마스크",
-  },
-  id: {
-    umbrella: "Payung lipat praktis atau jas hujan",
-    sunglasses: "Kacamata hitam anti-UV & topi",
-    sunscreen: "Tabir surya tahan air SPF 50+",
-    water: "Botol minum air dingin",
-    windbreaker: "Jaket penahan angin (windbreaker)",
-    heavyCoat: "Mantel tebal musim dingin & sarung tangan",
-    lightJacket: "Jaket ringan atau kardigan tipis",
-    warmBeanie: "Topi kupluk rajut, syal & kaus kaki tebal",
-    n95Mask: "😷 Masker N95 pelindung debu PM2.5",
-  },
-  vi: {
-    umbrella: "Ô gấp gọn hoặc áo mưa tiện lợi",
-    sunglasses: "Kính râm chống tia UV & mũ rộng vành",
-    sunscreen: "Kem chống nắng kháng nước SPF 50+",
-    water: "Bình nước mát mang theo",
-    windbreaker: "Áo khoác gió cản gió",
-    heavyCoat: "Áo khoác phao ấm & găng tay",
-    lightJacket: "Áo khoác nhẹ hoặc áo len mỏng",
-    warmBeanie: "Mũ len, khăn quàng & tất ấm",
-    n95Mask: "😷 Khẩu trang N95 chống bụi mịn PM2.5",
-  },
+  RiverFlood: "alert_tag_river_flood",
+  FlashFlood: "alert_tag_flash_flood",
+  HeavyRain: "alert_tag_heavy_rain",
+  Inundation: "alert_tag_inundation",
+  SevereStorm: "alert_tag_severe_storm",
+  Earthquake: "alert_tag_earthquake",
+  Tsunami: "alert_tag_tsunami",
+  HighWind: "alert_tag_high_wind",
+  TropicalCyclone: "alert_tag_tropical_cyclone",
+  HeatWave: "alert_tag_heat_wave",
+  ColdWave: "alert_tag_cold_wave",
+  AirPollution: "alert_tag_air_pollution",
 };
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
@@ -422,145 +217,164 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   customBgUrl,
 }) => {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language?.toLowerCase().split("-")[0] || "en";
-  const w = weather || weatherProp;
+  const lang = i18n.language || "en";
+  const w = weatherProp || weather;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
-  const [activeWallpaperUrl, setActiveWallpaperUrl] = useState<string | null>(customBgUrl || null);
-  const [artIndex, setArtIndex] = useState(0);
-  const [savedSlots, setSavedSlots] = useState<SavedItem[]>([]);
-  const [wearCategory, setWearCategory] = useState<WearCategory>("casual");
+  const [activeWearCategory, setActiveWearCategory] = useState<WearCategory>("casual");
 
-  // Load saved slots from IndexedDB with migration fallback
+  // Artwork & Wallpaper Slot Cycling State
+  const [displayBg, setDisplayBg] = useState<string>("");
+  const [availableArtworks, setAvailableArtworks] = useState<string[]>([]);
+  const [artIdx, setArtIdx] = useState<number>(0);
+  const [artLoaded, setArtLoaded] = useState<boolean>(false);
+
+  // Initialize DB migration once on mount
   useEffect(() => {
-    migrateLegacyLocalStorage().then(() => {
-      getSavedArtworks().then((list) => {
-        setSavedSlots(list);
-      });
-    });
+    migrateLegacyLocalStorage().catch(() => {});
   }, []);
 
-  // Listen for custom wallpaper updates across tabs/windows
-  useEffect(() => {
-    const handleStorageChange = () => {
-      getSavedArtworks().then((list) => {
-        setSavedSlots(list);
-      });
-    };
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("weather:custom-art-saved-updated", handleStorageChange);
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("weather:custom-art-saved-updated", handleStorageChange);
-    };
-  }, []);
-
-  // Sync external customBgUrl
-  useEffect(() => {
-    if (customBgUrl) {
-      setActiveWallpaperUrl(customBgUrl);
-    }
-  }, [customBgUrl]);
-
-  // Read saved category choice
-  useEffect(() => {
-    const saved = localStorage.getItem("weather:wearCategory") as WearCategory;
-    if (saved && ["casual", "business", "sports"].includes(saved)) {
-      setWearCategory(saved);
-    }
-  }, []);
-
-  const handleSelectCategory = (cat: WearCategory) => {
-    setWearCategory(cat);
+  // Update wallpaper pool whenever place/weather changes
+  const refreshWallpaperPool = useCallback(async () => {
+    if (!w?.place?.name) return;
     try {
-      localStorage.setItem("weather:wearCategory", cat);
+      const [allDefaults, savedSlots] = await Promise.all([
+        Promise.resolve(getAllAvailableArtworks(w.place.name, w.current?.is_day ?? 1, w.current?.weather_code ?? 0)),
+        getSavedArtworks().catch(() => [] as SavedItem[]),
+      ]);
+
+      const pool: string[] = [];
+      savedSlots.forEach((slot) => {
+        if (slot.imageUrl && !pool.includes(slot.imageUrl)) {
+          pool.push(slot.imageUrl);
+        }
+      });
+
+      allDefaults.forEach((url) => {
+        if (url && !pool.includes(url)) {
+          pool.push(url);
+        }
+      });
+
+      setAvailableArtworks(pool);
+
+      const activeCustom = customBgUrl || (await getWallpaperItem("current_wallpaper"));
+      if (activeCustom) {
+        setDisplayBg(activeCustom);
+      } else if (pool.length > 0) {
+        setDisplayBg(pool[0]);
+      } else {
+        const fallback = getCityWeatherBackground(w.place.name, w.current?.is_day ?? 1, w.current?.weather_code ?? 0);
+        setDisplayBg(fallback);
+      }
+      setArtLoaded(true);
+    } catch {
+      if (w?.place?.name) {
+        setDisplayBg(getCityWeatherBackground(w.place.name, w.current?.is_day ?? 1, w.current?.weather_code ?? 0));
+      }
+    }
+  }, [w?.place?.name, w?.current?.is_day, w?.current?.weather_code, customBgUrl]);
+
+  useEffect(() => {
+    refreshWallpaperPool();
+  }, [refreshWallpaperPool]);
+
+  // Listen to cross-component wallpaper change events
+  useEffect(() => {
+    const handleWallpaperChanged = (e: CustomEvent<{ url: string }>) => {
+      if (e.detail?.url) {
+        setDisplayBg(e.detail.url);
+        setArtLoaded(true);
+      }
+    };
+
+    window.addEventListener("weather:wallpaper-changed" as any, handleWallpaperChanged as any);
+    return () => {
+      window.removeEventListener("weather:wallpaper-changed" as any, handleWallpaperChanged as any);
+    };
+  }, []);
+
+  const handleSelectBackground = useCallback(
+    async (url: string) => {
+      setDisplayBg(url);
+      setArtLoaded(true);
+      try {
+        await setWallpaperItem("current_wallpaper", url);
+      } catch {}
+      if (onSelectBg) onSelectBg(url);
+      if (onSelectBackground) onSelectBackground(url);
+    },
+    [onSelectBg, onSelectBackground]
+  );
+
+  const cycleNextArtwork = useCallback(async () => {
+    if (availableArtworks.length === 0) return;
+    const nextIdx = (artIdx + 1) % availableArtworks.length;
+    setArtIdx(nextIdx);
+    const nextUrl = availableArtworks[nextIdx];
+    setDisplayBg(nextUrl);
+    setArtLoaded(true);
+    try {
+      await setWallpaperItem("current_wallpaper", nextUrl);
     } catch {}
-  };
+    if (onSelectBg) onSelectBg(nextUrl);
+    if (onSelectBackground) onSelectBackground(nextUrl);
+  }, [artIdx, availableArtworks, onSelectBg, onSelectBackground]);
 
-  // Curated art catalog
-  const curatedArtworks = getAllAvailableArtworks();
-
-  // Cycle next artwork: saved slots first, then curated
-  const cycleNextArtwork = useCallback(() => {
-    const combined: string[] = [
-      ...savedSlots.map((s) => s.dataUrl).filter(Boolean),
-      ...curatedArtworks.map((a) => a.url),
-    ];
-
-    if (combined.length === 0) return;
-
-    const nextIdx = (artIndex + 1) % combined.length;
-    setArtIndex(nextIdx);
-    const chosen = combined[nextIdx];
-    setActiveWallpaperUrl(chosen);
-
-    if (onSelectBg) onSelectBg(chosen);
-    if (onSelectBackground) onSelectBackground(chosen);
-  }, [artIndex, curatedArtworks, savedSlots, onSelectBg, onSelectBackground]);
-
-  const handleSelectBackground = (url: string) => {
-    setActiveWallpaperUrl(url);
-    if (onSelectBg) onSelectBg(url);
-    if (onSelectBackground) onSelectBackground(url);
-  };
-
-  const openGalleryModal = () => {
+  const openGalleryModal = useCallback(() => {
     if (onOpenAiGallery) {
       onOpenAiGallery();
     } else {
       setGalleryOpen(true);
     }
-  };
+  }, [onOpenAiGallery]);
 
   if (loading && !w) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[360px] p-8 text-center animate-pulse">
-        <div className="w-14 h-14 rounded-full border-4 border-primary border-t-transparent animate-spin mb-4" />
-        <p className="text-sm font-medium text-muted-foreground">{t("loading_weather", "Loading weather data...")}</p>
-      </div>
-    );
-  }
-
-  if (!w) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[300px] p-6 text-center">
-        <span className="text-4xl mb-3">⛅</span>
-        <h3 className="text-base font-semibold text-foreground">{t("no_weather_data", "No weather data")}</h3>
-        <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-          {t("no_weather_desc", "Search for a city or use your current location to view live weather, air quality, and astronomy.")}
+      <div className="flex flex-col items-center justify-center p-12 text-center space-y-4">
+        <div className="w-14 h-14 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        <p className="text-sm font-medium text-muted-foreground animate-pulse">
+          {t("loading_weather", "Loading latest weather forecast...")}
         </p>
       </div>
     );
   }
 
-  // Determine active background artwork
-  const fallbackBg = getCityWeatherBackground(
-    w.place.name,
-    w.current.code,
-    w.current.is_day === 1
-  );
-  const displayBg = activeWallpaperUrl || fallbackBg;
+  if (!w || !w.current) {
+    return (
+      <div className="p-8 text-center rounded-2xl bg-card border border-border/80 shadow-xs max-w-lg mx-auto space-y-3">
+        <span className="text-4xl">🌤️</span>
+        <h3 className="text-base font-semibold text-foreground">
+          {t("no_weather_title", "No Weather Data Available")}
+        </h3>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {t("no_weather_desc", "Search for a city or use your current location pin above to explore live forecasts.")}
+        </p>
+      </div>
+    );
+  }
 
-  // Weather variables
+  // Unit display helpers
   const tempUnitStr = unit === "imperial" ? "°F" : "°C";
   const speedUnitStr = unit === "imperial" ? "mph" : "km/h";
-  const pressureUnitStr = "hPa";
   const visUnitStr = unit === "imperial" ? "mi" : "km";
+  const pressureUnitStr = unit === "imperial" ? "inHg" : "hPa";
 
-  const conditionLabel = getConditionLabel(w.current.code, t);
-  const feelsLikeVal = Math.round(w.current.apparent_temperature ?? w.current.temp);
-  const windDir = getWindDirectionLabel(w.current.wind_direction ?? 0);
-  const uvNum = typeof w.current.uv_index === "number" ? Math.round(w.current.uv_index) : 0;
-  const uvInfo = getUvIndexLabel(uvNum, t);
+  const currentConditionText = getConditionLabel(w.current.weather_code, t);
+  const feelsLikeVal = Math.round(w.current.apparent_temperature ?? w.current.temperature);
+  const tempVal = Math.round(w.current.temperature);
+  const windCompass = degreesToCompass(w.current.wind_direction, t);
+  const uvNum = typeof w.current.uv === "number" ? Math.round(w.current.uv) : 0;
+  const uvInfo = getUvIndexInfo(uvNum, t);
 
-  // Daily high / low
-  const todayDaily = w.daily[0];
-  const maxTemp = todayDaily ? Math.round(todayDaily.max) : Math.round(w.current.temp);
-  const minTemp = todayDaily ? Math.round(todayDaily.min) : Math.round(w.current.temp);
-  const rainChanceVal = todayDaily?.pop ?? 0;
+  // Daily High/Low and Rain Chance
+  const todayDaily = w.daily && w.daily.length > 0 ? w.daily[0] : null;
+  const highTemp = todayDaily ? Math.round(todayDaily.max) : tempVal;
+  const lowTemp = todayDaily ? Math.round(todayDaily.min) : tempVal;
+  const rainChanceVal = todayDaily ? Math.round(todayDaily.pop) : Math.round(w.current.precipitation_probability ?? 0);
 
-  // Sun times
+  // Sunrise / Sunset formatting
   let sunriseStr = "--:--";
   let sunsetStr = "--:--";
   if (todayDaily?.sunrise) {
@@ -583,105 +397,68 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const aqiVal = typeof w.current?.aqi === "number" ? Math.round(w.current.aqi) : undefined;
   const pm25Val = typeof w.current?.pm25 === "number" ? w.current.pm25 : undefined;
   const pm10Val = typeof w.current?.pm10 === "number" ? w.current.pm10 : undefined;
+  const aqiCategoryInfo = aqiCategory(aqiVal);
+  const aqiAdvisoryInfo = getAqiAdvisory(aqiVal, pm25Val, t, lang) || {
+    label: aqiCategoryInfo.label,
+    advice: t("aqi_normal_advice", "Air quality is suitable for standard activities."),
+    color: aqiCategoryInfo.color,
+    bg: aqiCategoryInfo.bg,
+  };
 
-  // Compute AQI category & localized advice
-  const effectiveAqi = aqiVal !== undefined ? aqiVal : (pm25Val ? Math.round(pm25Val * 3) : 35);
-  const aqiCategoryInfo = aqiCategory(effectiveAqi);
-  const aqiAdvisoryInfo = getAqiAdvisory(aqiCategoryInfo.level, lang, t);
+  // What to Wear Logic (Celsius baseline)
+  const tempC = unit === "imperial" ? ((w.current.temperature - 32) * 5) / 9 : w.current.temperature;
+  const rainExpected = rainChanceVal >= 40 || (w.current.weather_code >= 51 && w.current.weather_code <= 82);
+  const isHotSunny = tempC >= 27 && uvNum >= 6;
 
-  // What to Wear Advice calculation
-  const locWearCat =
-    WEAR_CATEGORIES[lang as keyof typeof WEAR_CATEGORIES] || WEAR_CATEGORIES.en;
-  const locAccessory =
-    ACCESSORY_LABELS[lang as keyof typeof ACCESSORY_LABELS] || ACCESSORY_LABELS.en;
+  const locAccessory = {
+    umbrella: t("wear_acc_umbrella", lang === "th" ? "ร่มกันฝน / เสื้อกันฝน" : "Sturdy compact umbrella or raincoat"),
+    sunglasses: t("wear_acc_sunglasses", lang === "th" ? "แว่นกันแดด UV400 / ครีมกันแดด" : "UV400 sunglasses & SPF 50 sunscreen"),
+    mask: t("wear_acc_mask", lang === "th" ? "หน้ากากอนามัยป้องกันฝุ่น N95" : "N95 particulate respirator mask"),
+    windbreaker: t("wear_acc_windbreaker", lang === "th" ? "เสื้อกันลมมีฮู้ด" : "Windproof hooded shell"),
+    lightJacket: t("wear_acc_light_jacket", lang === "th" ? "เสื้อคลุมหรือคาร์ดิแกนบาง" : "Light layer / cardigans for evening"),
+  };
 
-  const tempC = unit === "imperial" ? ((w.current.temp - 32) * 5) / 9 : w.current.temp;
-  const code = w.current.code;
-  const isRaining = code >= 95 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
-  const isFreezing = tempC <= 0;
-  const isCold = tempC > 0 && tempC <= 14;
-  const isMild = tempC > 14 && tempC <= 23;
-  const isWarm = tempC > 23 && tempC <= 30;
-  const isVeryHot = tempC > 30;
+  const wearRecommendations: Record<WearCategory, { title: string; outfit: string; icon: string }> = {
+    business: {
+      title: t("wear_cat_business", lang === "th" ? "ชุดทำงาน / สุภาพ" : "Work & Formal"),
+      icon: "💼",
+      outfit:
+        tempC < 10
+          ? t("wear_biz_cold", lang === "th" ? "เสื้อโค้ตผ้าวูลสูททางการ เสื้อเชิ้ตแขนยาว กางเกงสแล็ก" : "Tailored wool overcoat or blazer, dress shirt, thermal undershirt, and slacks.")
+          : tempC < 22
+          ? t("wear_biz_mild", lang === "th" ? "เสื้อเบลเซอร์ทำงาน เสื้อเชิ้ต หรือชุดเดรสสุภาพ" : "Structured blazer or cardigan, breathable dress shirt, and lightweight trousers.")
+          : t("wear_biz_warm", lang === "th" ? "เสื้อเชิ้ตผ้าลินิน/คอตตอนโปร่ง กางเกงสแล็กน้ำหนักเบา" : "Crisp lightweight cotton or linen dress shirt, lightweight slacks, and loafers."),
+    },
+    sports: {
+      title: t("wear_cat_sports", lang === "th" ? "ออกกำลังกาย / กีฬา" : "Sports & Outdoor"),
+      icon: "🏃",
+      outfit:
+        tempC < 10
+          ? t("wear_sport_cold", lang === "th" ? "ชุดวิ่งแขนยาวแนบเนื้อ เสื้อกั๊กกันลม กางเกงเลกกิ้งขายาว" : "Thermal compression base layer, windproof running jacket, and running tights.")
+          : tempC < 22
+          ? t("wear_sport_mild", lang === "th" ? "เสื้อวิ่งระบายเหงื่อ กางเกงจ็อกเกอร์ หรือกางเกงขาสั้น" : "Light moisture-wicking tech tee or long sleeve with flexible running shorts.")
+          : t("wear_sport_warm", lang === "th" ? "เสื้อกล้ามวิ่งหรือเสื้อยืดแห้งเร็ว กางเกงขาสั้นระบายอากาศ" : "Ultra-breathable singlet or quick-dry tee, running shorts, and anti-blister socks."),
+    },
+    casual: {
+      title: t("wear_cat_casual", lang === "th" ? "ชุดลำลองทั่วไป" : "Daily Casual"),
+      icon: "👕",
+      outfit:
+        tempC < 5
+          ? t("wear_cas_freezing", lang === "th" ? "เสื้อแจ็กเก็ตดาวน์หนา เสื้อไหมพรม กางเกงขายาวผ้าหนา" : "Heavy down parka, thermal base layer, insulated trousers, and warm boots.")
+          : tempC < 14
+          ? t("wear_cas_cold", lang === "th" ? "เสื้อกันหนาว เสื้อฮู้ดดี้ หรือแจ็กเก็ตยีนส์ กางเกงขายาว" : "Warm hoodie or knit sweater paired with a denim jacket and full-length pants.")
+          : tempC < 24
+          ? t("wear_cas_mild", lang === "th" ? "เสื้อยืดคอตตอน สวมทับด้วยคาร์ดิแกนบาง หรือเสื้อเชิ้ตแขนสั้น" : "Classic cotton t-shirt paired with a light cardigan, overshirt, and chinos.")
+          : tempC < 30
+          ? t("wear_cas_warm", lang === "th" ? "เสื้อยืดเนื้อโปร่งสบาย กางเกงขาสั้น หรือกางเกงผ้าลินิน" : "Breathable airy cotton t-shirt, casual linen shorts or trousers, and walking sneakers.")
+          : t("wear_cas_hot", lang === "th" ? "เสื้อผ้าฝ้ายเบาสบาย สีอ่อน ระบายอากาศได้ดีเยี่ยม" : "Comfortable casual tee or polo, relaxed jeans or breathable shorts, and sun protection."),
+    },
+  };
 
-  let clothingDescription = "";
-  if (wearCategory === "business") {
-    if (isFreezing || isCold) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อโค้ตสูทผ้าวูล เสื้อเชิ้ตแขนยาว กางเกงสแล็ค และรองเท้าคัทชูหนังกันหนาว"
-          : "Tailored wool overcoat or blazer, dress shirt, formal trousers, and leather dress shoes.";
-    } else if (isVeryHot) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อเชิ้ตผ้าลินินหรือคอตตอนระบายอากาศ กางเกงสแล็คผ้าเบา พร้อมสูทบางสำหรับประชุม"
-          : "Breathable linen/cotton dress shirt, lightweight dress chinos, and loafers.";
-    } else {
-      clothingDescription =
-        lang === "th"
-          ? "ชุดทำงานสุภาพ สูทเบลเซอร์ลำลอง เสื้อเชิ้ต หรือเดรสทำงานเรียบหรู"
-          : "Smart business casual blazer, crisp button-down, tailored trousers, and dress shoes.";
-    }
-  } else if (wearCategory === "sports") {
-    if (isFreezing || isCold) {
-      clothingDescription =
-        lang === "th"
-          ? "ชุดวิ่งแขนยาวแนบเนื้อ เสื้อกั๊กกันลม กางเกงเลกกิ้งกันหนาว และรองเท้าวิ่งเสริมการยึดเกาะ"
-          : "Thermal compression base layer, windproof running vest, thermal tights, and running shoes.";
-    } else if (isVeryHot) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อกล้ามหรือเสื้อวิ่งระบายเหงื่อ Quick-dry กางเกงขาสั้นวิ่ง หมวกวิ่ง และแว่นกันแดด"
-          : "Ultra-breathable singlet or quick-dry tee, running shorts, sweatband, and sports sunglasses.";
-    } else {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อยืดกีฬาผ้าระบายอากาศ กางเกงวอร์มหรือเลกกิ้ง และรองเท้ากีฬาคู่โปรด"
-          : "Athletic moisture-wicking tee, comfortable joggers or shorts, and running sneakers.";
-    }
-  } else {
-    // casual default
-    if (isFreezing) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อขนเป็ดหนาพิเศษ เสื้อฮีทเทค กางเกงขายาวบุขน ถุงมือ และรองเท้าบูท"
-          : "Heavy down parka, thermal base layer, insulated trousers, warm boots, and fleece-lined gloves.";
-    } else if (isCold) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อสเวตเตอร์หรือแจ็คเก็ตยีนส์ กางเกงขายาว และรองเท้าผ้าใบหุ้มส้น"
-          : "Cozy knit sweater or denim jacket, comfortable trousers/jeans, and sturdy sneakers.";
-    } else if (isMild) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อยืดคอตตอนสบายๆ คลุมด้วยคาร์ดิแกนบาง และกางเกงยีนส์ตัวเก่ง"
-          : "Classic cotton t-shirt paired with a light cardigan or overshirt and comfortable chinos.";
-    } else if (isVeryHot) {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อยืดคอตตอนบาง กางเกงขาสั้นผ้าเบา แว่นกันแดด และรองเท้าแตะหรือผ้าใบโปร่ง"
-          : "Breathable airy cotton t-shirt, casual linen shorts, UV sunglasses, and canvas shoes.";
-    } else {
-      clothingDescription =
-        lang === "th"
-          ? "เสื้อยืดหรือเสื้อเชิ้ตลำลอง กางเกงยีนส์ตัวโปรด และรองเท้าผ้าใบสบายเท้า"
-          : "Comfortable casual tee or polo, relaxed jeans or chinos, and everyday walking sneakers.";
-    }
-  }
-
-  // Accessories logic with automatic N95 mask recommendation when PM2.5 or AQI is elevated
   const accessories: string[] = [];
-
-  // 1. High Pollution Alert: Prioritize N95 Mask
-  if ((pm25Val && pm25Val >= 35.5) || (aqiVal && aqiVal >= 101)) {
-    accessories.push(locAccessory.n95Mask || "😷 N95 Mask for PM2.5");
-  }
-
-  // 2. Weather conditions
-  if (isRaining) accessories.push(locAccessory.umbrella);
-  if (tempC <= 5) accessories.push(locAccessory.heavyCoat, locAccessory.warmBeanie);
-  if (uvNum >= 6) accessories.push(locAccessory.sunglasses, locAccessory.sunscreen);
-  if (isVeryHot) accessories.push(locAccessory.water);
+  if (rainExpected) accessories.push(locAccessory.umbrella);
+  if (isHotSunny) accessories.push(locAccessory.sunglasses);
+  if (aqiVal !== undefined && aqiVal > 100) accessories.push(locAccessory.mask);
   if ((w.current.wind_speed ?? 0) >= 28) accessories.push(locAccessory.windbreaker);
   if (tempC >= 12 && tempC <= 18 && accessories.length < 2) accessories.push(locAccessory.lightJacket);
 
@@ -732,7 +509,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       )}
 
-      {/* 2. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> POSTCARD -> REFRESH -> FAVORITE */}
+      {/* 2. REAL-TIME SEVERE WEATHER HAZARD WATCHER & NOTIFICATIONS */}
+      <WeatherAlertWatcher
+        weather={w}
+        unit={unit}
+        activeAlerts={alertsToDisplay}
+      />
+
+      {/* 3. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> POSTCARD -> REFRESH -> FAVORITE */}
       <div className="flex items-center justify-between gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-card border border-border/60 shadow-xs flex-wrap">
         <div className="flex items-center gap-1.5">
           <button
@@ -758,136 +542,148 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           <button
             type="button"
             onClick={() => setPostcardOpen(true)}
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition cursor-pointer active:scale-95 border border-amber-500/20"
-            title={t("share_postcard", lang === "th" ? "แชร์โปสการ์ด" : "Share Postcard")}
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-muted/70 hover:bg-muted text-foreground transition cursor-pointer active:scale-95"
+            title={t("share_weather_postcard", "Create and share watercolor weather postcard")}
           >
             <span>💌</span>
-            <span>{t("weather_postcard", lang === "th" ? "โปสการ์ด" : "Postcard")}</span>
+            <span>{t("postcard", "Postcard")}</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5 ml-auto">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onRefresh}
-            className="p-2 text-xs font-medium rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer active:scale-95"
-            title={t("refresh_weather", "Refresh Weather")}
+            className="p-2 text-xs font-medium rounded-xl hover:bg-muted text-foreground transition cursor-pointer active:scale-95 border border-border/40"
+            title={t("refresh_forecast", "Refresh forecast")}
           >
-            🔄
+            <span className={loading ? "animate-spin inline-block" : ""}>🔄</span>
           </button>
 
           {onToggleFavorite && (
             <button
               type="button"
               onClick={onToggleFavorite}
-              className={`p-2 text-xs font-medium rounded-xl transition cursor-pointer active:scale-95 ${
+              className={`p-2 text-xs font-medium rounded-xl transition cursor-pointer active:scale-95 border ${
                 isFav
-                  ? "text-rose-500 bg-rose-500/10 hover:bg-rose-500/20"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-amber-500/20 text-amber-500 border-amber-500/40"
+                  : "hover:bg-muted text-muted-foreground border-border/40"
               }`}
-              title={isFav ? t("remove_fav", "Remove Favorite") : t("add_fav", "Add Favorite")}
+              title={isFav ? t("remove_fav", "Saved in favorites") : t("add_fav", "Add to favorites")}
             >
-              {isFav ? "❤️" : "🤍"}
+              <span>{isFav ? "⭐" : "☆"}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* 3. WEATHER HERO CARD WITH WATERCOLOR ART & MASCOT */}
-      <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md text-foreground min-h-[300px] flex flex-col justify-between p-5 sm:p-6 transition-all duration-300">
-        {/* Watercolor Wallpaper Background with Contrast Overlay */}
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-all duration-700 pointer-events-none"
-          style={{ backgroundImage: `url(${displayBg})` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/60 to-background/30 dark:from-background/95 dark:via-background/70 dark:to-background/40 pointer-events-none backdrop-blur-[1px]" />
+      {/* 4. MAIN WATERCOLOR WEATHER HERO CARD */}
+      <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md text-white min-h-[310px] sm:min-h-[350px] flex flex-col justify-between p-5 sm:p-6 transition-all bg-card">
+        {/* Background Watercolor Art with subtle vignette */}
+        {displayBg ? (
+          <img
+            src={displayBg}
+            alt={w.place.name}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 pointer-events-none ${
+              artLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            onLoad={() => setArtLoaded(true)}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-400 to-purple-500" />
+        )}
 
-        {/* Card Header: Place & Weather Mascot Companion */}
+        {/* Ambient Dark Overlay for sharp text contrast */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25 pointer-events-none" />
+
+        {/* Top Header: Location, Country, and Mascot Companion */}
         <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground drop-shadow-xs">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-sm">📍</span>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white drop-shadow-md truncate">
                 {w.place.name}
               </h2>
               {w.place.country && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-background/80 font-bold backdrop-blur-md border border-border/60 text-muted-foreground">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white/95 border border-white/20">
                   {w.place.country}
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground font-medium">
-              {t("updated_just_now", "Live Conditions")} • {w.place.admin1 || w.place.country || ""}
+
+            <p className="text-xs text-white/80 font-medium mt-1 drop-shadow-sm flex items-center gap-2 flex-wrap">
+              <span>{currentConditionText}</span>
+              <span>•</span>
+              <span>
+                {t("updated_just_now", "Updated")} {w.fetchedAt ? new Date(w.fetchedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : t("recently", "recently")}
+              </span>
             </p>
           </div>
 
-          {/* Interactive Mascot Companion */}
-          <div className="shrink-0">
-            <WeatherMascot weather={w} />
-          </div>
+          {/* Interactive Weather Mascot Companion */}
+          <WeatherMascot weather={w} />
         </div>
 
-        {/* Card Body: Temperature & Weather Icon */}
-        <div className="relative z-10 my-4 flex items-center justify-between gap-4">
-          <div>
-            <div className="flex items-baseline">
-              <span className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground drop-shadow-sm">
-                {Math.round(w.current.temp)}
+        {/* Bottom Hero: Large Temperature, Icon, and High/Low */}
+        <div className="relative z-10 pt-6">
+          <div className="flex items-end justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-5xl sm:text-6xl font-black tracking-tighter drop-shadow-lg text-white">
+                {tempVal}
+                <span className="text-2xl sm:text-3xl font-light text-white/90">
+                  {tempUnitStr}
+                </span>
               </span>
-              <span className="text-2xl sm:text-3xl font-bold text-primary ml-1">
-                {tempUnitStr}
+
+              <div className="space-y-0.5 text-xs text-white/90 font-medium drop-shadow-sm border-l border-white/25 pl-3">
+                <p>
+                  {t("feels_like", "Feels like")}{" "}
+                  <span className="font-bold text-white">
+                    {feelsLikeVal}{tempUnitStr}
+                  </span>
+                </p>
+                <p>
+                  <span className="text-emerald-300 font-bold">↑{highTemp}°</span>{" "}
+                  <span className="text-sky-300 font-bold">↓{lowTemp}°</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center shrink-0">
+              <WeatherIcon
+                code={w.current.weather_code}
+                isDay={w.current.is_day ?? 1}
+                className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-lg"
+              />
+              <span className="text-[11px] font-bold text-white/90 text-center max-w-[110px] truncate mt-0.5 drop-shadow-sm">
+                {currentConditionText}
               </span>
             </div>
-            <p className="text-sm sm:text-base font-semibold text-foreground/90 capitalize mt-1 flex items-center gap-1.5">
-              <span>{conditionLabel}</span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-              {t("feels_like", "Feels like")} {feelsLikeVal}{tempUnitStr} • ↑{maxTemp}{tempUnitStr} ↓{minTemp}{tempUnitStr}
-            </p>
-          </div>
-
-          <div className="shrink-0 p-3 rounded-2xl bg-background/60 backdrop-blur-md border border-border/50 shadow-xs">
-            <WeatherIcon
-              code={w.current.code}
-              isDay={w.current.is_day}
-              className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-md"
-            />
-          </div>
-        </div>
-
-        {/* Card Footer: Quick Stats */}
-        <div className="relative z-10 pt-3 border-t border-border/40 grid grid-cols-3 gap-2 text-center text-xs font-medium">
-          <div className="bg-background/60 backdrop-blur-md py-1.5 px-2 rounded-xl border border-border/40">
-            <span className="text-[10px] text-muted-foreground block">{t("humidity", "Humidity")}</span>
-            <span className="font-bold text-foreground">{w.current.humidity ?? "--"}%</span>
-          </div>
-          <div className="bg-background/60 backdrop-blur-md py-1.5 px-2 rounded-xl border border-border/40">
-            <span className="text-[10px] text-muted-foreground block">{t("wind", "Wind")}</span>
-            <span className="font-bold text-foreground">{Math.round(w.current.wind_speed ?? 0)} {speedUnitStr}</span>
-          </div>
-          <div className="bg-background/60 backdrop-blur-md py-1.5 px-2 rounded-xl border border-border/40">
-            <span className="text-[10px] text-muted-foreground block">{t("uv_index", "UV Index")}</span>
-            <span className={`font-bold ${uvInfo.color}`}>{uvNum} ({uvInfo.label})</span>
           </div>
         </div>
       </section>
 
-      {/* 4. CURRENT CONDITIONS DETAILED METRICS GRID */}
+      {/* 5. CURRENT WEATHER CONDITIONS & METRICS GRID */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center gap-2 border-b border-border/50 pb-2.5">
-          <span className="text-base">📊</span>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("current_conditions", "Current Conditions")}
+        <div className="flex items-center justify-between border-b border-border/50 pb-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <span>📊</span>
+            <span>{t("current_conditions", "Current Conditions")}</span>
           </h3>
+          <span className="text-[11px] text-muted-foreground">
+            {w.place.admin1 ? `${w.place.admin1}, ` : ""}{w.place.name}
+          </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-          {/* Feels Like */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {/* Wind Speed & Direction */}
           <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
             <span className="text-[11px] text-muted-foreground font-medium">
-              🌡️ {t("feels_like", "Feels Like")}
+              💨 {t("wind", "Wind")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {feelsLikeVal}{tempUnitStr}
+              {Math.round(w.current.wind_speed ?? 0)} {speedUnitStr}{" "}
+              {windCompass && <span className="text-xs font-normal text-muted-foreground">({windCompass})</span>}
             </span>
           </div>
 
@@ -897,24 +693,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               💧 {t("humidity", "Humidity")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {w.current.humidity ?? "--"}%
+              {Math.round(w.current.relative_humidity ?? 0)}%
             </span>
           </div>
 
-          {/* Wind Speed & Direction */}
+          {/* Air Pressure */}
           <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
             <span className="text-[11px] text-muted-foreground font-medium">
-              💨 {t("wind", "Wind")}
-            </span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {Math.round(w.current.wind_speed ?? 0)} {speedUnitStr} {windDir}
-            </span>
-          </div>
-
-          {/* Pressure */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              ⏱️ {t("pressure", "Pressure")}
+              🧭 {t("pressure", "Pressure")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
               {Math.round(w.current.pressure ?? 1013)} {pressureUnitStr}
@@ -1007,7 +793,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Sun Arc & Moon Phase Astronomy Tracker */}
       <AstronomyTracker weather={w} />
 
-      {/* 5. WHAT TO WEAR TODAY */}
+      {/* 6. WHAT TO WEAR TODAY */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
           <div className="flex items-center gap-2">
@@ -1017,59 +803,52 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </h3>
           </div>
 
-          <div className="inline-flex items-center rounded-xl bg-muted/60 p-0.5 border border-border/50 text-xs">
-            <button
-              type="button"
-              onClick={() => handleSelectCategory("casual")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
-                wearCategory === "casual"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {locWearCat.casual}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectCategory("business")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
-                wearCategory === "business"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {locWearCat.business}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectCategory("sports")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
-                wearCategory === "sports"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {locWearCat.sports}
-            </button>
+          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-xl self-start sm:self-auto">
+            {(["casual", "business", "sports"] as WearCategory[]).map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveWearCategory(cat)}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  activeWearCategory === cat
+                    ? "bg-card text-foreground shadow-xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{wearRecommendations[cat].icon}</span>
+                <span>{wearRecommendations[cat].title}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <p className="text-xs text-foreground/90 leading-relaxed font-medium">
-          {clothingDescription}
-        </p>
+        <div className="p-3.5 rounded-xl bg-muted/30 border border-border/40 flex items-start gap-3">
+          <span className="text-2xl shrink-0 mt-0.5">
+            {wearRecommendations[activeWearCategory].icon}
+          </span>
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-bold text-primary block">
+              {wearRecommendations[activeWearCategory].title}
+            </span>
+            <p className="text-xs text-foreground/90 mt-1 leading-relaxed">
+              {wearRecommendations[activeWearCategory].outfit}
+            </p>
+          </div>
+        </div>
 
         {accessories.length > 0 && (
-          <div className="pt-2 border-t border-border/40 space-y-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              {t("recommended_accessories", "Recommended Gear")}
+          <div className="pt-2 border-t border-border/40">
+            <span className="text-[11px] font-semibold text-muted-foreground block mb-2">
+              🎒 {t("recommended_accessories", "Recommended Daily Accessories")}
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {accessories.map((acc, idx) => (
+              {accessories.map((acc, i) => (
                 <span
-                  key={idx}
-                  className="px-2.5 py-1 rounded-lg bg-muted/60 border border-border/50 text-xs font-medium text-foreground"
+                  key={i}
+                  className="text-xs px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-medium inline-flex items-center gap-1"
                 >
-                  {acc}
+                  <span>✨</span>
+                  <span>{acc}</span>
                 </span>
               ))}
             </div>
@@ -1080,7 +859,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Smart Outdoor Activity & Lifestyle Planner */}
       <OutdoorActivityPlanner weather={w} unit={unit} />
 
-      {/* 6. 24-HOUR HOURLY FORECAST WITH PRINTED CONDITIONS */}
+      {/* 7. 24-HOUR HOURLY FORECAST WITH PRINTED CONDITIONS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-base">🕒</span>
@@ -1089,39 +868,38 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </h3>
         </div>
 
-        <div className="flex items-stretch gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-none snap-x">
           {w.hourly.slice(0, 24).map((h, idx) => {
-            const timeLabel = getHourlyTimeLabel(h.time, idx, t);
-            const hourlyCondition = getConditionLabel(h.code, t);
+            const timeLabel = formatHourlyTime(h.time);
+            const conditionStr = getConditionLabel(h.code, t);
             const hTemp = Math.round(h.temp);
-            const hPop = h.pop ?? 0;
 
             return (
               <div
-                key={`hour-${idx}`}
-                className="flex-shrink-0 w-20 p-2.5 rounded-xl bg-muted/30 border border-border/40 flex flex-col items-center justify-between text-center gap-1.5 snap-start transition hover:bg-muted/50"
+                key={`hourly-${idx}`}
+                className="flex flex-col items-center justify-between p-2.5 rounded-2xl bg-muted/30 border border-border/40 min-w-[76px] sm:min-w-[82px] text-center shrink-0 snap-start space-y-1.5 transition hover:bg-muted/50"
               >
-                <span className="text-[11px] font-semibold text-muted-foreground">
-                  {timeLabel}
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {idx === 0 ? t("hour_now", "Now") : timeLabel}
                 </span>
 
-                <WeatherIcon code={h.code} isDay={h.is_day} className="w-8 h-8 shrink-0 my-1" />
+                <WeatherIcon
+                  code={h.code}
+                  isDay={h.is_day ?? 1}
+                  className="w-7 h-7 my-1"
+                />
 
-                <span className="text-xs font-bold text-foreground">
+                <span className="text-[10px] font-medium text-muted-foreground line-clamp-1 h-3.5 max-w-[70px]">
+                  {conditionStr}
+                </span>
+
+                <span className="text-xs font-extrabold text-foreground">
                   {hTemp}{tempUnitStr}
                 </span>
 
-                {/* Printed Weather Condition Words */}
-                <span
-                  className="text-[10px] font-medium text-muted-foreground line-clamp-1 max-w-[72px]"
-                  title={hourlyCondition}
-                >
-                  {hourlyCondition}
-                </span>
-
-                {hPop > 0 && (
+                {h.pop > 0 && (
                   <span className="text-[10px] font-semibold text-blue-500">
-                    💧{hPop}%
+                    💧{h.pop}%
                   </span>
                 )}
               </div>
@@ -1133,7 +911,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Interactive Live Rain Radar & Precipitation Map */}
       <WeatherRadar weather={w} />
 
-      {/* 7. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
+      {/* 8. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-base">📅</span>
