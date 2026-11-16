@@ -1,5 +1,6 @@
 // src/lib/tmdAlerts.functions.ts
 import { createServerFn } from "@tanstack/react-start";
+import { translateThaiTmdTitle } from "@/lib/alertTranslations";
 
 export interface TmdAlertItem {
   id: string;
@@ -8,6 +9,7 @@ export interface TmdAlertItem {
   headline: string;
   headlineTh?: string;
   headlineEn?: string;
+  headlines?: Record<string, string>;
   tag?: string;
   tagKey?: string;
   source: string;
@@ -61,7 +63,10 @@ export const getTmdAlertsFn = createServerFn({ method: "GET" }).handler(
           titleTh = w.TitleThai[0] || "";
         }
 
-        const fallback = titleEn || titleTh || "Severe Weather & High Waves Advisory";
+        // Generate full 14-language translations for Thai warnings
+        const translations = translateThaiTmdTitle(titleTh || titleEn || "ประกาศเตือนภัยสภาพอากาศ");
+        const resolvedEn = titleEn ? `TMD Advisory: ${titleEn}` : translations.en;
+        const resolvedTh = titleTh ? `ประกาศเตือนภัย: ${titleTh}` : translations.th;
 
         alerts.push({
           id: `tmd-${w.IssueNo || idx}-${now}`,
@@ -69,9 +74,14 @@ export const getTmdAlertsFn = createServerFn({ method: "GET" }).handler(
           category: "storm",
           tag: "TMD Advisory",
           tagKey: "alert_advisory",
-          headline: titleEn || titleTh || fallback,
-          headlineEn: titleEn ? `TMD Advisory: ${titleEn}` : fallback,
-          headlineTh: titleTh ? `ประกาศเตือนภัย: ${titleTh}` : fallback,
+          headline: resolvedEn,
+          headlineEn: resolvedEn,
+          headlineTh: resolvedTh,
+          headlines: {
+            ...translations,
+            en: resolvedEn,
+            th: resolvedTh,
+          },
           source: "TMD",
           timeAgo: "Active",
         });
