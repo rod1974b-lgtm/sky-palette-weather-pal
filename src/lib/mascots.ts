@@ -413,7 +413,7 @@ export function getMascotSpeech(
   weather: Weather | null,
   lang: string = "en"
 ): string {
-  if (!weather) return mascot.quote;
+  if (!weather?.current) return mascot.quote;
 
   const tempC =
     weather.unit === "imperial"

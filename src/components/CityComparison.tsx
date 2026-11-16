@@ -345,7 +345,7 @@ export const CityComparison: React.FC<CityComparisonProps> = ({
   let lowestAqi = Infinity;
 
   entries.forEach((e) => {
-    if (!e.weather) return;
+    if (!e.weather?.current) return;
     const code = e.weather.current.code;
     const aqi = e.weather.current.aqi ?? (e.weather.current.pm25 ? e.weather.current.pm25 * 3 : 50);
 
@@ -455,7 +455,7 @@ export const CityComparison: React.FC<CityComparisonProps> = ({
             );
           }
 
-          if (!weather) {
+          if (!weather?.current) {
             return (
               <div
                 key={place.name}

@@ -289,7 +289,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
     setGreeting(texts.defaultGreetings);
   }, [lang, texts.defaultGreetings]);
 
-  if (!isOpen || !weather) return null;
+  if (!isOpen || !weather?.current) return null;
 
   const cityName = weather.place.name;
   const countryName = weather.place.country || "";
