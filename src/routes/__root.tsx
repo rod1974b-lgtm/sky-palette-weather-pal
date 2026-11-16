@@ -118,6 +118,20 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Remove any offline copy left by older versions so devices never run a stale build.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((regs) => {
+        regs.forEach((r) => void r.unregister());
+        if (regs.length && "caches" in window) {
+          void caches.keys().then((keys) => keys.forEach((k) => void caches.delete(k)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <I18nextProvider i18n={i18n}>
