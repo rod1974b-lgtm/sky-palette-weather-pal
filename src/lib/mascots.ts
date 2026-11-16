@@ -339,7 +339,7 @@ export function getActiveMascot(): Mascot {
       return found;
     }
   } catch {}
-  return fallback; // Frothy default
+  return fallback;
 }
 
 export function setActiveMascot(mascotId: string): void {
@@ -369,15 +369,294 @@ export function setMascotVisible(visible: boolean): void {
   } catch {}
 }
 
+// Complete 14-language weather dialogue library
+const WEATHER_DIALOGUE_BY_LANG: Record<
+  string,
+  {
+    smog: string;
+    thunder: string;
+    rain: string;
+    cold: string;
+    heat: string;
+    night: string;
+  }
+> = {
+  en: {
+    smog: "Smoggy skies today! Wear your N95 mask and enjoy a cold root beer indoors! 😷🍺",
+    thunder: "Thunder is roaring loud! Cozy up inside with a bubbly root beer mug! ⚡🍺",
+    rain: "Rain on the windowpane pairs best with a chilled root beer float! 🌧️🍨",
+    cold: "Brrr, freezing out there! Warm up with spiced sarsaparilla and sweet caramel! 🧣☕",
+    heat: "Sizzling hot outside! Time for a frosty ice-cold root beer float with extra ice! ☀️🍦",
+    night: "Quiet starry night. A relaxing mug of chilled root beer hits the spot! ✨🍺",
+  },
+  th: {
+    smog: "วันนี้ฝุ่นหนานะ! สวมหน้ากาก N95 แล้วแวะจิบรูทเบียร์เย็นๆ ในบ้านดีกว่า 😷🍺",
+    thunder: "ฟ้าคำรามเสียงดัง! อยู่ในที่ปลอดภัยแล้วจิบรูทเบียร์ฟองนุ่มๆ กัน ⚡🍺",
+    rain: "ฝนตกฉ่ำๆ ฟังเสียงฝนเพลินๆ พร้อมรูทเบียร์โฟลตหอมหวาน 🌧️🍨",
+    cold: "หนาวจับใจเลย! มาจิบเครื่องดื่มคาราเมลรูทเบียร์อุ่นๆ คลายหนาวกันนะ 🧣☕",
+    heat: "แดดร้อนเปรี้ยงเลย! ต้องรูทเบียร์เย็นเจี๊ยบโปะไอศกรีมวานิลลาฉ่ำๆ แล้ว! ☀️🍦",
+    night: "คืนนี้ดาวสวยสงบ จิบรูทเบียร์เย็นๆ ชิลๆ ก่อนเข้านอนนะ ✨🍺",
+  },
+  es: {
+    smog: "¡Cielo con smog hoy! ¡Usa tu mascarilla N95 y disfruta una bebida fría adentro! 😷🍺",
+    thunder: "¡Los truenos retumban fuerte! ¡Ponte cómodo adentro con una jarra espumosa! ⚡🍺",
+    rain: "¡La lluvia en la ventana se disfruta más con un float de helado bien frío! 🌧️🍨",
+    cold: "¡Brrr, hace mucho frío afuera! ¡Entra en calor con caramelo dulce y especias! 🧣☕",
+    heat: "¡Hace un calor abrasador! ¡Momento ideal para una bebida helada con extra hielo! ☀️🍦",
+    night: "Noche estrellada y tranquila. ¡Una jarra fría relaja perfectamente antes de dormir! ✨🍺",
+  },
+  fr: {
+    smog: "Ciel très pollué aujourd'hui ! Portez votre masque N95 et restez au frais à l'intérieur ! 😷🍺",
+    thunder: "L'orage gronde fort ! Restez bien au chaud avec une boisson pétillante ! ⚡🍺",
+    rain: "La pluie aux carreaux s'accompagne d'une délicieuse glace à la boisson pétillante ! 🌧️🍨",
+    cold: "Brrr, il gèle dehors ! Réchauffez-vous avec une douce saveur épicée et réconfortante ! 🧣☕",
+    heat: "Chaleur torride ! C'est l'heure d'une boisson glacée avec une boule de vanille ! ☀️🍦",
+    night: "Douce nuit étoilée. Rien de tel qu'une gorgée fraîche pour se détendre avant de dormir ! ✨🍺",
+  },
+  de: {
+    smog: "Viel Smog heute! Setz die N95-Maske auf und gönn dir ein kühles Root Beer drinnen! 😷🍺",
+    thunder: "Lautes Gewitter draußen! Mach es dir drinnen mit einem schäumenden Root Beer gemütlich! ⚡🍺",
+    rain: "Regen am Fenster passt perfekt zu einem cremigen Root-Beer-Float mit Eis! 🌧️🍨",
+    cold: "Brrr, eiskalt draußen! Wärm dich mit würzigem Geschmack und süßem Karamell auf! 🧣☕",
+    heat: "Glühende Hitze draußen! Zeit für ein eiskaltes Root Beer mit einer Kugel Vanilleeis! ☀️🍦",
+    night: "Ruhige Sternennacht. Ein entspannender Becher kühles Root Beer tut jetzt richtig gut! ✨🍺",
+  },
+  pt: {
+    smog: "Céu com muita fumaça hoje! Use sua máscara N95 e aproveite uma bebida gelada em casa! 😷🍺",
+    thunder: "Trovões rugindo alto! Fique seguro e aconchegante com uma caneca bem espumante! ⚡🍺",
+    rain: "Chuva na janela combina perfeitamente com um float cremoso bem gelado! 🌧️🍨",
+    cold: "Brrr, congelando lá fora! Aqueça-se com sabores de especiarias e caramelo doce! 🧣☕",
+    heat: "Calor escaldante lá fora! Hora de um float trincando de gelado com muito gelo! ☀️🍦",
+    night: "Noite estrelada e tranquila. Uma caneca gelada cai muito bem antes de dormir! ✨🍺",
+  },
+  ja: {
+    smog: "今日は空気がかすんでいます！N95マスクを着けて、涼しいお部屋でルートビアを楽しんでね！😷🍺",
+    thunder: "雷がゴロゴロ鳴っています！安全な部屋でシュワシュワのルートビアを飲んで温まろう！⚡🍺",
+    rain: "窓を打つ雨音を聞きながら、冷たいルートビアフロートを楽しむのが最高！🌧️🍨",
+    cold: "ブルブル、外は凍える寒さ！スパイスと甘いキャラメルの温かい香りで温まろう！🧣☕",
+    heat: "外は猛暑！キンキンに冷えたルートビアにバニラアイスをのせてクールダウンしよう！☀️🍦",
+    night: "星が輝く静かな夜。冷たいルートビアをゆっくり味わってリラックスしてね！✨🍺",
+  },
+  zh: {
+    smog: "今天空气质量较差！请佩戴N95口罩，在室内享受冰爽的麦根沙士吧！😷🍺",
+    thunder: "外面雷声轰鸣！躲在温暖安全的室内，喝一杯泡沫丰富的麦根沙士吧！⚡🍺",
+    rain: "雨滴敲打着窗户，配上一杯香甜的冰淇淋麦根沙士漂浮最惬意不过了！🌧️🍨",
+    cold: "好冷的天气！快喝点暖心香甜的饮品暖和一下吧！🧣☕",
+    heat: "外面酷热难耐！赶紧来一大杯冰镇麦根沙士加香草冰淇淋降温吧！☀️🍦",
+    night: "繁星闪烁的宁静夜晚。来一杯清凉麦根沙士放松身心吧！✨🍺",
+  },
+  hi: {
+    smog: "आज हवा में प्रदूषण है! N95 मास्क पहनें और घर पर ठंडी रूट बीयर का आनंद लें! 😷🍺",
+    thunder: "बिजली कड़क रही है! अंदर सुरक्षित रहें और झागदार रूट बीयर का आनंद लें! ⚡🍺",
+    rain: "खिड़की पर बारिश की बूंदें और ठंडी आइसक्रीम रूट बीयर फ्लोट का मज़ा! 🌧️🍨",
+    cold: "कितनी ठंड है! मीठी कारमेल और मसालों से भरपूर पेय के साथ खुद को गर्म रखें! 🧣☕",
+    heat: "बाहर बहुत तेज गर्मी है! बर्फ और वैनिला आइसक्रीम वाली ठंडी रूट बीयर का समय! ☀️🍦",
+    night: "तारों भरी शांत रात। ठंडी रूट बीयर की एक घूंट मन को सुकून देती है! ✨🍺",
+  },
+  ru: {
+    smog: "Сегодня сильный смог! Наденьте маску N95 и наслаждайтесь прохладным рутбиром дома! 😷🍺",
+    thunder: "Гремит сильная гроза! Устройтесь поуютнее дома с кружкой пенного рутбира! ⚡🍺",
+    rain: "Шум дождя за окном идеально сочетается с холодным рутбир-флоутом с мороженым! 🌧️🍨",
+    cold: "Брр, на улице мороз! Согрейтесь пряными специями и сладкой карамелью! 🧣☕",
+    heat: "На улице палящая жара! Время ледяного рутбира с шариком ванильного мороженого! ☀️🍦",
+    night: "Тихая звездная ночь. Кружка освежающего рутбира перед сном — идеальный отдых! ✨🍺",
+  },
+  ar: {
+    smog: "الجو مليء بالضباب الدخاني اليوم! ارتدِ كمامة N95 واستمتع بمشروب بارد في الداخل! 😷🍺",
+    thunder: "الرعد يدوي بقوة! ابقَ بأمان في الداخل مع كوب منعش وفوار! ⚡🍺",
+    rain: "صوت المطر على النافذة يكتمل مع مثلجات ومشروب منعش! 🌧️🍨",
+    cold: "الجو بارد جداً بالخارج! تدفأ مع نكهات دافئة وحلوة! 🧣☕",
+    heat: "الحرارة شديدة جداً بالخارج! وقت مشروب مثلج ومنعش مع آيس كريم الفانيليا! ☀️🍦",
+    night: "ليلة هادئة تحت النجوم. كوب بارد منعش يمنحك راحة مثالية قبل النوم! ✨🍺",
+  },
+  ko: {
+    smog: "오늘 미세먼지가 심해요! N95 마스크를 착용하고 시원한 루트비어를 실내에서 즐기세요! 😷🍺",
+    thunder: "천둥이 크게 치고 있어요! 실내에서 거품 가득한 시원한 루트비어와 함께하세요! ⚡🍺",
+    rain: "창문에 내리는 빗소리엔 달콤한 루트비어 플로트가 최고예요! 🌧️🍨",
+    cold: "으스스, 밖이 정말 추워요! 달콤한 캐러멜과 따뜻한 음료로 몸을 녹이세요! 🧣☕",
+    heat: "밖이 너무 더워요! 시원한 얼음과 바닐라 아이스크림을 올린 루트비어로 더위를 날리세요! ☀️🍦",
+    night: "별이 빛나는 조용한 밤. 시원한 루트비어 한 잔으로 편안하게 하루를 마무리하세요! ✨🍺",
+  },
+  id: {
+    smog: "Langit berasap hari ini! Kenakan masker N95 dan nikmati root beer dingin di dalam ruangan! 😷🍺",
+    thunder: "Petir menggelegar kencang! Duduk santai di dalam rumah bersama root beer berbusa! ⚡🍺",
+    rain: "Hujan di jendela paling pas ditemani root beer float es krim yang manis! 🌧️🍨",
+    cold: "Brrr, dingin sekali di luar! Hangatkan diri dengan minuman manis beraroma rempah! 🧣☕",
+    heat: "Panas terik sekali! Waktunya root beer float ekstra dingin dengan es krim vanila! ☀️🍦",
+    night: "Malam tenang bertabur bintang. Segelas root beer dingin sangat pas untuk bersantai! ✨🍺",
+  },
+  vi: {
+    smog: "Hôm nay trời nhiều bụi mịn! Hãy đeo khẩu trang N95 và thưởng thức xá xị ướp lạnh trong nhà nhé! 😷🍺",
+    thunder: "Sấm chớp rền vang! Hãy ở nơi an toàn trong nhà và nhâm nhi ly xá xị sủi bọt mát lạnh nhé! ⚡🍺",
+    rain: "Ngắm mưa rơi bên cửa sổ cùng ly xá xị kem tuyết mát lạnh ngọt ngào! 🌧️🍨",
+    cold: "Trời lạnh cóng! Hãy giữ ấm cơ thể với đồ uống ấm áp ngọt ngào hương caramel nhé! 🧣☕",
+    heat: "Nắng nóng gay gắt! Làm ngay một ly xá xị kem tuyết mát lạnh sảng khoái thôi nào! ☀️🍦",
+    night: "Đêm đầy sao yên bình. Nhâm nhi ly xá xị thơm mát để thư giãn trước khi ngủ nhé! ✨🍺",
+  },
+};
+
+// Mascot personality quotes translated into all 14 languages
+const MASCOT_QUOTES_BY_LANG: Record<string, Record<string, string>> = {
+  frothy: {
+    en: "Stay chilled and cozy, rain or shine!",
+    th: "สดชื่นและอบอุ่นใจ ไม่ว่าจะฝนตกหรือแดดออก!",
+    es: "¡Mantente fresco y cómodo, llueva o truene!",
+    fr: "Restez au frais et bien au chaud, qu'il pleuve ou qu'il vente !",
+    de: "Bleib entspannt und erfrischt, bei Regen oder Sonnenschein!",
+    pt: "Fique tranquilo e refrescado, faça chuva ou faça sol!",
+    ja: "雨でも晴れでも、いつも爽やかに心地よく！",
+    zh: "无论是风是雨还是晴天，保持清爽舒畅的心情！",
+    hi: "बारिश हो या धूप, हमेशा तरोताज़ा और खुश रहें!",
+    ru: "Оставайтесь на позитиве и свежести в любую погоду!",
+    ar: "ابقَ منتعشاً ومرتاحاً، في المطر أو الشمس!",
+    ko: "비가 오나 맑으나 언제나 시원하고 포근하게!",
+    id: "Tetap segar dan santai, saat hujan maupun cerah!",
+    vi: "Luôn sảng khoái và vui vẻ, dù trời nắng hay mưa!",
+  },
+  fizz: {
+    en: "Bubbling with excitement for today's forecast!",
+    th: "ฟองฟู่ตื่นเต้นกับพยากรณ์อากาศวันนี้จัง!",
+    es: "¡Burbujeando de emoción por el pronóstico de hoy!",
+    fr: "Pétillant d'enthousiasme pour la météo du jour !",
+    de: "Sprudelnd vor Begeisterung für das heutige Wetter!",
+    pt: "Borbulhando de empolgação para a previsão de hoje!",
+    ja: "今日の天気予報にワクワクでシュワシュワ弾けちゃう！",
+    zh: "对今天的天气充满期待，冒着快乐的气泡！",
+    hi: "आज के मौसम के लिए उत्साह से भरपूर!",
+    ru: "Бурлю от радости перед сегодняшним прогнозом!",
+    ar: "أفور حماساً لتوقعات طقس اليوم!",
+    ko: "오늘의 날씨 예보에 기포처럼 보글보글 설레요!",
+    id: "Berbuih semangat melihat prakiraan cuaca hari ini!",
+    vi: "Háo hức sủi bọt chào đón dự báo thời tiết hôm nay!",
+  },
+  scoop: {
+    en: "Life is sweeter with an extra scoop and sunny skies!",
+    th: "ชีวิตหวานชื่นขึ้นด้วยไอศกรีมหนึ่งลูกและท้องฟ้าแจ่มใส!",
+    es: "¡La vida es más dulce con una bola extra y cielo soleado!",
+    fr: "La vie est plus douce avec une boule de glace et du soleil !",
+    de: "Das Leben ist süßer mit einer Kugel Eis und Sonnenschein!",
+    pt: "A vida é mais doce com uma bola extra de sorvete e sol!",
+    ja: "アイスもうひとすくいと青空があれば、毎日はもっとスイート！",
+    zh: "多一球冰淇淋和明媚阳光，生活格外甜美！",
+    hi: "एक अतिरिक्त स्कूप और धूप भरे आसमान से जिंदगी और मीठी हो जाती है!",
+    ru: "Жизнь слаще с дополнительным шариком мороженого и ясным небом!",
+    ar: "الحياة أحلى مع كرة آيس كريم إضافية وشمس مشرقة!",
+    ko: "아이스크림 한 스쿱과 맑은 하늘이면 인생이 더 달콤해져요!",
+    id: "Hidup lebih manis dengan sesendok es krim ekstra dan langit cerah!",
+    vi: "Cuộc sống ngọt ngào hơn với một viên kem thêm và bầu trời đầy nắng!",
+  },
+  chill: {
+    en: "Ice cold and condensation-fresh!",
+    th: "เย็นเจี๊ยบฟินสุดขั้ว พร้อมหยดน้ำฉ่ำเย็นชื่นใจ!",
+    es: "¡Frío como el hielo y súper refrescante!",
+    fr: "Glacé à souhait et ultra rafraîchissant !",
+    de: "Eiskalt und perlend frisch!",
+    pt: "Geladinho no ponto e super refrescante!",
+    ja: "キンキンに冷えて結露もバッチリ爽快！",
+    zh: "冰爽透心，杯壁挂霜，极致清爽！",
+    hi: "बर्फ की तरह ठंडा और ताजगी से भरा!",
+    ru: "Ледяная свежесть и бодрость в каждой капле!",
+    ar: "بارد كالثلج ومنعش للغاية!",
+    ko: "얼음처럼 차갑고 시원한 청량감 가득!",
+    id: "Dingin sedingin es dan segar tiada tanding!",
+    vi: "Lạnh buốt sảng khoái với giọt sương đọng mát rượi!",
+  },
+  cap: {
+    en: "Pop the cap and let the good weather flow!",
+    th: "เปิดฝาขวดแล้วปล่อยให้อากาศดีๆ ไหลเวียนกันเลย!",
+    es: "¡Destapa la chapa y deja fluir el buen tiempo!",
+    fr: "Faites sauter la capsule et savourez le beau temps !",
+    de: "Kronkorken ab und lass das schöne Wetter fließen!",
+    pt: "Abra a tampa e deixe o bom tempo fluir!",
+    ja: "王冠をポンと開けて、良い天気を楽しもう！",
+    zh: "开启瓶盖，让好天气的美好尽情流淌！",
+    hi: "ढक्कन खोलें और अच्छे मौसम का मज़ा लें!",
+    ru: "Открой крышку и впусти отличную погоду!",
+    ar: "افتح الغطاء ودع الطقس الجميل يتدفق!",
+    ko: "뚜껑을 뻥 따고 좋은 날씨를 만끽해봐요!",
+    id: "Buka tutup botolnya dan biarkan cuaca cerah mengalir!",
+    vi: "Bật nắp chai và để thời tiết tuyệt đẹp lan tỏa nào!",
+  },
+  barrel: {
+    en: "Aged to perfection with wisdom for every storm.",
+    th: "บ่มอย่างสมบูรณ์แบบ พร้อมรับมือทุกสภาพอากาศด้วยความสุขุม",
+    es: "¡Envejecido a la perfección con sabiduría para cada tormenta!",
+    fr: "Vieilli à la perfection avec la sagesse pour braver chaque tempête.",
+    de: "Perfekt gereift mit Gelassenheit für jeden Sturm.",
+    pt: "Envelhecido com perfeição e sabedoria para qualquer tempestade.",
+    ja: "完璧に熟成された知恵で、どんな嵐もドンと来い。",
+    zh: "岁月沉淀的醇厚智慧，从容应对每场风雨。",
+    hi: "हर तूफान के लिए अनुभव और परिपक्वता से भरपूर।",
+    ru: "Идеальная выдержка и мудрость для любой бури.",
+    ar: "معتق بإتقان وحكمة لمواجهة كل العواصف.",
+    ko: "어떤 폭풍도 이겨낼 완벽하게 숙성된 지혜.",
+    id: "Difermentasi sempurna dengan kebijaksanaan menghadapi badai.",
+    vi: "Ủ chín hoàn hảo với sự vững chãi trước mọi cơn bão.",
+  },
+  sparkle_float: {
+    en: "Two scoops, a bright red cherry, and pure fizzy joy!",
+    th: "ไอศกรีม 2 ลูก เชอร์รี่แดงสด และความสุขฟองฟู่บริสุทธิ์!",
+    es: "¡Dos bolas, una cereza roja brillante y pura alegría burbujeante!",
+    fr: "Deux boules de glace, une belle cerise et une joie pétillante !",
+    de: "Zwei Kugeln Eis, eine rote Kirsche und pure sprudelnde Freude!",
+    pt: "Duas bolas de sorvete, uma cereja brilhante e pura alegria borbulhante!",
+    ja: "アイス2段に真っ赤なチェリー、そして弾けるピュアな幸せ！",
+    zh: "双球冰淇淋、红樱桃与纯粹的起泡快乐！",
+    hi: "दो स्कूप आइसक्रीम, लाल चेरी और शुद्ध बुलबुलों की खुशी!",
+    ru: "Два шарика мороженого, яркая вишенка и чистая искристая радость!",
+    ar: "كرتان من الآيس كريم، حبة كرز حمراء وفرحة فوارة خالصة!",
+    ko: "아이스크림 두 스쿱, 빨간 체리와 톡톡 터지는 순수한 기쁨!",
+    id: "Dua sendok es krim, ceri merah manis, dan kegembiraan berbuih!",
+    vi: "Hai viên kem, quả anh đào đỏ mọng và niềm vui sủi bọt ngập tràn!",
+  },
+  amber_stein: {
+    en: "Cheers to you! Thank you for supporting My Weather Pal forever!",
+    th: "ไชโยแด่คุณ! ขอบคุณสุดหัวใจที่สนับสนุน My Weather Pal ตลอดไป!",
+    es: "¡Salud por ti! ¡Gracias por apoyar My Weather Pal para siempre!",
+    fr: "Santé à vous ! Merci de soutenir My Weather Pal pour toujours !",
+    de: "Ein Prosit auf dich! Vielen Dank für deine lebenslange Unterstützung von My Weather Pal!",
+    pt: "Um brinde a você! Obrigado por apoiar o My Weather Pal para sempre!",
+    ja: "乾杯！My Weather Palをずっと応援してくれて本当にありがとう！",
+    zh: "为你干杯！衷心感谢你对 My Weather Pal 的终身支持！",
+    hi: "आपके लिए चीयर्स! My Weather Pal का हमेशा समर्थन करने के लिए धन्यवाद!",
+    ru: "Ваше здоровье! Огромное спасибо за пожизненную поддержку My Weather Pal!",
+    ar: "في صحتك! شكراً جزيلاً لدعمك الدائم لتطبيق My Weather Pal!",
+    ko: "당신을 위해 건배! My Weather Pal을 영원히 후원해 주셔서 진심으로 감사드립니다!",
+    id: "Bersulang untukmu! Terima kasih telah mendukung My Weather Pal selamanya!",
+    vi: "Nâng ly chúc mừng bạn! Cảm ơn bạn đã ủng hộ My Weather Pal trọn đời!",
+  },
+  golden_sundae: {
+    en: "A feast of vanilla cream, golden sparkles, and clear blue skies!",
+    th: "งานเลี้ยงครีมวานิลลา ประกายสีทอง และท้องฟ้าสีครามสดใส!",
+    es: "¡Un banquete de crema de vainilla, destellos dorados y cielos azules despejados!",
+    fr: "Un festin de crème vanille, d'étincelles dorées et de ciel bleu pur !",
+    de: "Ein Fest aus Vanillecreme, goldenen Funken und strahlend blauem Himmel!",
+    pt: "Um banquete de creme de baunilha, brilho dourado e céu azul límpido!",
+    ja: "バニラクリームと黄金のきらめき、そして澄み渡る青空のごちそう！",
+    zh: "香草奶油盛宴、金色闪耀与澄澈蓝天的完美相遇！",
+    hi: "वैनिला क्रीम, सुनहरी चमक और साफ नीले आसमान की दावत!",
+    ru: "Праздник ванильного крема, золотых искр и ясного синего неба!",
+    ar: "وليمة من كريمة الفانيليا، والبريق الذهبي، والسماء الزرقاء الصافية!",
+    ko: "바닐라 크림, 황금빛 반짝임, 그리고 맑고 푸른 하늘의 향연!",
+    id: "Pesta krim vanila, kilau keemasan, dan langit biru yang cerah!",
+    vi: "Bữa tiệc kem vani, ánh vàng lấp lánh và bầu trời xanh biếc trong lành!",
+  },
+};
+
 /**
- * Weather-aware dialogue engine in English and Thai with root beer flavor
+ * Weather-aware dialogue engine with root beer flavor supporting all 14 languages
  */
 export function getMascotSpeech(
   mascot: Mascot,
   weather: Weather | null,
   lang: string = "en"
 ): string {
-  if (!weather?.current) return mascot.quote;
+  const normLang = lang.toLowerCase().split("-")[0] || "en";
+  const dialogue = WEATHER_DIALOGUE_BY_LANG[normLang] || WEATHER_DIALOGUE_BY_LANG["en"]!;
+
+  if (!weather?.current) {
+    return MASCOT_QUOTES_BY_LANG[mascot.id]?.[normLang] || mascot.quote;
+  }
 
   const tempC =
     weather.unit === "imperial"
@@ -387,52 +666,39 @@ export function getMascotSpeech(
   const code = weather.current.code;
   const isNight = weather.current.is_day === 0;
   const aqi = weather.current.aqi ?? 0;
-  const isThai = lang.startsWith("th");
 
   // 1. Extreme Pollution / Unhealthy AQI
   if (aqi >= 101 || (weather.current.pm25 && weather.current.pm25 >= 35.5)) {
-    return isThai
-      ? "วันนี้ฝุ่นหนานะ! สวมหน้ากาก N95 แล้วแวะจิบรูทเบียร์เย็นๆ ในบ้านดีกว่า 😷🍺"
-      : "Smoggy skies today! Wear your N95 mask and enjoy a cold root beer indoors! 😷🍺";
+    return dialogue.smog;
   }
 
   // 2. Severe Thunderstorm
   if (code >= 95) {
-    return isThai
-      ? "ฟ้าคำรามเสียงดัง! อยู่ในที่ปลอดภัยแล้วจิบรูทเบียร์ฟองนุ่มๆ กัน ⚡🍺"
-      : "Thunder is roaring loud! Cozy up inside with a bubbly root beer mug! ⚡🍺";
+    return dialogue.thunder;
   }
 
   // 3. Rain / Showers
   if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-    return isThai
-      ? "ฝนตกฉ่ำๆ ฟังเสียงฝนเพลินๆ พร้อมรูทเบียร์โฟลตหอมหวาน 🌧️🍨"
-      : "Rain on the windowpane pairs best with a chilled root beer float! 🌧️🍨";
+    return dialogue.rain;
   }
 
   // 4. Freezing Cold
   if (tempC <= 5) {
-    return isThai
-      ? "หนาวจับใจเลย! มาจิบเครื่องดื่มคาราเมลรูทเบียร์อุ่นๆ คลายหนาวกันนะ 🧣☕"
-      : "Brrr, freezing out there! Warm up with spiced sarsaparilla and sweet caramel! 🧣☕";
+    return dialogue.cold;
   }
 
   // 5. Extreme Heat
   if (tempC >= 32) {
-    return isThai
-      ? "แดดร้อนเปรี้ยงเลย! ต้องรูทเบียร์เย็นเจี๊ยบโปะไอศกรีมวานิลลาฉ่ำๆ แล้ว! ☀️🍦"
-      : "Sizzling hot outside! Time for a frosty ice-cold root beer float with extra ice! ☀️🍦";
+    return dialogue.heat;
   }
 
   // 6. Peaceful Night
   if (isNight) {
-    return isThai
-      ? "คืนนี้ดาวสวยสงบ จิบรูทเบียร์เย็นๆ ชิลๆ ก่อนเข้านอนนะ ✨🍺"
-      : "Quiet starry night. A relaxing mug of chilled root beer hits the spot! ✨🍺";
+    return dialogue.night;
   }
 
-  // Default Mascot Catchphrase
-  return mascot.quote;
+  // 7. Clear / Normal Day — Mascot's localized catchphrase
+  return MASCOT_QUOTES_BY_LANG[mascot.id]?.[normLang] || mascot.quote;
 }
 
 /**
