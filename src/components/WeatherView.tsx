@@ -534,12 +534,12 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
       {/* 3. MAIN WATERCOLOR WEATHER HERO CARD */}
       <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md text-white min-h-[310px] sm:min-h-[350px] flex flex-col justify-between p-5 sm:p-6 transition-all bg-card">
-        {/* Background Watercolor Art with subtle vignette */}
+        {/* Background Watercolor Art with subtle vibrance enhancement */}
         {displayBg ? (
           <img
             src={displayBg}
             alt={w.place.name}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 pointer-events-none ${
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 pointer-events-none brightness-[1.06] contrast-[1.08] saturate-[1.12] ${
               artLoaded ? "opacity-100" : "opacity-0"
             }`}
             onLoad={() => setArtLoaded(true)}
@@ -548,25 +548,25 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-400 to-purple-500" />
         )}
 
-        {/* Ambient Dark Overlay for sharp text contrast */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25 pointer-events-none" />
+        {/* Softened ambient vignette to let the vibrant artwork shine through clearly */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/15 to-black/20 pointer-events-none" />
 
-        {/* Top Header: Location, Country, and Mascot Companion */}
+        {/* Top Header: Location, Country, and Mascot Companion - with high-contrast frosted glass backplate for effortless readability */}
         <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 bg-black/40 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/20 shadow-md inline-block">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm">📍</span>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white drop-shadow-md truncate">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] truncate">
                 {w.place.name}
               </h2>
               {w.place.country && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white/95 border border-white/20">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/25 backdrop-blur-md text-white border border-white/30 shadow-xs">
                   {w.place.country}
                 </span>
               )}
             </div>
 
-            <p className="text-xs text-white/80 font-medium mt-1 drop-shadow-sm flex items-center gap-2 flex-wrap">
+            <p className="text-xs text-white/95 font-semibold mt-1 drop-shadow-sm flex items-center gap-2 flex-wrap">
               <span>{currentConditionText}</span>
               <span>•</span>
               <span>
@@ -576,41 +576,43 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
 
           {/* Interactive Weather Mascot Companion */}
-          <WeatherMascot weather={w} />
+          <div className="bg-black/30 backdrop-blur-md p-1 rounded-2xl border border-white/20 shadow-md">
+            <WeatherMascot weather={w} />
+          </div>
         </div>
 
-        {/* Bottom Hero: Large Temperature, Icon, and High/Low */}
-        <div className="relative z-10 pt-6">
-          <div className="flex items-end justify-between gap-4">
+        {/* Bottom Hero: Large Temperature, Icon, and High/Low with high-contrast frosted glass backplate */}
+        <div className="relative z-10 pt-4">
+          <div className="flex items-end justify-between gap-3 bg-black/45 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-white/20 shadow-lg flex-wrap sm:flex-nowrap">
             <div className="flex items-center gap-3">
-              <span className="text-5xl sm:text-6xl font-black tracking-tighter drop-shadow-lg text-white">
+              <span className="text-5xl sm:text-6xl font-black tracking-tighter text-white drop-shadow-[0_3px_6px_rgba(0,0,0,0.9)]">
                 {tempVal}
-                <span className="text-2xl sm:text-3xl font-light text-white/90">
+                <span className="text-2xl sm:text-3xl font-light text-white/95 ml-0.5">
                   {tempUnitStr}
                 </span>
               </span>
 
-              <div className="space-y-0.5 text-xs text-white/90 font-medium drop-shadow-sm border-l border-white/25 pl-3">
+              <div className="space-y-0.5 text-xs text-white font-semibold drop-shadow-sm border-l border-white/30 pl-3">
                 <p>
                   {t("feels_like", "Feels like")}{" "}
-                  <span className="font-bold text-white">
+                  <span className="font-extrabold text-amber-300">
                     {feelsLikeVal}{tempUnitStr}
                   </span>
                 </p>
                 <p>
-                  <span className="text-emerald-300 font-bold">↑{highTemp}°</span>{" "}
-                  <span className="text-sky-300 font-bold">↓{lowTemp}°</span>
+                  <span className="text-emerald-300 font-extrabold">↑{highTemp}°</span>{" "}
+                  <span className="text-sky-300 font-extrabold">↓{lowTemp}°</span>
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col items-center shrink-0">
+            <div className="flex flex-col items-center shrink-0 ml-auto sm:ml-0 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/15">
               <WeatherIcon
                 code={w.current.code}
                 isDay={w.current.is_day ?? 1}
-                className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-lg"
+                className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
               />
-              <span className="text-[11px] font-bold text-white/90 text-center max-w-[110px] truncate mt-0.5 drop-shadow-sm">
+              <span className="text-[11px] font-extrabold text-white text-center max-w-[120px] truncate mt-0.5 drop-shadow-sm">
                 {currentConditionText}
               </span>
             </div>
