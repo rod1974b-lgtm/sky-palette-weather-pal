@@ -27,6 +27,7 @@ import { WeatherMascot } from "@/components/WeatherMascot";
 import { AstronomyTracker } from "@/components/AstronomyTracker";
 import { WeatherRadar } from "@/components/WeatherRadar";
 import { WeatherPostcardModal } from "@/components/WeatherPostcardModal";
+import { OutdoorActivityPlanner } from "@/components/OutdoorActivityPlanner";
 
 export interface TickerAlertItem {
   id: string;
@@ -1006,7 +1007,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Sun Arc & Moon Phase Astronomy Tracker */}
       <AstronomyTracker weather={w} />
 
-      {/* 5. WHAT TO WEAR TODAY (Directly under Current Conditions) */}
+      {/* 5. WHAT TO WEAR TODAY */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
           <div className="flex items-center gap-2">
@@ -1075,6 +1076,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
         )}
       </section>
+
+      {/* Smart Outdoor Activity & Lifestyle Planner */}
+      <OutdoorActivityPlanner weather={w} unit={unit} />
 
       {/* 6. 24-HOUR HOURLY FORECAST WITH PRINTED CONDITIONS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
