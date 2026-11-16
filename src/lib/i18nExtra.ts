@@ -1,6 +1,6 @@
 // src/lib/i18nExtra.ts - PART 1: Core Weather, Clothing, Gallery & Mascots
 // Fully localizes EN, TH, ES, FR, DE, and PT with baseline fallbacks for remaining languages.
-
+import { extraResourcesPart2 } from "./i18nExtraPart2";
 export const extraResources: Record<string, Record<string, string>> = {
   en: {
     // WeatherView Actions & Header
@@ -830,13 +830,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     seven_day_forecast: "Previsão de 7 Dias",
   },
 
-  // Fallback mappings for remaining languages until Part 2 is delivered
-  ja: {},
-  zh: {},
-  hi: {},
-  ru: {},
-  ar: {},
-  ko: {},
-  id: {},
-  vi: {},
+   ...extraResourcesPart2,
 };
+
