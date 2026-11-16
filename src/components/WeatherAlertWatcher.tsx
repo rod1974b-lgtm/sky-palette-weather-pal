@@ -2,6 +2,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { Weather, WeatherUnit } from "@/lib/weather";
+import {
+  WATCHER_EN,
+  WATCHER_I18N,
+  resolveAlertHeadline,
+  type AlertDictionary,
+} from "@/lib/alertTranslations";
 
 export interface TickerAlertItem {
   id?: string;
@@ -9,6 +15,8 @@ export interface TickerAlertItem {
   severity: "disaster" | "warning" | "advisory" | "all-clear" | "danger";
   headline?: string;
   headlineTh?: string;
+  headlineEn?: string;
+  headlines?: Record<string, string>;
   text?: string;
   details?: string;
   area?: string;
@@ -59,388 +67,21 @@ const DEFAULT_CONFIG: AlertWatcherConfig = {
 const STORAGE_KEY_CONFIG = "weather:alert_watcher_config";
 const STORAGE_KEY_LAST_NOTIFIED = "weather:alert_watcher_last_sent";
 
-// 14-language localization dictionary
-const WATCHER_EN = {
-  title: "Severe Weather Watcher & Alerts",
-  subtitle: "Real-time monitoring for sudden storms, gale winds, heatwaves & hazardous air",
-  shield_active: "Active Shield",
-  shield_all_clear: "All Clear — Conditions are safe",
-  shield_hazards_found: "Active Weather Hazards Detected",
-  monitoring_city: "Monitoring",
-  test_btn: "Test Alert & Chime",
-  settings_btn: "Alert Settings",
-  sound_on: "Sound On",
-  sound_muted: "Muted",
-  notify_permission_cta: "Enable Notifications",
-  notify_enabled: "Notifications Active",
-  notify_blocked: "Notifications Blocked",
-  test_toast_title: "Severe Weather Watcher Active",
-  test_toast_desc: "This is a test notification with synthesized alert chime. Stay safe!",
-  hazard_thunderstorm_title: "Severe Thunderstorm Warning",
-  hazard_thunderstorm_desc: "Intense lightning, squall gusts, or hail detected in the area.",
-  hazard_thunderstorm_advice: "Seek sturdy shelter indoors immediately. Unplug sensitive electronics and stay away from windows.",
-  hazard_wind_title: "Gale-Force Wind Warning",
-  hazard_wind_desc: "Damaging wind gusts exceed safe limits.",
-  hazard_wind_advice: "Secure loose patio furniture, beware of falling tree branches and avoid driving high-profile vehicles.",
-  hazard_heat_title: "Extreme Heat Index Advisory",
-  hazard_heat_desc: "Hazardous heat levels create high risk of heatstroke and exhaustion.",
-  hazard_heat_advice: "Stay hydrated with electrolytes, seek air-conditioned environments, and avoid strenuous outdoor exercise.",
-  hazard_cold_title: "Freezing Temperatures Warning",
-  hazard_cold_desc: "Sub-zero conditions with risk of black ice and hypothermia.",
-  hazard_cold_advice: "Dress in multiple warm thermal layers, insulate exposed water pipes, and watch for icy pavements.",
-  hazard_rain_title: "Torrential Rain & Flash Flood Watch",
-  hazard_rain_desc: "Heavy downpours could cause rapid street water accumulation and low-lying flooding.",
-  hazard_rain_advice: "Avoid crossing flooded underpasses or fast-moving water. Keep essential valuables off low floors.",
-  hazard_air_title: "Unhealthy Air Quality & PM2.5 Alert",
-  hazard_air_desc: "Elevated particulate pollution reaches unhealthy thresholds.",
-  hazard_air_advice: "Wear a certified N95/KF94 mask outdoors. Keep doors and windows closed and use an indoor HEPA purifier.",
-  hazard_official_title: "Official Meteorological Bulletin",
-  hazard_official_desc: "Active disaster bulletin from regional weather authorities.",
-  hazard_official_advice: "Follow local government emergency directives and maintain portable emergency supplies.",
-  settings_title: "Severe Weather Notification Preferences",
-  settings_sound_label: "Play Synthesized Audio Chime",
-  settings_sound_sub: "Gentle two-tone chime when hazardous weather breaches safety thresholds",
-  settings_push_label: "Browser & Mobile Push Notifications",
-  settings_push_sub: "Receive instant alert banners even when viewing other tabs",
-  settings_types_title: "Monitored Hazard Types",
-  settings_storm_label: "Thunderstorms & Lightning",
-  settings_wind_label: "Gale Winds (> 45 km/h)",
-  settings_heat_label: "Extreme Heatwaves (> 38°C / 100°F)",
-  settings_cold_label: "Freezing Cold (≤ 0°C / 32°F)",
-  settings_rain_label: "Torrential Rain & Flash Floods",
-  settings_air_label: "Hazardous PM2.5 & Air Quality (AQI > 150)",
-  close: "Done",
-};
-
-export type WatcherKey = keyof typeof WATCHER_EN;
-
-const WATCHER_I18N: Record<string, Partial<Record<WatcherKey, string>>> = {
-  en: WATCHER_EN,
-  th: {
-    title: "ระบบเฝ้าระวังสภาพอากาศรุนแรงและการแจ้งเตือน",
-    subtitle: "ตรวจจับพายุฝนฟ้าคะนอง ลมกระโชกแรง คลื่นความร้อน และฝุ่น PM2.5 แบบเรียลไทม์",
-    shield_active: "ระบบความปลอดภัยทำงาน",
-    shield_all_clear: "สภาวะปกติ — สภาพอากาศปลอดภัย",
-    shield_hazards_found: "ตรวจพบสภาวะสภาพอากาศรุนแรง",
-    monitoring_city: "กำลังเฝ้าระวังเมือง",
-    test_btn: "ทดสอบเสียงแจ้งเตือน",
-    settings_btn: "ตั้งค่าการเตือน",
-    sound_on: "เปิดเสียง",
-    sound_muted: "ปิดเสียง",
-    notify_permission_cta: "เปิดรับการแจ้งเตือน",
-    notify_enabled: "การแจ้งเตือนเปิดใช้งานแล้ว",
-    notify_blocked: "การแจ้งเตือนถูกระงับ",
-    test_toast_title: "ระบบเฝ้าระวังสภาพอากาศทำงานปกติ",
-    test_toast_desc: "นี่คือการแจ้งเตือนทดสอบพร้อมเสียงสังเคราะห์เพื่อความปลอดภัยของคุณ!",
-    hazard_thunderstorm_title: "เตือนภัยพายุฝนฟ้าคะนองรุนแรง",
-    hazard_thunderstorm_desc: "ตรวจพบฟ้าผ่า ลมกระโชกแรง หรือลูกเห็บตกในพื้นที่",
-    hazard_thunderstorm_advice: "หลบเข้าในอาคารที่มั่นคงทันที ถอดปลั๊กอุปกรณ์ไฟฟ้า และหลีกเลี่ยงการอยู่ใกล้หน้าต่าง",
-    hazard_wind_title: "เตือนภัยลมกระโชกแรงอันตราย",
-    hazard_wind_desc: "ความเร็วลมกระโชกแรงเกินเกณฑ์ความปลอดภัย",
-    hazard_wind_advice: "ยึดสิ่งของกลางแจ้ง ระวังกิ่งไม้หรือป้ายโฆษณาหักโค่น และหลีกเลี่ยงการขับขี่รถทรงสูง",
-    hazard_heat_title: "เตือนภัยดัชนีความร้อนสูงจัด (Heat Index)",
-    hazard_heat_desc: "ความร้อนรุนแรงเสี่ยงต่อภาวะลมแดด (Heatstroke) และการขาดน้ำ",
-    hazard_heat_advice: "จิบน้ำหรือเกลือแร่อย่างสม่ำเสมอ พักในห้องปรับอากาศ และหลีกเลี่ยงกิจกรรมกลางแจ้งที่หนักหน่วง",
-    hazard_cold_title: "เตือนภัยอุณหภูมิลดต่ำจุดเยือกแข็ง",
-    hazard_cold_desc: "สภาพอากาศหนาวจัด เสี่ยงต่อภาวะตัวเย็นเกินและน้ำค้างแข็ง",
-    hazard_cold_advice: "สวมเสื้อผ้ากันหนาวหลายชั้น ป้องกันท่อน้ำแตก และระมัดระวังพื้นผิวถนนที่ลื่น",
-    hazard_rain_title: "เฝ้าระวังฝนตกหนักมากและน้ำท่วมฉับพลัน",
-    hazard_rain_desc: "ฝนตกหนักสะสมอาจทำให้เกิดน้ำท่วมขังบนถนนและพื้นที่ลุ่มต่ำ",
-    hazard_rain_advice: "หลีกเลี่ยงการขับรถลุยทางน้ำหลากหรืออุโมงค์ที่มีน้ำท่วม ยกสิ่งของขึ้นที่สูง",
-    hazard_air_title: "แจ้งเตือนคุณภาพอากาศและฝุ่น PM2.5 เกินมาตรฐาน",
-    hazard_air_desc: "ปริมาณฝุ่นละอองขนาดเล็กอยู่ในเกณฑ์ที่มีผลกระทบต่อสุขภาพ",
-    hazard_air_advice: "สวมหน้ากาก N95 หรือ KF94 เมื่อต้องออกนอกอาคาร ปิดประตูหน้าต่าง และเปิดเครื่องฟอกอากาศ",
-    hazard_official_title: "ประกาศเตือนภัยจากกรมอุตุนิยมวิทยา",
-    hazard_official_desc: "ประกาศแจ้งเตือนภัยอย่างเป็นทางการสำหรับพื้นที่นี้",
-    hazard_official_advice: "ปฏิบัติตามคำแนะนำของเจ้าหน้าที่และเตรียมพร้อมสิ่งของจำเป็นสำหรับกรณีฉุกเฉิน",
-    settings_title: "ตั้งค่าการแจ้งเตือนสภาพอากาศรุนแรง",
-    settings_sound_label: "เปิดเสียงสัญญาณเตือนสังเคราะห์",
-    settings_sound_sub: "ส่งเสียงเตือนสองระดับเมื่อเกิดสภาพอากาศที่เกินเกณฑ์ความปลอดภัย",
-    settings_push_label: "การแจ้งเตือนผ่านเบราว์เซอร์และมือถือ",
-    settings_push_sub: "รับแบนเนอร์แจ้งเตือนทันทีแม้จะเปิดหน้าต่างหรือแอปอื่นอยู่",
-    settings_types_title: "ประเภทภัยธรรมชาติที่เฝ้าระวัง",
-    settings_storm_label: "พายุฝนฟ้าคะนองและฟ้าผ่า",
-    settings_wind_label: "ลมกระโชกแรง (> 45 กม./ชม.)",
-    settings_heat_label: "คลื่นความร้อนสูงจัด (> 38°C)",
-    settings_cold_label: "อากาศหนาวจัดจุดเยือกแข็ง (≤ 0°C)",
-    settings_rain_label: "ฝนตกหนักและน้ำท่วมฉับพลัน",
-    settings_air_label: "ฝุ่น PM2.5 และคุณภาพอากาศวิกฤต (AQI > 150)",
-    close: "เสร็จสิ้น",
-  },
-  es: {
-    title: "Vigilante del Clima Severo y Alertas",
-    subtitle: "Monitoreo en tiempo real de tormentas, vendavales, olas de calor y aire peligroso",
-    shield_active: "Escudo Activo",
-    shield_all_clear: "Todo Despejado — Condiciones seguras",
-    shield_hazards_found: "Peligros Meteorológicos Detectados",
-    monitoring_city: "Monitoreando",
-    test_btn: "Probar Alerta y Sonido",
-    settings_btn: "Ajustes de Alertas",
-    sound_on: "Sonido Activado",
-    sound_muted: "Silenciado",
-    notify_permission_cta: "Activar Notificaciones",
-    notify_enabled: "Notificaciones Activas",
-    notify_blocked: "Notificaciones Bloqueadas",
-    test_toast_title: "Vigilante del Clima Activo",
-    test_toast_desc: "Esta es una notificación de prueba con sonido sintetizado. ¡Mantente a salvo!",
-    hazard_thunderstorm_title: "Alerta de Tormenta Eléctrica Severa",
-    hazard_thunderstorm_desc: "Relámpagos intensos, ráfagas o granizo detectados en la zona.",
-    hazard_thunderstorm_advice: "Refúgiate de inmediato en un edificio seguro. Desconecta aparatos electrónicos y aléjate de ventanas.",
-    hazard_wind_title: "Aviso de Vientos Fuertes y Vendaval",
-    hazard_wind_desc: "Ráfagas de viento peligrosas que superan los límites seguros.",
-    hazard_wind_advice: "Asegura objetos exteriores, ten cuidado con ramas caídas y evita conducir vehículos de gran altura.",
-    hazard_heat_title: "Aviso de Calor Extremo e Índice Térmico",
-    hazard_heat_desc: "Temperaturas peligrosas con alto riesgo de insolación y deshidratación.",
-    hazard_heat_advice: "Hidrátate constantemente con electrolitos, permanece en sitios con aire acondicionado y evita ejercicio intenso.",
-    hazard_cold_title: "Aviso de Bajas Temperaturas y Heladas",
-    hazard_cold_desc: "Condiciones bajo cero con riesgo de hielo negro e hipotermia.",
-    hazard_cold_advice: "Vístete con capas térmicas, protege tuberías expuestas y camina con cuidado sobre pavimentos helados.",
-    hazard_rain_title: "Aviso de Lluvia Torrencial e Inundación Repentina",
-    hazard_rain_desc: "Fuertes aguaceros pueden provocar acumulación rápida de agua en calles.",
-    hazard_rain_advice: "No cruces pasos a desnivel inundados ni corrientes de agua. Protege objetos valiosos de niveles bajos.",
-    hazard_air_title: "Alerta de Calidad del Aire y PM2.5 Peligroso",
-    hazard_air_desc: "Contaminación por partículas finas en niveles dañinos para la salud.",
-    hazard_air_advice: "Usa mascarilla N95 en exteriores, mantén ventanas cerradas y utiliza purificadores de aire interiores.",
-    hazard_official_title: "Boletín Meteorológico Oficial",
-    hazard_official_desc: "Aviso de emergencia emitido por las autoridades meteorológicas locales.",
-    hazard_official_advice: "Sigue las directivas oficiales de emergencia y mantén suministros básicos a mano.",
-    settings_title: "Preferencias de Alertas Meteorológicas",
-    settings_sound_label: "Reproducir Campana de Audio Sintetizada",
-    settings_sound_sub: "Tono armónico dual cuando el clima supera los límites de seguridad",
-    settings_push_label: "Notificaciones Push en Navegador y Móvil",
-    settings_push_sub: "Recibe alertas instantáneas incluso cuando estés en otras pestañas",
-    settings_types_title: "Peligros Monitoreados",
-    settings_storm_label: "Tormentas Eléctricas y Rayos",
-    settings_wind_label: "Vientos Fuertes (> 45 km/h)",
-    settings_heat_label: "Olas de Calor Extremo (> 38°C)",
-    settings_cold_label: "Heladas y Frío Polar (≤ 0°C)",
-    settings_rain_label: "Lluvias Torrenciales e Inundaciones",
-    settings_air_label: "Calidad del Aire Peligrosa (AQI > 150)",
-    close: "Listo",
-  },
-  fr: {
-    title: "Veille Météo Sévère & Alertes",
-    subtitle: "Surveillance continue des orages, vents violents, canicules et pollution",
-    shield_active: "Bouclier Actif",
-    shield_all_clear: "R.A.S. — Conditions sécuritaires",
-    shield_hazards_found: "Dangers Météo Détectés",
-    monitoring_city: "Surveillance de",
-    test_btn: "Tester Alerte & Son",
-    settings_btn: "Paramètres",
-    sound_on: "Son activé",
-    sound_muted: "Muet",
-    notify_permission_cta: "Activer les Notifications",
-    notify_enabled: "Notifications actives",
-    notify_blocked: "Notifications bloquées",
-    test_toast_title: "Veille Météo Opérationnelle",
-    test_toast_desc: "Notification test avec carillon sonore synthétique. Restez en sécurité !",
-    hazard_thunderstorm_title: "Alerte Orages Violents & Foudre",
-    hazard_thunderstorm_desc: "Éclairs intenses, bourrasques ou grêle détectés dans votre secteur.",
-    hazard_thunderstorm_advice: "Abritez-vous immédiatement dans un bâtiment solide. Éloignez-vous des fenêtres.",
-    hazard_wind_title: "Alerte Vents Violents & Coup de Vent",
-    hazard_wind_desc: "Les rafales de vent dépassent les seuils de sécurité.",
-    hazard_wind_advice: "Fixez les objets extérieurs, attention aux chutes de branches d'arbres.",
-    hazard_heat_title: "Vigilance Canicule & Chaleur Extrême",
-    hazard_heat_desc: "Risque très élevé de coup de chaleur et de déshydratation.",
-    hazard_heat_advice: "Hydratez-vous régulièrement, restez au frais et évitez les efforts physiques intenses.",
-    hazard_cold_title: "Alerte Gel & Températures Glaciales",
-    hazard_cold_desc: "Températures négatives avec risque de verglas.",
-    hazard_cold_advice: "Portez des vêtements thermiques superposés et soyez très vigilant sur les routes verglacées.",
-    hazard_rain_title: "Vigilance Pluie Torrentielle & Inondation",
-    hazard_rain_desc: "Fortes précipitations risquant de saturer rapidement le réseau urbain.",
-    hazard_rain_advice: "Ne vous engagez pas sur les passages sous voie inondés et limitez vos déplacements.",
-    hazard_air_title: "Alerte Qualité de l'Air & PM2.5",
-    hazard_air_desc: "Concentration élevée de particules fines nocive pour la santé.",
-    hazard_air_advice: "Portez un masque N95 en extérieur, fermez les fenêtres et activez un purificateur.",
-    hazard_official_title: "Bulletin Météorologique Officiel",
-    hazard_official_desc: "Avis d'urgence officiel émis par les services météorologiques régionaux.",
-    hazard_official_advice: "Respectez les consignes de sécurité des autorités locales.",
-    settings_title: "Préférences d'Alerte Météo",
-    settings_sound_label: "Jouer le Carillon Audio Synthétique",
-    settings_sound_sub: "Avertissement sonore doux à deux tons en cas de dépassement des seuils",
-    settings_push_label: "Notifications Push Navigateur & Mobile",
-    settings_push_sub: "Recevez les alertes instantanées même sur un autre onglet",
-    settings_types_title: "Dangers Surveillés",
-    settings_storm_label: "Orages et foudre",
-    settings_wind_label: "Vents violents (> 45 km/h)",
-    settings_heat_label: "Canicule (> 38°C)",
-    settings_cold_label: "Grand froid (≤ 0°C)",
-    settings_rain_label: "Pluies torrentielles",
-    settings_air_label: "Air toxique (AQI > 150)",
-    close: "Fermer",
-  },
-  de: {
-    title: "Unwetter-Wächter & Benachrichtigungen",
-    subtitle: "Echtzeit-Überwachung vor Gewittern, Sturm, Hitzewellen & Feinstaub",
-    shield_active: "Schutzschild Aktiv",
-    shield_all_clear: "Alles Ruhig — Sichere Wetterlage",
-    shield_hazards_found: "Wettergefahren Erkannt",
-    monitoring_city: "Überwachung für",
-    test_btn: "Alarm & Ton testen",
-    settings_btn: "Alarmeinstellungen",
-    sound_on: "Ton An",
-    sound_muted: "Stumm",
-    notify_permission_cta: "Benachrichtigungen aktivieren",
-    notify_enabled: "Benachrichtigungen Aktiv",
-    notify_blocked: "Benachrichtigungen Blockiert",
-    test_toast_title: "Unwetter-Wächter bereit",
-    test_toast_desc: "Testbenachrichtigung mit synthetisiertem Warnton. Passen Sie auf sich auf!",
-    hazard_thunderstorm_title: "Schwere Gewitter- und Blitzwarnung",
-    hazard_thunderstorm_desc: "Intensive Blitze, Sturmböen oder Hagel in der Region.",
-    hazard_thunderstorm_advice: "Suchen Sie unverzüglich Schutz in festen Gebäuden und meiden Sie Fensternähe.",
-    hazard_wind_title: "Sturm- und Orkanböen-Warnung",
-    hazard_wind_desc: "Gefährliche Windböen übersteigen sichere Grenzwerte.",
-    hazard_wind_advice: "Sichern Sie lose Gegenstände im Freien, achten Sie auf herabstürzende Äste.",
-    hazard_heat_title: "Warnung vor Extremer Hitze",
-    hazard_heat_desc: "Gefahr von Hitzschlag und starker Dehydrierung.",
-    hazard_heat_advice: "Viel trinken, kühle Räume aufsuchen und anstrengende Tätigkeiten im Freien vermeiden.",
-    hazard_cold_title: "Frost- und Kältewarnung",
-    hazard_cold_desc: "Temperaturen unter dem Gefrierpunkt mit Glättegefahr.",
-    hazard_cold_advice: "Warme Kleidungsschichten tragen und auf glatten Gehwegen vorsichtig sein.",
-    hazard_rain_title: "Starkregen- und Überflutungswarnung",
-    hazard_rain_desc: "Heftige Niederschläge können zu raschen Überflutungen führen.",
-    hazard_rain_advice: "Überflutete Unterführungen meiden und Kellerbereiche sichern.",
-    hazard_air_title: "Warnung vor Schlechter Luft & Feinstaub",
-    hazard_air_desc: "Hohe PM2.5-Werte belasten die Atemwege.",
-    hazard_air_advice: "Draußen N95-Maske tragen, Fenster geschlossen halten.",
-    hazard_official_title: "Amtliche Wetterwarnung",
-    hazard_official_desc: "Offizielle Warnung der regionalen Wetterbehörden.",
-    hazard_official_advice: "Befolgen Sie die behördlichen Schutzanweisungen.",
-    settings_title: "Wetterwarnungs-Einstellungen",
-    settings_sound_label: "Synthetischen Warnton abspielen",
-    settings_sound_sub: "Angenehmer Doppelton-Gong bei Überschreitung kritischer Schwellen",
-    settings_push_label: "Browser- & Mobil-Pushmeldungen",
-    settings_push_sub: "Sofortige Warnungen auch beim Surfen auf anderen Tabs",
-    settings_types_title: "Überwachte Gefahren",
-    settings_storm_label: "Gewitter & Blitzschlag",
-    settings_wind_label: "Sturmböen (> 45 km/h)",
-    settings_heat_label: "Extreme Hitzewellen (> 38°C)",
-    settings_cold_label: "Frost & Kälte (≤ 0°C)",
-    settings_rain_label: "Sturzfluten & Starkregen",
-    settings_air_label: "Gesundheitsschädliche Luft (AQI > 150)",
-    close: "Fertig",
-  },
-  ja: {
-    title: "警報・悪天候監視アラート",
-    subtitle: "突発的な雷雨、強風、熱中症警戒、PM2.5危険値をリアルタイム監視",
-    shield_active: "監視シールド稼働中",
-    shield_all_clear: "警報なし — 天候は安全です",
-    shield_hazards_found: "気象警報が検知されました",
-    monitoring_city: "監視対象地域",
-    test_btn: "警報音・通知テスト",
-    settings_btn: "アラート設定",
-    sound_on: "音量オン",
-    sound_muted: "消音",
-    notify_permission_cta: "プッシュ通知を有効化",
-    notify_enabled: "通知が有効です",
-    notify_blocked: "通知がブロックされています",
-    test_toast_title: "気象監視システムは正常に作動しています",
-    test_toast_desc: "これは警報チャイム音付きのテスト通知です。安全にお過ごしください！",
-    hazard_thunderstorm_title: "激しい雷雨・落雷警報",
-    hazard_thunderstorm_desc: "激しい雷放電、突風、または降雹が検知されています。",
-    hazard_thunderstorm_advice: "直ちに頑丈な建物へ避難してください。家電のプラグを抜き窓から離れてください。",
-    hazard_wind_title: "強風・暴風警戒アラート",
-    hazard_wind_desc: "突風が安全基準を超えています。",
-    hazard_wind_advice: "ベランダの飛びやすい物を固定し、倒木や看板の落下に注意してください。",
-    hazard_heat_title: "極端な暑さ・熱中症特別警戒",
-    hazard_heat_desc: "熱中症のリスクが非常に高い危険な暑さです。",
-    hazard_heat_advice: "こまめな水分・塩分補給を行い、エアコンの効いた室内で過ごしてください。",
-    hazard_cold_title: "凍結・低温警報",
-    hazard_cold_desc: "路面凍結や低体温症の危険がある氷点下の寒さです。",
-    hazard_cold_advice: "十分な防寒着を着用し、凍結した路面での転倒に注意してください。",
-    hazard_rain_title: "猛烈な雨・浸水害警戒",
-    hazard_rain_desc: "急激な道路冠水や低地浸水の恐れがある激しい降雨です。",
-    hazard_rain_advice: "冠水した道路やアンダーパスを避け、危険な増水河川に近づかないでください。",
-    hazard_air_title: "大気汚染・PM2.5危険水準アラート",
-    hazard_air_desc: "微小粒子状物質が健康に影響を及ぼす危険なレベルです。",
-    hazard_air_advice: "外出時は高性能マスクを着用し、窓を閉めて空気清浄機を稼働させてください。",
-    hazard_official_title: "気象庁・公式気象特別速報",
-    hazard_official_desc: "自治体または気象当局からの公式緊急情報です。",
-    hazard_official_advice: "地域の防災指示に従い、非常持ち出し袋を確認してください。",
-    settings_title: "気象アラート監視設定",
-    settings_sound_label: "合成チャイム警報音を鳴らす",
-    settings_sound_sub: "気象が安全基準を超えた場合に2音の警告チャイムを鳴らします",
-    settings_push_label: "ブラウザ・モバイル通知",
-    settings_push_sub: "別のタブを開いていても緊急アラートを受信します",
-    settings_types_title: "監視対象の気象項目",
-    settings_storm_label: "雷雨・落雷",
-    settings_wind_label: "強風・暴風 (> 45 km/h)",
-    settings_heat_label: "極端な猛暑 (> 38°C)",
-    settings_cold_label: "氷点下の冷え込み (≤ 0°C)",
-    settings_rain_label: "猛烈な雨・洪水警戒",
-    settings_air_label: "大気汚染・高濃度PM2.5 (AQI > 150)",
-    close: "完了",
-  },
-  zh: {
-    title: "严峻天气守望者与实时预警",
-    subtitle: "全天候监测雷暴、大风、极端高温和重度空气污染",
-    shield_active: "防护盾已开启",
-    shield_all_clear: "一切正常 — 天气状况安全",
-    shield_hazards_found: "检测到突发气象风险",
-    monitoring_city: "监测城市",
-    test_btn: "测试提示音与通知",
-    settings_btn: "预警设置",
-    sound_on: "开启声音",
-    sound_muted: "静音",
-    notify_permission_cta: "开启弹窗通知",
-    notify_enabled: "通知已启用",
-    notify_blocked: "通知已被阻止",
-    test_toast_title: "天气守护者正在正常运行",
-    test_toast_desc: "这是一条包含合成提示音的测试预警，祝您出行平安！",
-    hazard_thunderstorm_title: "强对流雷暴与雷电预警",
-    hazard_thunderstorm_desc: "监测到剧烈雷电、短时雷暴大风或冰雹。",
-    hazard_thunderstorm_advice: "请立即进入坚固建筑物内避险，拔掉精密电器插头并远离窗户。",
-    hazard_wind_title: "大风与强阵风预警",
-    hazard_wind_desc: "瞬间阵风速度超过安全警戒值。",
-    hazard_wind_advice: "请固定阳台室外物品，谨防高空坠物和折断树枝，避免驾驶大型高箱车。",
-    hazard_heat_title: "极端酷热指数高温预警",
-    hazard_heat_desc: "体感极热，极易发生中暑或脱水危险。",
-    hazard_heat_advice: "及时补充电解质水分，尽量处于空调清凉环境中，避免高温下剧烈运动。",
-    hazard_cold_title: "极寒与冰冻低温警报",
-    hazard_cold_desc: "气温降至冰点以下，有路面结冰和失温风险。",
-    hazard_cold_advice: "请穿着多层防寒保暖衣物，防范水管冻裂，行车走路谨防地面积冰。",
-    hazard_rain_title: "暴雨与短时内涝积水预警",
-    hazard_rain_desc: "短时强降水可能导致城市道路急剧积水与低洼处内涝。",
-    hazard_rain_advice: "请勿涉水穿越积水立交桥或未知深水区，将低处贵重物品抬高。",
-    hazard_air_title: "重度空气污染与PM2.5预警",
-    hazard_air_desc: "细颗粒物浓度已达到对健康有害的高风险水平。",
-    hazard_air_advice: "外出务必佩戴N95或防霾口罩，紧闭门窗并开启室内空气净化机。",
-    hazard_official_title: "气象部门官方灾害公告",
-    hazard_official_desc: "气象或防灾部门发布的实时官方预警通报。",
-    hazard_official_advice: "请遵从当地应急减灾指示，保持通讯畅通与应急物资充足。",
-    settings_title: "气象预警监测设置",
-    settings_sound_label: "播放合成双音警报声",
-    settings_sound_sub: "当突发天气超标时自动发出柔和提示音",
-    settings_push_label: "浏览器与移动端推送通知",
-    settings_push_sub: "即使在浏览其他网页或桌面时也能及时收到气象弹窗",
-    settings_types_title: "监测的气象灾害类型",
-    settings_storm_label: "雷暴与闪电",
-    settings_wind_label: "大风烈风 (> 45 km/h)",
-    settings_heat_label: "极端高温酷暑 (> 38°C)",
-    settings_cold_label: "冰冻极寒天气 (≤ 0°C)",
-    settings_rain_label: "短时暴雨与内涝",
-    settings_air_label: "严重空气污染与高PM2.5 (AQI > 150)",
-    close: "完成",
-  },
-};
-
-// Web Audio API chime synthesizer
+/**
+ * Synthesizes an alert chime using Web Audio API (no external asset needed)
+ */
 function playAlertChime() {
+  if (typeof window === "undefined") return;
   try {
-    const AudioCtx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
+    const AudioContextClass =
+      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
 
     const now = ctx.currentTime;
     const tones = [
-      { freq: 587.33, start: 0, duration: 0.28 },
-      { freq: 880.0, start: 0.16, duration: 0.45 },
+      { freq: 587.33, start: 0, duration: 0.16 }, // D5
+      { freq: 880.0, start: 0.18, duration: 0.28 }, // A5
     ];
 
     tones.forEach(({ freq, start, duration }) => {
@@ -450,9 +91,9 @@ function playAlertChime() {
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + start);
 
-      gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.2, now + start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + duration);
+      gain.gain.setValueAtTime(0.001, now + start);
+      gain.gain.linearRampToValueAtTime(0.2, now + start + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -474,11 +115,20 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
 }) => {
   const { i18n } = useTranslation();
   const lang = (i18n.language || "en").slice(0, 2).toLowerCase();
-  const dict = useMemo<Record<string, string | undefined>>(
+
+  // Merge English base with current language dictionary from alertTranslations.ts
+  const dict = useMemo<AlertDictionary>(
     () => ({ ...WATCHER_EN, ...(WATCHER_I18N[lang] ?? {}) }),
     [lang]
   );
-  const tLocal = useCallback((key: string, fallback: string) => dict[key] || fallback, [dict]);
+
+  const tLocal = useCallback(
+    (key: string, fallback: string): string => {
+      const val = (dict as unknown as Record<string, string | undefined>)[key];
+      return val || fallback;
+    },
+    [dict]
+  );
 
   // Settings configuration state
   const [config, setConfig] = useState<AlertWatcherConfig>(() => {
@@ -515,7 +165,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
     const list: DetectedHazard[] = [];
     if (!weather?.current) return list;
 
-    const { temp, code, wind_speed, feels, aqi, pm25, precipitation, uv } = weather.current;
+    const { temp, code, wind_speed, feels, aqi, pm25, precipitation } = weather.current;
 
     const tempC = unit === "imperial" ? ((temp - 32) * 5) / 9 : temp;
     const feelsC = unit === "imperial" ? ((feels - 32) * 5) / 9 : feels;
@@ -531,35 +181,35 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         titleKey: "hazard_thunderstorm_title",
         descKey: "hazard_thunderstorm_desc",
         adviceKey: "hazard_thunderstorm_advice",
-        metricValue: `WMO #${code}`,
+        metricValue: "Code " + code,
       });
     }
 
-    // 2. High Gale Winds
+    // 2. Gale-Force Wind
     if (config.notifyWind && windKmh >= 45) {
       list.push({
         id: "wind",
         type: "wind",
-        severity: windKmh >= 60 ? "danger" : "warning",
+        severity: windKmh >= 65 ? "danger" : "warning",
         icon: "💨",
         titleKey: "hazard_wind_title",
         descKey: "hazard_wind_desc",
         adviceKey: "hazard_wind_advice",
-        metricValue: `${Math.round(wind_speed)} ${unit === "imperial" ? "mph" : "km/h"}`,
+        metricValue: `${Math.round(windKmh)} km/h`,
       });
     }
 
     // 3. Extreme Heatwave
-    if (config.notifyHeat && (tempC >= 38 || feelsC >= 40 || (uv && uv >= 11))) {
+    if (config.notifyHeat && (feelsC >= 39 || tempC >= 38)) {
       list.push({
         id: "heat",
         type: "heat",
-        severity: feelsC >= 42 ? "danger" : "warning",
+        severity: feelsC >= 43 ? "danger" : "warning",
         icon: "🌡️",
         titleKey: "hazard_heat_title",
         descKey: "hazard_heat_desc",
         adviceKey: "hazard_heat_advice",
-        metricValue: `${Math.round(feels)}° ${unit === "imperial" ? "F" : "C"}`,
+        metricValue: unit === "imperial" ? `${Math.round(feels)}°F Feels` : `${Math.round(feelsC)}°C Feels`,
       });
     }
 
@@ -573,7 +223,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         titleKey: "hazard_cold_title",
         descKey: "hazard_cold_desc",
         adviceKey: "hazard_cold_advice",
-        metricValue: `${Math.round(temp)}° ${unit === "imperial" ? "F" : "C"}`,
+        metricValue: unit === "imperial" ? `${Math.round(temp)}°F` : `${Math.round(tempC)}°C`,
       });
     }
 
@@ -591,9 +241,9 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
       });
     }
 
-    // 6. Hazardous Air Quality
-    const dangerousAqi = aqi && aqi > 150;
-    const dangerousPm25 = pm25 && pm25 > 55.4;
+    // 6. Hazardous Air Quality (AQI / PM2.5)
+    const dangerousAqi = typeof aqi === "number" && aqi > 150;
+    const dangerousPm25 = typeof pm25 === "number" && pm25 > 55.4;
     if (config.notifyAir && (dangerousAqi || dangerousPm25)) {
       list.push({
         id: "air",
@@ -607,16 +257,20 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
       });
     }
 
-    // 7. Active Official Disaster Alerts
+    // 7. Active Official Disaster & TMD Bulletins (Multilingual Translation)
     activeAlerts.forEach((alert, idx) => {
       if (alert.severity === "danger" || alert.severity === "disaster" || alert.severity === "warning") {
+        const translatedHeadline = resolveAlertHeadline(alert, lang);
+        const resolvedHeadline =
+          translatedHeadline || alert.headline || alert.text || tLocal("hazard_official_desc", "Official weather bulletin active");
+
         list.push({
           id: `official-${alert.id || idx}`,
           type: "official",
           severity: "danger",
           icon: "🚨",
           titleKey: alert.tag || "hazard_official_title",
-          descKey: alert.headline || alert.text || "hazard_official_desc",
+          descKey: resolvedHeadline,
           adviceKey: alert.details || "hazard_official_advice",
           metricValue: alert.area || alert.source || "Official Alert",
         });
@@ -624,7 +278,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
     });
 
     return list;
-  }, [weather, unit, config, activeAlerts]);
+  }, [weather, unit, config, activeAlerts, lang, tLocal]);
 
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
