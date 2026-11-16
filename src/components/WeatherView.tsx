@@ -532,14 +532,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </div>
 
-      {/* 3. MAIN WATERCOLOR WEATHER HERO CARD */}
-      <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md text-white min-h-[310px] sm:min-h-[350px] flex flex-col justify-between p-5 sm:p-6 transition-all bg-card">
-        {/* Background Watercolor Art with subtle vibrance enhancement */}
+      {/* 3. PURE WATERCOLOR WALLPAPER HERO (COMPLETELY UNOBSTRUCTED) */}
+      <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md min-h-[260px] sm:min-h-[320px] transition-all bg-card flex items-end">
+        {/* Background Watercolor Art */}
         {displayBg ? (
           <img
             src={displayBg}
             alt={w.place.name}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 pointer-events-none brightness-[1.06] contrast-[1.08] saturate-[1.12] ${
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 pointer-events-none brightness-[1.04] contrast-[1.06] saturate-[1.1] ${
               artLoaded ? "opacity-100" : "opacity-0"
             }`}
             onLoad={() => setArtLoaded(true)}
@@ -547,92 +547,81 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-400 to-purple-500" />
         )}
+      </section>
 
-        {/* Softened ambient vignette to let the vibrant artwork shine through clearly */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/15 to-black/20 pointer-events-none" />
-
-        {/* Top Header: Location, Country, and Mascot Companion - with high-contrast frosted glass backplate for effortless readability */}
-        <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="min-w-0 bg-black/40 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/20 shadow-md inline-block">
+      {/* 4. CURRENT WEATHER CONDITIONS & METRICS DASHBOARD */}
+      <section className="p-4 sm:p-5 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-4">
+        {/* Location, Status, and Mascot Companion Header */}
+        <div className="flex items-start justify-between gap-3 border-b border-border/50 pb-3">
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-sm">📍</span>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] truncate">
+              <span className="text-base">📍</span>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground truncate">
                 {w.place.name}
               </h2>
               {w.place.country && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/25 backdrop-blur-md text-white border border-white/30 shadow-xs">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/60">
                   {w.place.country}
                 </span>
               )}
             </div>
 
-            <p className="text-xs text-white/95 font-semibold mt-1 drop-shadow-sm flex items-center gap-2 flex-wrap">
-              <span>{currentConditionText}</span>
+            <p className="text-xs text-muted-foreground font-medium mt-1 flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-foreground/90">{currentConditionText}</span>
               <span>•</span>
               <span>
-                {t("updated_just_now", "Updated")} {w.fetchedAt ? new Date(w.fetchedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : t("recently", "recently")}
+                {t("updated_just_now", "Updated")}{" "}
+                {w.fetchedAt
+                  ? new Date(w.fetchedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                  : t("recently", "recently")}
               </span>
             </p>
           </div>
 
           {/* Interactive Weather Mascot Companion */}
-          <div className="bg-black/30 backdrop-blur-md p-1 rounded-2xl border border-white/20 shadow-md">
+          <div className="shrink-0 p-1 rounded-2xl bg-muted/40 border border-border/50 shadow-xs">
             <WeatherMascot weather={w} />
           </div>
         </div>
 
-        {/* Bottom Hero: Large Temperature, Icon, and High/Low with high-contrast frosted glass backplate */}
-        <div className="relative z-10 pt-4">
-          <div className="flex items-end justify-between gap-3 bg-black/45 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-white/20 shadow-lg flex-wrap sm:flex-nowrap">
-            <div className="flex items-center gap-3">
-              <span className="text-5xl sm:text-6xl font-black tracking-tighter text-white drop-shadow-[0_3px_6px_rgba(0,0,0,0.9)]">
-                {tempVal}
-                <span className="text-2xl sm:text-3xl font-light text-white/95 ml-0.5">
-                  {tempUnitStr}
+        {/* Hero Weather Banner: Large Temperature, Feels-like, High/Low, and Condition Icon */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-muted/30 border border-border/50 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-3.5">
+            <span className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
+              {tempVal}
+              <span className="text-2xl sm:text-3xl font-light text-muted-foreground ml-0.5">
+                {tempUnitStr}
+              </span>
+            </span>
+
+            <div className="space-y-1 text-xs border-l border-border/60 pl-3.5">
+              <p className="text-muted-foreground font-medium">
+                {t("feels_like", "Feels like")}{" "}
+                <span className="font-extrabold text-foreground">
+                  {feelsLikeVal}{tempUnitStr}
                 </span>
-              </span>
-
-              <div className="space-y-0.5 text-xs text-white font-semibold drop-shadow-sm border-l border-white/30 pl-3">
-                <p>
-                  {t("feels_like", "Feels like")}{" "}
-                  <span className="font-extrabold text-amber-300">
-                    {feelsLikeVal}{tempUnitStr}
-                  </span>
-                </p>
-                <p>
-                  <span className="text-emerald-300 font-extrabold">↑{highTemp}°</span>{" "}
-                  <span className="text-sky-300 font-extrabold">↓{lowTemp}°</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center shrink-0 ml-auto sm:ml-0 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/15">
-              <WeatherIcon
-                code={w.current.code}
-                isDay={w.current.is_day ?? 1}
-                className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
-              />
-              <span className="text-[11px] font-extrabold text-white text-center max-w-[120px] truncate mt-0.5 drop-shadow-sm">
-                {currentConditionText}
-              </span>
+              </p>
+              <p className="font-semibold">
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">↑{highTemp}°</span>{" "}
+                <span className="text-sky-600 dark:text-sky-400 font-extrabold">↓{lowTemp}°</span>
+              </p>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* 4. CURRENT WEATHER CONDITIONS & METRICS GRID */}
-      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center justify-between border-b border-border/50 pb-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <span>📊</span>
-            <span>{t("current_conditions", "Current Conditions")}</span>
-          </h3>
-          <span className="text-[11px] text-muted-foreground">
-            {w.place.name}{w.place.country ? `, ${w.place.country}` : ""}
-          </span>
+          <div className="flex flex-col items-center shrink-0 ml-auto sm:ml-0 p-2 rounded-xl bg-card border border-border/60 shadow-xs">
+            <WeatherIcon
+              code={w.current.code}
+              isDay={w.current.is_day ?? 1}
+              className="w-12 h-12 sm:w-14 sm:h-14"
+            />
+            <span className="text-[11px] font-bold text-foreground text-center max-w-[120px] truncate mt-0.5">
+              {currentConditionText}
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        {/* Detailed Metrics Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
           {/* Wind Speed & Direction */}
           <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
             <span className="text-[11px] text-muted-foreground font-medium">
@@ -695,7 +684,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
 
           {/* Sunrise / Sunset */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
+          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between sm:col-span-3">
             <span className="text-[11px] text-muted-foreground font-medium">
               🌅 {t("sun_times", "Sun Times")}
             </span>
