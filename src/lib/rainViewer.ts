@@ -107,8 +107,7 @@ export function formatFrameTime(timestamp: number, lang: string): string {
 /**
  * 14-Language dictionary for Radar controls and legend
  */
-export const RADAR_I18N: Record<string, Record<string, string>> = {
-  en: {
+export const RADAR_EN = {
     title: "Live Rain Radar",
     subtitle: "Real-time precipitation & storm tracking",
     play: "Play Loop",
@@ -125,7 +124,11 @@ export const RADAR_I18N: Record<string, Record<string, string>> = {
     layerSatellite: "Satellite Clouds",
     loadingRadar: "Loading radar stream...",
     radarNotice: "Powered by global radar stations with 10-minute updates.",
-  },
+  };
+export type RadarKey = keyof typeof RADAR_EN;
+
+export const RADAR_I18N: Record<string, Partial<Record<RadarKey, string>>> = {
+  en: RADAR_EN,
   th: {
     title: "เรดาร์ตรวจฝนสด",
     subtitle: "ติดตามกลุ่มฝนฟ้าคะนองและพายุแบบเรียลไทม์",

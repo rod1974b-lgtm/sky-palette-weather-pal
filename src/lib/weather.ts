@@ -158,7 +158,7 @@ function setCachedWeather(key: string, weather: Weather): void {
 async function fetchWithRetry(url: string, retries = 2, delayMs = 600, signal?: AbortSignal): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url, { signal });
+      const res = await fetch(url, { signal: signal ?? null });
       if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
         if (attempt < retries) {
           await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt) + Math.random() * 200));
@@ -193,7 +193,7 @@ export async function searchCity(
 
   const r = await fetch(
     `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&format=json&language=${cleanLang}`,
-    { signal }
+    { signal: signal ?? null }
   );
 
   if (!r.ok) throw new Error("Search failed");

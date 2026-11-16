@@ -7,6 +7,7 @@ import {
   type WeatherUnit,
   type Place,
   aqiCategory,
+  describe,
 } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { useTranslation } from "react-i18next";
@@ -120,7 +121,7 @@ function getDailyDayLabel(dateStr: string, idx: number, t: TFunction): string {
       const dayNum = d.getDay();
       const keys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
       const fallbacks = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      return t(keys[dayNum], fallbacks[dayNum]);
+      return t(keys[dayNum] ?? "day_sun", fallbacks[dayNum] ?? "Sun");
     }
   } catch {}
   return dateStr;
@@ -139,7 +140,8 @@ function degreesToCompass(deg: number | undefined, t: TFunction): string {
   if (deg === undefined || deg === null) return "";
   const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
   const val = Math.floor((deg / 22.5) + 0.5) % 16;
-  return t(`dir_${dirs[val].toLowerCase()}`, dirs[val]);
+  const dir = dirs[val] ?? "N";
+  return t(`dir_${dir.toLowerCase()}`, dir);
 }
 
 function getAqiAdvisory(aqi: number | undefined, pm25: number | undefined, t: TFunction, lang: string) {
@@ -238,16 +240,30 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   // Update wallpaper pool whenever place/weather changes
   const refreshWallpaperPool = useCallback(async () => {
     if (!w?.place?.name) return;
+    const resolveFallbackBg = async (): Promise<string> => {
+      const code = w.current?.code ?? 0;
+      const res = await getCityWeatherBackground(
+        w.place.name,
+        describe(code).label,
+        code,
+        w.current?.temp ?? 0,
+        undefined,
+        w.place.country,
+        w.place.lat,
+        w.place.lon
+      );
+      return res.initialBg;
+    };
     try {
       const [allDefaults, savedSlots] = await Promise.all([
-        Promise.resolve(getAllAvailableArtworks(w.place.name, w.current?.is_day ?? 1, w.current?.weather_code ?? 0)),
+        Promise.resolve(getAllAvailableArtworks(w.place.name, w.current?.code ?? 0, describe(w.current?.code ?? 0).label, w.place.country)),
         getSavedArtworks().catch(() => [] as SavedItem[]),
       ]);
 
       const pool: string[] = [];
       savedSlots.forEach((slot) => {
-        if (slot.imageUrl && !pool.includes(slot.imageUrl)) {
-          pool.push(slot.imageUrl);
+        if (slot.url && !pool.includes(slot.url)) {
+          pool.push(slot.url);
         }
       });
 
@@ -262,19 +278,18 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       const activeCustom = customBgUrl || (await getWallpaperItem("current_wallpaper"));
       if (activeCustom) {
         setDisplayBg(activeCustom);
-      } else if (pool.length > 0) {
+      } else if (pool[0]) {
         setDisplayBg(pool[0]);
       } else {
-        const fallback = getCityWeatherBackground(w.place.name, w.current?.is_day ?? 1, w.current?.weather_code ?? 0);
-        setDisplayBg(fallback);
+        setDisplayBg(await resolveFallbackBg());
       }
       setArtLoaded(true);
     } catch {
       if (w?.place?.name) {
-        setDisplayBg(getCityWeatherBackground(w.place.name, w.current?.is_day ?? 1, w.current?.weather_code ?? 0));
+        setDisplayBg(await resolveFallbackBg().catch(() => ""));
       }
     }
-  }, [w?.place?.name, w?.current?.is_day, w?.current?.weather_code, customBgUrl]);
+  }, [w?.place?.name, w?.place?.country, w?.place?.lat, w?.place?.lon, w?.current?.code, w?.current?.temp, customBgUrl]);
 
   useEffect(() => {
     refreshWallpaperPool();
@@ -313,6 +328,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     const nextIdx = (artIdx + 1) % availableArtworks.length;
     setArtIdx(nextIdx);
     const nextUrl = availableArtworks[nextIdx];
+    if (!nextUrl) return;
     setDisplayBg(nextUrl);
     setArtLoaded(true);
     try {
@@ -361,10 +377,10 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const visUnitStr = unit === "imperial" ? "mi" : "km";
   const pressureUnitStr = unit === "imperial" ? "inHg" : "hPa";
 
-  const currentConditionText = getConditionLabel(w.current.weather_code, t);
-  const feelsLikeVal = Math.round(w.current.apparent_temperature ?? w.current.temperature);
-  const tempVal = Math.round(w.current.temperature);
-  const windCompass = degreesToCompass(w.current.wind_direction, t);
+  const currentConditionText = getConditionLabel(w.current.code, t);
+  const feelsLikeVal = Math.round(w.current.feels ?? w.current.temp);
+  const tempVal = Math.round(w.current.temp);
+  const windCompass = degreesToCompass(w.current.wind_dir, t);
   const uvNum = typeof w.current.uv === "number" ? Math.round(w.current.uv) : 0;
   const uvInfo = getUvIndexInfo(uvNum, t);
 
@@ -372,7 +388,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const todayDaily = w.daily && w.daily.length > 0 ? w.daily[0] : null;
   const highTemp = todayDaily ? Math.round(todayDaily.max) : tempVal;
   const lowTemp = todayDaily ? Math.round(todayDaily.min) : tempVal;
-  const rainChanceVal = todayDaily ? Math.round(todayDaily.pop) : Math.round(w.current.precipitation_probability ?? 0);
+  const rainChanceVal = todayDaily ? Math.round(todayDaily.pop) : Math.round(w.hourly?.[0]?.precipProb ?? 0);
 
   // Sunrise / Sunset formatting
   let sunriseStr = "--:--";
@@ -397,7 +413,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const aqiVal = typeof w.current?.aqi === "number" ? Math.round(w.current.aqi) : undefined;
   const pm25Val = typeof w.current?.pm25 === "number" ? w.current.pm25 : undefined;
   const pm10Val = typeof w.current?.pm10 === "number" ? w.current.pm10 : undefined;
-  const aqiCategoryInfo = aqiCategory(aqiVal);
+  const aqiCategoryInfo = aqiCategory(aqiVal ?? 0);
   const aqiAdvisoryInfo = getAqiAdvisory(aqiVal, pm25Val, t, lang) || {
     label: aqiCategoryInfo.label,
     advice: t("aqi_normal_advice", "Air quality is suitable for standard activities."),
@@ -406,8 +422,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   };
 
   // What to Wear Logic (Celsius baseline)
-  const tempC = unit === "imperial" ? ((w.current.temperature - 32) * 5) / 9 : w.current.temperature;
-  const rainExpected = rainChanceVal >= 40 || (w.current.weather_code >= 51 && w.current.weather_code <= 82);
+  const tempC = unit === "imperial" ? ((w.current.temp - 32) * 5) / 9 : w.current.temp;
+  const rainExpected = rainChanceVal >= 40 || (w.current.code >= 51 && w.current.code <= 82);
   const isHotSunny = tempC >= 27 && uvNum >= 6;
 
   const locAccessory = {
@@ -481,7 +497,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               <div className="mt-1 space-y-1.5">
                 {alertsToDisplay.map((alert, idx) => {
                   const tagKey = alert.tag ? TAG_TRANSLATION_MAP[alert.tag] : undefined;
-                  const tagText = tagKey ? t(tagKey, alert.tag) : alert.tag;
+                  const tagText = tagKey ? t(tagKey, alert.tag ?? "") : alert.tag;
                   const headlineText =
                     lang === "th" && alert.headlineTh
                       ? alert.headlineTh
@@ -651,7 +667,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
             <div className="flex flex-col items-center shrink-0">
               <WeatherIcon
-                code={w.current.weather_code}
+                code={w.current.code}
                 isDay={w.current.is_day ?? 1}
                 className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-lg"
               />
@@ -671,7 +687,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             <span>{t("current_conditions", "Current Conditions")}</span>
           </h3>
           <span className="text-[11px] text-muted-foreground">
-            {w.place.admin1 ? `${w.place.admin1}, ` : ""}{w.place.name}
+            {w.place.name}{w.place.country ? `, ${w.place.country}` : ""}
           </span>
         </div>
 
@@ -693,7 +709,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               💧 {t("humidity", "Humidity")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {Math.round(w.current.relative_humidity ?? 0)}%
+              {Math.round(w.current.humidity ?? 0)}%
             </span>
           </div>
 
@@ -703,7 +719,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               🧭 {t("pressure", "Pressure")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {Math.round(w.current.pressure ?? 1013)} {pressureUnitStr}
+              {unit === "imperial" ? ((w.current.pressure ?? 1013) * 0.02953).toFixed(2) : Math.round(w.current.pressure ?? 1013)} {pressureUnitStr}
             </span>
           </div>
 
@@ -713,7 +729,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               👁️ {t("visibility", "Visibility")}
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
-              {w.current.visibility !== undefined ? Math.round(w.current.visibility) : "--"} {visUnitStr}
+              {typeof w.current.vis === "number" ? Math.round(unit === "imperial" ? w.current.vis * 0.621371 : w.current.vis) : "--"} {visUnitStr}
             </span>
           </div>
 

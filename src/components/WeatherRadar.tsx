@@ -12,6 +12,8 @@ import {
   getBaseMapTileUrl,
   formatFrameTime,
   RADAR_I18N,
+  RADAR_EN,
+  type RadarKey,
 } from "@/lib/rainViewer";
 
 interface WeatherRadarProps {
@@ -21,7 +23,7 @@ interface WeatherRadarProps {
 export const WeatherRadar: React.FC<WeatherRadarProps> = ({ weather }) => {
   const { i18n } = useTranslation();
   const lang = i18n.language || "en";
-  const texts = RADAR_I18N[lang] || RADAR_I18N.en;
+  const texts: Record<RadarKey, string> = { ...RADAR_EN, ...(RADAR_I18N[lang] ?? {}) };
 
   // Center coordinates (fallback to Bangkok if missing)
   const cityLat = weather?.place?.lat ?? 13.7563;

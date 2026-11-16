@@ -271,7 +271,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
 }) => {
   const { i18n } = useTranslation();
   const lang = i18n.language?.toLowerCase().split("-")[0] || "en";
-  const texts = POSTCARD_I18N[lang] || POSTCARD_I18N.en;
+  const texts = (POSTCARD_I18N[lang] ?? POSTCARD_I18N["en"]) as (typeof POSTCARD_I18N)[string];
 
   const [style, setStyle] = useState<PostcardStyle>("vintage");
   const [greeting, setGreeting] = useState<string>(texts.defaultGreetings);

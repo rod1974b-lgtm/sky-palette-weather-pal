@@ -366,7 +366,8 @@ export function isMascotUnlocked(mascotId: string): boolean {
 }
 
 export function getActiveMascot(): Mascot {
-  if (typeof window === "undefined") return MASCOTS[0];
+  const fallback = MASCOTS[0] as Mascot;
+  if (typeof window === "undefined") return fallback;
   try {
     const saved = localStorage.getItem(ACTIVE_MASCOT_KEY);
     const found = MASCOTS.find((m) => m.id === saved);
@@ -374,7 +375,7 @@ export function getActiveMascot(): Mascot {
       return found;
     }
   } catch {}
-  return MASCOTS[0]; // Nimbus default
+  return fallback; // Nimbus default
 }
 
 export function setActiveMascot(mascotId: string): void {

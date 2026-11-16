@@ -60,8 +60,7 @@ const STORAGE_KEY_CONFIG = "weather:alert_watcher_config";
 const STORAGE_KEY_LAST_NOTIFIED = "weather:alert_watcher_last_sent";
 
 // 14-language localization dictionary
-const WATCHER_I18N: Record<string, Record<string, string>> = {
-  en: {
+const WATCHER_EN = {
     title: "Severe Weather Watcher & Alerts",
     subtitle: "Real-time monitoring for sudden storms, gale winds, heatwaves & hazardous air",
     shield_active: "Active Shield",
@@ -111,7 +110,11 @@ const WATCHER_I18N: Record<string, Record<string, string>> = {
     settings_rain_label: "Torrential Rain & Flash Floods",
     settings_air_label: "Hazardous PM2.5 & Air Quality (AQI > 150)",
     close: "Done",
-  },
+  };
+export type WatcherKey = keyof typeof WATCHER_EN;
+
+const WATCHER_I18N: Record<string, Partial<Record<WatcherKey, string>>> = {
+  en: WATCHER_EN,
   th: {
     title: "ระบบเฝ้าระวังสภาพอากาศรุนแรงและการแจ้งเตือน",
     subtitle: "ตรวจจับพายุฝนฟ้าคะนอง ลมกระโชกแรง คลื่นความร้อน และฝุ่น PM2.5 แบบเรียลไทม์",
@@ -828,7 +831,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
 }) => {
   const { i18n } = useTranslation();
   const lang = (i18n.language || "en").slice(0, 2).toLowerCase();
-  const dict = WATCHER_I18N[lang] || WATCHER_I18N.en;
+  const dict = useMemo<Record<string, string | undefined>>(() => ({ ...WATCHER_EN, ...(WATCHER_I18N[lang] ?? {}) }), [lang]);
   const tLocal = useCallback((key: string, fallback: string) => dict[key] || fallback, [dict]);
 
   // Settings configuration state
@@ -979,7 +982,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         list.push({
           id: `official-${alert.id || idx}`,
           type: "official",
-          severity: alert.severity === "advisory" ? "advisory" : "danger",
+          severity: "danger",
           icon: "🚨",
           titleKey: alert.tag || "hazard_official_title",
           descKey: alert.headline || alert.text || "hazard_official_desc",
@@ -1043,9 +1046,11 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         }
         if (config.notificationsEnabled && notificationPermission === "granted") {
           const topHazard = detectedHazards[0];
-          const title = tLocal(topHazard.titleKey, topHazard.titleKey);
-          const body = tLocal(topHazard.adviceKey, topHazard.adviceKey);
-          triggerNotification(title, body);
+          if (topHazard) {
+            const title = tLocal(topHazard.titleKey, topHazard.titleKey);
+            const body = tLocal(topHazard.adviceKey, topHazard.adviceKey);
+            triggerNotification(title, body);
+          }
         }
         localStorage.setItem(STORAGE_KEY_LAST_NOTIFIED, now.toString());
       }

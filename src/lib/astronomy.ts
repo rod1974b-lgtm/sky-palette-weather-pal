@@ -97,7 +97,7 @@ function parseTimeToMinutes(timeStr?: string): number | null {
   if (!timeStr) return null;
   const match = timeStr.match(/(\d{1,2}):(\d{2})/);
   if (!match) return null;
-  return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  return parseInt(match[1] ?? "0", 10) * 60 + parseInt(match[2] ?? "0", 10);
 }
 
 function formatMinutes(min: number): string {
@@ -641,6 +641,6 @@ export const ASTRONOMY_I18N: Record<
 };
 
 export function getAstronomyTexts(lang: string = "en") {
-  const norm = lang.toLowerCase().split("-")[0];
-  return ASTRONOMY_I18N[norm] || ASTRONOMY_I18N["en"];
+  const norm = lang.toLowerCase().split("-")[0] ?? "en";
+  return (ASTRONOMY_I18N[norm] ?? ASTRONOMY_I18N["en"]) as (typeof ASTRONOMY_I18N)[string];
 }

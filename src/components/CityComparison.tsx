@@ -301,7 +301,7 @@ export const CityComparison: React.FC<CityComparisonProps> = ({
 }) => {
   const { i18n } = useTranslation();
   const lang = i18n.language?.toLowerCase().split("-")[0] || "en";
-  const texts = COMPARISON_I18N[lang] || COMPARISON_I18N.en;
+  const texts = (COMPARISON_I18N[lang] ?? COMPARISON_I18N["en"]) as (typeof COMPARISON_I18N)[string];
 
   const [entries, setEntries] = useState<CityWeatherEntry[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -471,7 +471,7 @@ export const CityComparison: React.FC<CityComparisonProps> = ({
           }
 
           const temp = Math.round(weather.current.temp);
-          const feelsLike = Math.round(weather.current.apparent_temperature ?? weather.current.temp);
+          const feelsLike = Math.round(weather.current.feels ?? weather.current.temp);
           const todayDaily = weather.daily[0];
           const maxTemp = todayDaily ? Math.round(todayDaily.max) : temp;
           const minTemp = todayDaily ? Math.round(todayDaily.min) : temp;
