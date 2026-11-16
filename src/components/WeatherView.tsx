@@ -1,6 +1,5 @@
 // src/components/WeatherView.tsx
 import React, { useState, useEffect, useCallback } from "react";
-import { Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import {
   type Weather,
@@ -120,7 +119,7 @@ function getDailyDayLabel(dateStr: string, idx: number, t: TFunction): string {
     if (!isNaN(d.getTime())) {
       const dayNum = d.getDay();
       const keys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
-      const fallbacks = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const fallbacks = ["Sun", "Mon", "Wed", "Thu", "Fri", "Sat"];
       return t(keys[dayNum] ?? "day_sun", fallbacks[dayNum] ?? "Sun");
     }
   } catch {}
@@ -187,21 +186,6 @@ function getAqiAdvisory(aqi: number | undefined, pm25: number | undefined, t: TF
     bg: "bg-purple-500/15 border-purple-500/40",
   };
 }
-
-const TAG_TRANSLATION_MAP: Record<string, string> = {
-  RiverFlood: "alert_tag_river_flood",
-  FlashFlood: "alert_tag_flash_flood",
-  HeavyRain: "alert_tag_heavy_rain",
-  Inundation: "alert_tag_inundation",
-  SevereStorm: "alert_tag_severe_storm",
-  Earthquake: "alert_tag_earthquake",
-  Tsunami: "alert_tag_tsunami",
-  HighWind: "alert_tag_high_wind",
-  TropicalCyclone: "alert_tag_tropical_cyclone",
-  HeatWave: "alert_tag_heat_wave",
-  ColdWave: "alert_tag_cold_wave",
-  AirPollution: "alert_tag_air_pollution",
-};
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
   weather,
@@ -406,7 +390,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     } catch {}
   }
 
-  // Active Alerts combined
+  // Active Alerts combined for the interactive watcher
   const alertsToDisplay = activeAlerts.length > 0 ? activeAlerts : disasters;
 
   // Air Quality & PM2.5 calculation
@@ -480,59 +464,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto w-full pb-8">
-      {/* 1. ACTIVE WEATHER & DISASTER ALERTS TICKER */}
-      {alertsToDisplay.length > 0 && (
-        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 overflow-hidden shadow-xs">
-          <div className="p-3 flex items-start gap-3">
-            <span className="text-xl shrink-0 animate-bounce">⚠️</span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold uppercase tracking-wider text-destructive">
-                  {t("active_disaster_alerts", "Active Weather Alerts")}
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/20 font-semibold text-destructive">
-                  {alertsToDisplay.length} {alertsToDisplay.length === 1 ? t("alert_single", "Alert") : t("alert_plural", "Alerts")}
-                </span>
-              </div>
-              <div className="mt-1 space-y-1.5">
-                {alertsToDisplay.map((alert, idx) => {
-                  const tagKey = alert.tag ? TAG_TRANSLATION_MAP[alert.tag] : undefined;
-                  const tagText = tagKey ? t(tagKey, alert.tag ?? "") : alert.tag;
-                  const headlineText =
-                    lang === "th" && alert.headlineTh
-                      ? alert.headlineTh
-                      : alert.headline || alert.text || t("alert_warning", "Warning issued");
-
-                  return (
-                    <div
-                      key={alert.id || idx}
-                      className="text-xs text-foreground/90 flex items-baseline gap-1.5"
-                    >
-                      {tagText && (
-                        <span className="font-bold text-destructive shrink-0">
-                          [{tagText}]
-                        </span>
-                      )}
-                      <span className="line-clamp-2 leading-relaxed">
-                        {headlineText}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. REAL-TIME SEVERE WEATHER HAZARD WATCHER & NOTIFICATIONS */}
+      {/* 1. REAL-TIME SEVERE WEATHER HAZARD WATCHER & NOTIFICATIONS */}
       <WeatherAlertWatcher
         weather={w}
         unit={unit}
         activeAlerts={alertsToDisplay}
       />
 
-      {/* 3. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> POSTCARD -> REFRESH -> FAVORITE */}
+      {/* 2. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> POSTCARD -> REFRESH -> FAVORITE */}
       <div className="flex items-center justify-between gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-card border border-border/60 shadow-xs flex-wrap">
         <div className="flex items-center gap-1.5">
           <button
@@ -593,7 +532,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </div>
 
-      {/* 4. MAIN WATERCOLOR WEATHER HERO CARD */}
+      {/* 3. MAIN WATERCOLOR WEATHER HERO CARD */}
       <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md text-white min-h-[310px] sm:min-h-[350px] flex flex-col justify-between p-5 sm:p-6 transition-all bg-card">
         {/* Background Watercolor Art with subtle vignette */}
         {displayBg ? (
@@ -679,7 +618,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* 5. CURRENT WEATHER CONDITIONS & METRICS GRID */}
+      {/* 4. CURRENT WEATHER CONDITIONS & METRICS GRID */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center justify-between border-b border-border/50 pb-2">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -809,7 +748,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Sun Arc & Moon Phase Astronomy Tracker */}
       <AstronomyTracker weather={w} />
 
-      {/* 6. WHAT TO WEAR TODAY */}
+      {/* 5. WHAT TO WEAR TODAY */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
           <div className="flex items-center gap-2">
@@ -875,7 +814,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Smart Outdoor Activity & Lifestyle Planner */}
       <OutdoorActivityPlanner weather={w} unit={unit} />
 
-      {/* 7. 24-HOUR HOURLY FORECAST WITH PRINTED CONDITIONS */}
+      {/* 6. 24-HOUR HOURLY FORECAST WITH PRINTED CONDITIONS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-base">🕒</span>
@@ -927,7 +866,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Interactive Live Rain Radar & Precipitation Map */}
       <WeatherRadar weather={w} />
 
-      {/* 8. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
+      {/* 7. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-base">📅</span>
