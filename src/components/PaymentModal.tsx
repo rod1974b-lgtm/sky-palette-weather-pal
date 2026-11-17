@@ -31,19 +31,22 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
 
   if (!tier) return null;
 
-  // Strict Google Play Developer Policy compliance:
-  // When running inside the Median Android wrapper APK, we hide external web payment links
-  // (Buy Me a Coffee, PayPal) and show Google Play In-App Billing exclusively.
+  // Check if running inside Median Android wrapper for optional Google Play button
   const isAndroidMedian = typeof window !== "undefined" && isMedianAndroidApp();
 
   const handleOpenWebPayment = (provider: DonationProvider, label: string) => {
     try {
       setPendingDonationTier(tier.id);
       const url = getDonationUrl(tier.id, provider);
-      window.open(url, "_blank", "noopener,noreferrer");
       setSelectedProvider(label);
       setHasOpenedCheckout(true);
       setErrorMessage(null);
+
+      // Try opening in new tab; fallback to direct navigation if popup blocked
+      const popup = window.open(url, "_blank", "noopener,noreferrer");
+      if (!popup || popup.closed || typeof popup.closed === "undefined") {
+        window.location.href = url;
+      }
     } catch {
       setErrorMessage(t("pay_error_link", "Could not open payment link. Please try again."));
     }
@@ -74,8 +77,8 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-card/95 border border-amber-500/30 rounded-2xl shadow-2xl p-5 overflow-hidden text-foreground max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md bg-card/95 border-2 border-amber-500/40 rounded-2xl shadow-2xl p-5 overflow-hidden text-foreground max-h-[92vh] flex flex-col">
         {/* Amber Glow Accent Header */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-600 via-amber-400 to-amber-700" />
 
@@ -173,82 +176,40 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
           )}
 
           {/* =============================================================== */}
-          {/* ANDROID MEDIAN WRAPPER MODE (Strict Google Play In-App Billing) */}
+          {/* PAYMENT SELECTION (Buy Me a Coffee prominently available)       */}
           {/* =============================================================== */}
-          {isAndroidMedian ? (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground font-medium">
-                {t("google_play_prompt", "Unlock permanently with Google Play In-App Billing:")}
-              </p>
-
-              <button
-                type="button"
-                onClick={handleGooglePlayPurchase}
-                disabled={playBillingLoading}
-                className="w-full text-left p-3.5 rounded-xl bg-gradient-to-r from-emerald-600/20 via-amber-500/20 to-emerald-600/20 hover:from-emerald-600/30 hover:to-amber-500/30 border border-emerald-500/60 transition shadow-sm cursor-pointer flex items-center justify-between gap-3 group"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">▶️</span>
-                  <div>
-                    <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      {t("pay_google_play", "Google Play Store")}
-                      <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-700 dark:text-emerald-300">
-                        {tier.displayPrice} • {t("one_time", "One-time")}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {playBillingLoading
-                        ? t("connecting_google_play", "Connecting to Google Play...")
-                        : t("google_play_sub", "Secure charge to your saved Google Play payment method")}
-                    </div>
-                  </div>
-                </div>
-                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 group-hover:translate-x-0.5 transition-transform">
-                  {playBillingLoading ? "⏳" : "→"}
-                </span>
-              </button>
-
-              <div className="pt-2 text-center">
-                <p className="text-[10px] text-muted-foreground">
-                  🛡️ {t("google_play_security", "Protected by Google Play Payments & refund policy.")}
-                </p>
-              </div>
-            </div>
-          ) : !hasOpenedCheckout ? (
-            /* =============================================================== */
-            /* WEB MODE (Buy Me a Coffee / PayPal options)                     */
-            /* =============================================================== */
+          {!hasOpenedCheckout ? (
             <div className="space-y-2.5">
               <p className="text-xs text-muted-foreground font-medium mb-1">
                 {t("select_support_method", "Select how you'd like to support:")}
               </p>
 
-              {/* 1. Debit or Credit Card / Apple Pay via Buy Me a Coffee */}
+              {/* 1. PRIMARY OPTION: Buy Me a Coffee (Direct Card, Apple Pay, Google Pay) */}
               <button
                 type="button"
-                onClick={() => handleOpenWebPayment("buymeacoffee", t("pay_card", "Debit or Credit Card"))}
-                className="w-full text-left p-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-amber-700/15 hover:from-amber-500/25 hover:to-amber-700/25 border border-amber-500/50 hover:border-amber-500/70 transition shadow-xs cursor-pointer flex items-center justify-between gap-3 group"
+                onClick={() => handleOpenWebPayment("buymeacoffee", "Buy Me a Coffee")}
+                className="w-full text-left p-3.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 border-2 border-amber-500/70 hover:border-amber-400 transition shadow-sm cursor-pointer flex items-center justify-between gap-3 group"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">💳</span>
+                  <span className="text-3xl">☕</span>
                   <div>
                     <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      {t("pay_card", "Debit or Credit Card")}
-                      <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-amber-500/25 text-amber-700 dark:text-amber-300">
-                        {t("no_account_needed", "No account needed")}
+                      <span>Buy Me a Coffee</span>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-slate-950">
+                        {tier.displayPrice}
                       </span>
                     </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {t("card_sub", "Visa, Mastercard, Amex, Apple Pay & Google Pay")}
+                    <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                      {t("bmc_sub", "Debit/Credit Card, Apple Pay, Google Pay • No account needed")}
                     </div>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 group-hover:translate-x-0.5 transition-transform">
+                <span className="text-sm font-bold text-amber-600 dark:text-amber-400 group-hover:translate-x-1 transition-transform">
                   →
                 </span>
               </button>
 
-              {/* 2. PayPal Option */}
+              {/* 2. SECONDARY OPTION: PayPal */}
               <button
                 type="button"
                 onClick={() => handleOpenWebPayment("paypal", t("pay_paypal", "PayPal"))}
@@ -270,6 +231,36 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
                 </span>
               </button>
 
+              {/* 3. OPTIONAL: Google Play Store (Only when inside Median Android wrapper) */}
+              {isAndroidMedian && (
+                <button
+                  type="button"
+                  onClick={handleGooglePlayPurchase}
+                  disabled={playBillingLoading}
+                  className="w-full text-left p-3 rounded-xl bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-500/40 hover:border-emerald-500/60 transition shadow-xs cursor-pointer flex items-center justify-between gap-3 group"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">▶️</span>
+                    <div>
+                      <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        {t("pay_google_play", "Google Play In-App Billing")}
+                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-emerald-500/25 text-emerald-700 dark:text-emerald-300">
+                          {tier.displayPrice}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {playBillingLoading
+                          ? t("connecting_google_play", "Connecting to Google Play...")
+                          : t("google_play_sub", "Charge your Google Play account")}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 group-hover:translate-x-0.5 transition-transform">
+                    {playBillingLoading ? "⏳" : "→"}
+                  </span>
+                </button>
+              )}
+
               <div className="pt-2 text-center">
                 <p className="text-[10px] text-muted-foreground">
                   🔒 {t("secure_checkout", "Secure, SSL-encrypted checkout powered by Buy Me a Coffee.")}
@@ -277,7 +268,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
               </div>
             </div>
           ) : (
-            /* Step 2: Auto-Redirect Notice (Web) */
+            /* Step 2: Auto-Redirect Notice */
             <div className="py-2 space-y-3.5 text-center">
               <div className="w-12 h-12 mx-auto rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-2xl animate-pulse">
                 ☕
