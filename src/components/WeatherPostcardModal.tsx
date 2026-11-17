@@ -1,8 +1,8 @@
 // src/components/WeatherPostcardModal.tsx
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { Weather, WeatherUnit } from "@/lib/weather";
-import { MASCOTS, getActiveMascot, type Mascot } from "@/lib/mascots";
+import { getActiveMascot } from "@/lib/mascots";
 
 interface WeatherPostcardModalProps {
   isOpen: boolean;
@@ -25,6 +25,7 @@ interface PostcardI18n {
   };
   messageLabel: string;
   defaultGreetings: string;
+  senderPlaceholder: string;
   shareBtn: string;
   downloadBtn: string;
   copyBtn: string;
@@ -32,6 +33,12 @@ interface PostcardI18n {
   generating: string;
   airMail: string;
   postmark: string;
+  toLabel: string;
+  locationLabel: string;
+  weatherLabel: string;
+  dispatchedVia: string;
+  says: string;
+  shareTitle: string;
   close: string;
 }
 
@@ -43,6 +50,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Vintage Mail", polaroid: "Polaroid Snap", minimal: "Minimalist" },
     messageLabel: "Personal Greeting",
     defaultGreetings: "Sending warm greetings from under the open skies!",
+    senderPlaceholder: "Your Name (Optional)",
     shareBtn: "Share Postcard",
     downloadBtn: "Download Image",
     copyBtn: "Copy Postcard Link",
@@ -50,6 +58,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Generating keepsake...",
     airMail: "PAR AVION • AIR MAIL",
     postmark: "OFFICIAL WEATHER PAL POST",
+    toLabel: "TO: Anyone who loves",
+    locationLabel: "LOCATION:",
+    weatherLabel: "WEATHER:",
+    dispatchedVia: "DISPATCHED VIA: My Weather Pal ⛅",
+    says: "says",
+    shareTitle: "Weather Postcard",
     close: "Close",
   },
   th: {
@@ -59,6 +73,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "จดหมายวินเทจ", polaroid: "โพลารอยด์", minimal: "มินิมอล" },
     messageLabel: "ข้อความทักทาย",
     defaultGreetings: "ส่งความคิดถึงจากฟากฟ้านี้ ขอให้มีวันที่สดใสและอบอุ่นใจเสมอ!",
+    senderPlaceholder: "ชื่อของคุณ (ไม่บังคับ)",
     shareBtn: "แชร์โปสการ์ด",
     downloadBtn: "ดาวน์โหลดภาพ",
     copyBtn: "คัดลอกลิงก์",
@@ -66,6 +81,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "กำลังวาดโปสการ์ด...",
     airMail: "PAR AVION • ไปรษณียากาศ",
     postmark: "ตราประทับสภาพอากาศทางการ",
+    toLabel: "ถึง: ผู้ที่รักและคิดถึง",
+    locationLabel: "สถานที่:",
+    weatherLabel: "สภาพอากาศ:",
+    dispatchedVia: "ส่งผ่าน: My Weather Pal ⛅",
+    says: "บอกว่า",
+    shareTitle: "โปสการ์ดสภาพอากาศ",
     close: "ปิด",
   },
   es: {
@@ -75,6 +96,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Vintage", polaroid: "Polaroid", minimal: "Minimalista" },
     messageLabel: "Mensaje personal",
     defaultGreetings: "¡Te envío un cálido saludo bajo el cielo abierto!",
+    senderPlaceholder: "Tu nombre (opcional)",
     shareBtn: "Compartir postal",
     downloadBtn: "Descargar imagen",
     copyBtn: "Copiar enlace",
@@ -82,6 +104,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Generando postal...",
     airMail: "PAR AVION • CORREO AÉREO",
     postmark: "SERVICIO POSTAL OFICIAL DEL CLIMA",
+    toLabel: "PARA: Quien ame",
+    locationLabel: "UBICACIÓN:",
+    weatherLabel: "CLIMA:",
+    dispatchedVia: "ENVIADO VÍA: My Weather Pal ⛅",
+    says: "dice",
+    shareTitle: "Postal del Clima",
     close: "Cerrar",
   },
   ja: {
@@ -91,6 +119,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "ヴィンテージ", polaroid: "ポラロイド", minimal: "ミニマル" },
     messageLabel: "メッセージ",
     defaultGreetings: "澄みわたる空の下から、あたたかいご挨拶をお届けします！",
+    senderPlaceholder: "お名前（省略可）",
     shareBtn: "ポストカードを共有",
     downloadBtn: "画像をダウンロード",
     copyBtn: "リンクをコピー",
@@ -98,6 +127,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "カードを生成中...",
     airMail: "航空郵便 • AIR MAIL",
     postmark: "WEATHER PAL 公式消印",
+    toLabel: "宛先：大好きな街へ",
+    locationLabel: "現在地：",
+    weatherLabel: "お天気：",
+    dispatchedVia: "配信元：My Weather Pal ⛅",
+    says: "より：",
+    shareTitle: "お天気ポストカード",
     close: "閉じる",
   },
   zh: {
@@ -107,6 +142,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "复古信札", polaroid: "宝丽来", minimal: "极简风" },
     messageLabel: "个性寄语",
     defaultGreetings: "从蔚蓝天空下为你寄来温暖问候，愿每一天都晴朗明媚！",
+    senderPlaceholder: "你的姓名（选填）",
     shareBtn: "分享明信片",
     downloadBtn: "下载图片",
     copyBtn: "复制链接",
@@ -114,6 +150,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "正在绘制明信片...",
     airMail: "航空信件 • AIR MAIL",
     postmark: "官方天气邮局纪念戳",
+    toLabel: "致：每一个深爱",
+    locationLabel: "位置：",
+    weatherLabel: "天气：",
+    dispatchedVia: "寄发自：My Weather Pal ⛅",
+    says: "说：",
+    shareTitle: "天气明信片",
     close: "关闭",
   },
   hi: {
@@ -123,6 +165,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "विंटेज मेल", polaroid: "पोलेरॉइड", minimal: "न्यूनतम" },
     messageLabel: "व्यक्तिगत संदेश",
     defaultGreetings: "खुले आसमान के नीचे से आपके लिए प्यार भरा पैगाम!",
+    senderPlaceholder: "आपका नाम (वैकल्पिक)",
     shareBtn: "पोस्टकार्ड साझा करें",
     downloadBtn: "चित्र डाउनलोड करें",
     copyBtn: "लिंक कॉपी करें",
@@ -130,6 +173,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "पोस्टकार्ड तैयार हो रहा है...",
     airMail: "हवाई डाक • AIR MAIL",
     postmark: "आधिकारिक मौसम डाक टिकट",
+    toLabel: "सेवा में: जिन्हें पसंद है",
+    locationLabel: "स्थान:",
+    weatherLabel: "मौसम:",
+    dispatchedVia: "प्रेषक: My Weather Pal ⛅",
+    says: "कहते हैं",
+    shareTitle: "मौसम पोस्टकार्ड",
     close: "बंद करें",
   },
   fr: {
@@ -139,6 +188,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Vintage", polaroid: "Pola", minimal: "Minimaliste" },
     messageLabel: "Message personnel",
     defaultGreetings: "Un doux bonjour sous les cieux chaleureux !",
+    senderPlaceholder: "Votre nom (optionnel)",
     shareBtn: "Partager la carte",
     downloadBtn: "Télécharger l'image",
     copyBtn: "Copier le lien",
@@ -146,6 +196,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Création de la carte...",
     airMail: "PAR AVION • POSTE AÉRIENNE",
     postmark: "POSTE MÉTÉO OFFICIELLE",
+    toLabel: "POUR : Ceux qui aiment",
+    locationLabel: "LIEU :",
+    weatherLabel: "MÉTÉO :",
+    dispatchedVia: "EXPÉDIÉ VIA : My Weather Pal ⛅",
+    says: "dit",
+    shareTitle: "Carte Postale Météo",
     close: "Fermer",
   },
   de: {
@@ -155,6 +211,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Vintage", polaroid: "Polaroid", minimal: "Minimalistisch" },
     messageLabel: "Persönlicher Gruß",
     defaultGreetings: "Herzliche Grüße unter freiem Himmel!",
+    senderPlaceholder: "Dein Name (optional)",
     shareBtn: "Postkarte teilen",
     downloadBtn: "Bild herunterladen",
     copyBtn: "Link kopieren",
@@ -162,6 +219,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Postkarte wird erstellt...",
     airMail: "LUFTPOST • AIR MAIL",
     postmark: "OFFIZIELLE WETTER-POST",
+    toLabel: "AN: Alle, die lieben:",
+    locationLabel: "STANDORT:",
+    weatherLabel: "WETTER:",
+    dispatchedVia: "VERSENDET ÜBER: My Weather Pal ⛅",
+    says: "sagt",
+    shareTitle: "Wetter-Postkarte",
     close: "Schließen",
   },
   pt: {
@@ -171,6 +234,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Vintage", polaroid: "Polaroide", minimal: "Minimalista" },
     messageLabel: "Mensagem pessoal",
     defaultGreetings: "Enviando um abraço caloroso sob o céu aberto!",
+    senderPlaceholder: "Seu nome (opcional)",
     shareBtn: "Compartilhar postal",
     downloadBtn: "Baixar imagem",
     copyBtn: "Copiar link",
@@ -178,6 +242,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Gerando cartão...",
     airMail: "POR AVIÃO • CORREIO AÉREO",
     postmark: "SERVIÇO POSTAL DO CLIMA",
+    toLabel: "PARA: Quem ama",
+    locationLabel: "LOCALIZAÇÃO:",
+    weatherLabel: "CLIMA:",
+    dispatchedVia: "ENVIADO VIA: My Weather Pal ⛅",
+    says: "diz",
+    shareTitle: "Cartão Postal do Clima",
     close: "Fechar",
   },
   ru: {
@@ -187,6 +257,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Винтаж", polaroid: "Полароид", minimal: "Минимализм" },
     messageLabel: "Личное пожелание",
     defaultGreetings: "Теплый привет из-под ясного неба!",
+    senderPlaceholder: "Ваше имя (необязательно)",
     shareBtn: "Поделиться открыткой",
     downloadBtn: "Скачать картинку",
     copyBtn: "Скопировать ссылку",
@@ -194,6 +265,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Создаем открытку...",
     airMail: "АВИАПОЧТА • AIR MAIL",
     postmark: "ОФИЦИАЛЬНАЯ ПОГОДНАЯ ПОЧТА",
+    toLabel: "ДЛЯ: Тех, кто любит",
+    locationLabel: "МЕСТОПОЛОЖЕНИЕ:",
+    weatherLabel: "ПОГОДА:",
+    dispatchedVia: "ОТПРАВЛЕНО ЧЕРЕЗ: My Weather Pal ⛅",
+    says: "говорит",
+    shareTitle: "Погодная открытка",
     close: "Закрыть",
   },
   ar: {
@@ -203,6 +280,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "بريد كلاسيكي", polaroid: "بولارويد", minimal: "بسيط" },
     messageLabel: "تحية شخصية",
     defaultGreetings: "أجمل التحيات من تحت هذه السماء الصافية!",
+    senderPlaceholder: "اسمك (اختياري)",
     shareBtn: "مشاركة البطاقة",
     downloadBtn: "تحميل الصورة",
     copyBtn: "نسخ الرابط",
@@ -210,6 +288,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "جارٍ إنشاء البطاقة...",
     airMail: "بالبريد الجوي • AIR MAIL",
     postmark: "الختم البريدي الرسمي للطقس",
+    toLabel: "إلى: كل من يحب",
+    locationLabel: "الموقع:",
+    weatherLabel: "الطقس:",
+    dispatchedVia: "أُرسلت عبر: My Weather Pal ⛅",
+    says: "يقول",
+    shareTitle: "بطاقة بريدية للطقس",
     close: "إغلاق",
   },
   ko: {
@@ -219,6 +303,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "빈티지 우편", polaroid: "폴라로이드", minimal: "미니멀" },
     messageLabel: "메시지 입력",
     defaultGreetings: "맑은 하늘 아래에서 따뜻한 안부를 전합니다!",
+    senderPlaceholder: "보내는 이 이름 (선택사항)",
     shareBtn: "엽서 공유하기",
     downloadBtn: "이미지 다운로드",
     copyBtn: "링크 복사",
@@ -226,6 +311,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "엽서 제작 중...",
     airMail: "항공우편 • AIR MAIL",
     postmark: "WEATHER PAL 공식 소인",
+    toLabel: "받는 이:",
+    locationLabel: "위치:",
+    weatherLabel: "날씨:",
+    dispatchedVia: "발송: My Weather Pal ⛅",
+    says: "의 한마디:",
+    shareTitle: "날씨 엽서",
     close: "닫기",
   },
   id: {
@@ -235,6 +326,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Klasik Surat", polaroid: "Polaroid", minimal: "Minimalis" },
     messageLabel: "Pesan Pribadi",
     defaultGreetings: "Salam hangat dari bawah langit yang cerah!",
+    senderPlaceholder: "Nama Anda (Opsional)",
     shareBtn: "Bagikan Kartu Pos",
     downloadBtn: "Unduh Gambar",
     copyBtn: "Salin Tautan",
@@ -242,6 +334,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Membuat kartu pos...",
     airMail: "SURAT UDARA • AIR MAIL",
     postmark: "KANTOR POS CUACA RESMI",
+    toLabel: "KEPADA: Siapa pun yang mencintai",
+    locationLabel: "LOKASI:",
+    weatherLabel: "CUACA:",
+    dispatchedVia: "DIKIRIM MELALUI: My Weather Pal ⛅",
+    says: "berkata",
+    shareTitle: "Kartu Pos Cuaca",
     close: "Tutup",
   },
   vi: {
@@ -251,6 +349,7 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     styles: { vintage: "Cổ điển", polaroid: "Polaroid", minimal: "Tối giản" },
     messageLabel: "Lời nhắn gửi",
     defaultGreetings: "Gửi lời chào ấm áp từ dưới bầu trời rộng mở!",
+    senderPlaceholder: "Tên của bạn (Tùy chọn)",
     shareBtn: "Chia sẻ bưu thiếp",
     downloadBtn: "Tải ảnh về",
     copyBtn: "Sao chép liên kết",
@@ -258,6 +357,12 @@ const POSTCARD_I18N: Record<string, PostcardI18n> = {
     generating: "Đang tạo bưu thiếp...",
     airMail: "THƯ MÁY BAY • AIR MAIL",
     postmark: "DẤU BƯU ĐIỆN THỜI TIẾT",
+    toLabel: "GỬI TỚI: Bất cứ ai yêu mến",
+    locationLabel: "ĐỊA ĐIỂM:",
+    weatherLabel: "THỜI TIẾT:",
+    dispatchedVia: "GỬI QUA: My Weather Pal ⛅",
+    says: "nhắn rằng",
+    shareTitle: "Bưu Thiếp Thời Tiết",
     close: "Đóng",
   },
 };
@@ -269,7 +374,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
   unit,
   backgroundUrl,
 }) => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language?.toLowerCase().split("-")[0] || "en";
   const texts = (POSTCARD_I18N[lang] ?? POSTCARD_I18N["en"]) as (typeof POSTCARD_I18N)[string];
 
@@ -281,8 +386,6 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
 
   // Active mascot companion for stamp/sticker
   const mascot = getActiveMascot();
-
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Update default greeting when language changes
   useEffect(() => {
@@ -296,7 +399,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
   const tempVal = Math.round(weather.current.temp);
   const tempUnitStr = unit === "imperial" ? "°F" : "°C";
   const humidity = weather.current.humidity ?? 65;
-  const todayDate = new Date().toLocaleDateString(undefined, {
+  const todayDate = new Date().toLocaleDateString(i18n.language || undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -475,10 +578,10 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
 
     ctx.fillStyle = "#64748B";
     ctx.font = "14px monospace";
-    ctx.fillText(`TO: Anyone who loves ${cityName}`, rightX + 10, addressStartY - 8);
-    ctx.fillText(`LOCATION: ${cityName}, ${countryName}`, rightX + 10, addressStartY + 36);
-    ctx.fillText(`WEATHER: ${tempVal}${tempUnitStr} • ${todayDate}`, rightX + 10, addressStartY + 80);
-    ctx.fillText(`DISPATCHED VIA: My Weather Pal ⛅`, rightX + 10, addressStartY + 124);
+    ctx.fillText(`${texts.toLabel} ${cityName}`, rightX + 10, addressStartY - 8);
+    ctx.fillText(`${texts.locationLabel} ${cityName}, ${countryName}`, rightX + 10, addressStartY + 36);
+    ctx.fillText(`${texts.weatherLabel} ${tempVal}${tempUnitStr} • ${todayDate}`, rightX + 10, addressStartY + 80);
+    ctx.fillText(texts.dispatchedVia, rightX + 10, addressStartY + 124);
 
     // Mascot companion quote badge at bottom-right
     if (mascot) {
@@ -490,7 +593,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
 
       ctx.fillStyle = "#334155";
       ctx.font = "bold 13px system-ui, sans-serif";
-      ctx.fillText(`🐾 ${mascot.name} says: "${mascot.quote}"`, rightX + 16, 700);
+      ctx.fillText(`🐾 ${mascot.name} ${texts.says}: "${mascot.quote}"`, rightX + 16, 700);
     }
 
     return canvas;
@@ -536,19 +639,19 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
-              title: `${cityName} Weather Postcard ⛅`,
+              title: `${cityName} ${texts.shareTitle} ⛅`,
               text: `${greeting} (${tempVal}${tempUnitStr} in ${cityName})`,
               files: [file],
             });
-          } catch (err: any) {
-            if (err?.name !== "AbortError") {
+          } catch (err: unknown) {
+            if ((err as { name?: string })?.name !== "AbortError") {
               handleDownload();
             }
           }
         } else if (navigator.share) {
           try {
             await navigator.share({
-              title: `${cityName} Weather Postcard ⛅`,
+              title: `${cityName} ${texts.shareTitle} ⛅`,
               text: `${greeting} (${tempVal}${tempUnitStr} in ${cityName})\n${window.location.origin}`,
               url: window.location.href,
             });
@@ -744,6 +847,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
               onChange={(e) => setGreeting(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border focus:outline-hidden focus:ring-2 focus:ring-primary text-foreground"
               placeholder={texts.defaultGreetings}
+              aria-label={texts.messageLabel}
             />
 
             <input
@@ -752,7 +856,8 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
               value={senderName}
               onChange={(e) => setSenderName(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl bg-muted/40 border border-border focus:outline-hidden focus:ring-2 focus:ring-primary text-foreground"
-              placeholder="Your Name (Optional)"
+              placeholder={texts.senderPlaceholder}
+              aria-label={texts.senderPlaceholder}
             />
           </div>
         </div>
@@ -763,6 +868,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
             type="button"
             onClick={handleCopyLink}
             className="w-full sm:w-auto px-4 py-2 text-xs font-semibold rounded-xl bg-muted/60 hover:bg-muted text-foreground transition cursor-pointer flex items-center justify-center gap-1.5"
+            aria-label={copyFeedback ? texts.copied : texts.copyBtn}
           >
             <span>🔗</span>
             <span>{copyFeedback ? texts.copied : texts.copyBtn}</span>
@@ -774,6 +880,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
               onClick={handleDownload}
               disabled={isExporting}
               className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-semibold rounded-xl bg-muted hover:bg-muted/80 text-foreground transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+              aria-label={isExporting ? texts.generating : texts.downloadBtn}
             >
               <span>📥</span>
               <span>{isExporting ? texts.generating : texts.downloadBtn}</span>
@@ -784,6 +891,7 @@ export const WeatherPostcardModal: React.FC<WeatherPostcardModalProps> = ({
               onClick={handleShare}
               disabled={isExporting}
               className="flex-1 sm:flex-none px-5 py-2.5 text-xs font-bold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+              aria-label={isExporting ? texts.generating : texts.shareBtn}
             >
               <span>💌</span>
               <span>{isExporting ? texts.generating : texts.shareBtn}</span>
