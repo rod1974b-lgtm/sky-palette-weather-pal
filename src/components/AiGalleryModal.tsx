@@ -7,206 +7,103 @@ import {
   LANDMARK_WATERCOLORS,
 } from "@/lib/aiWatercolorGenerator";
 import { generateWatercolorFn } from "@/lib/aiWatercolor.functions";
+import {
+  type SavedItem,
+  getSavedArtworks,
+  saveSavedArtworks,
+  applyCustomWallpaper,
+  clearAllArtworksFromDB,
+} from "@/lib/wallpaperStorage";
 
-interface AiGalleryModalProps {
-  isOpen?: boolean;
-  open?: boolean;
-  onClose?: () => void;
-  onOpenChange?: (open: boolean) => void;
-  city?: string;
+export interface AiGalleryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
   cityName?: string;
   country?: string;
   weatherCode?: number;
   weatherDesc?: string;
-  activeBackground?: string;
-  activeBg?: string | null;
-  tempC?: number;
-  currentTemp?: number;
-  isDay?: number | undefined;
-  onSelectBackground?: (url: string) => void;
-  onSelectBg?: (url: string) => void;
+  onApplyArtwork?: (artworkUrl: string) => void;
+  onOpenPaymentModal?: () => void;
 }
 
-export interface SavedArtItem {
-  id: string;
-  url: string;
-  label: string;
-  date: string;
-  city?: string;
-  timestamp: number;
-}
+const FALLBACK_STYLES = [
+  "watercolor painting",
+  "vibrant colors, soft edges",
+  "golden hour sunlight",
+  "misty rain atmosphere",
+  "traditional ink and wash",
+  "impressionist brushstrokes",
+];
 
-const DB_NAME = "WeatherPalArtDB";
-const DB_VERSION = 1;
-const STORE_NAME = "artworks";
-const LEGACY_STORAGE_KEY = "weather:custom-art-saved";
+export function AiGalleryModal({
+  isOpen,
+  onClose,
+  cityName,
+  onApplyArtwork,
+  onOpenPaymentModal,
+  ...props
+}: AiGalleryModalProps) {
+  const [activeTab, setActiveTab] = useState<"curated" | "saved" | "ai">("curated");
+  const [curatedArts, setCuratedArts] = useState<SavedItem[]>([]);
+  const [savedArts, setSavedArts] = useState<SavedItem[]>([]);
+  const [selectedArt, setSelectedArt] = useState<SavedItem | null>(null);
 
-// --- INDEXED DB ENGINE ---
-function openArtworkDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === "undefined" || !window.indexedDB) {
-      reject(new Error("IndexedDB is not supported in this browser."));
-      return;
-    }
+  // AI Generation Form States
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [customStyle, setCustomStyle] = useState(FALLBACK_STYLES[0]);
+  const [timeOfDay, setTimeOfDay] = useState<"day" | "sunset" | "night">("day");
+  const [includeWeather, setIncludeWeather] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedArtUrl, setGeneratedArtUrl] = useState<string | null>(null);
 
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
-        store.createIndex("timestamp", "timestamp", { unique: false });
-        store.createIndex("city", "city", { unique: false });
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function getAllSavedArtworksFromDB(): Promise<SavedArtItem[]> {
-  try {
-    const db = await openArtworkDB();
-    const items: SavedArtItem[] = await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.getAll();
-
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
-    });
-
-    // Check for legacy localStorage items and migrate them into IndexedDB
-    try {
-      const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (legacyRaw) {
-        const legacyList = JSON.parse(legacyRaw);
-        if (Array.isArray(legacyList) && legacyList.length > 0) {
-          for (const item of legacyList) {
-            if (item?.url && !items.some((i) => i.url === item.url)) {
-              const migratedItem: SavedArtItem = {
-                id: item.id || Date.now().toString() + Math.random().toString(36).slice(2, 6),
-                url: item.url,
-                label: item.label || "Saved Art",
-                date: item.date || new Date().toLocaleDateString(),
-                timestamp: Date.now(),
-              };
-              await saveArtworkToDB(migratedItem);
-              items.push(migratedItem);
-            }
-          }
-          localStorage.removeItem(LEGACY_STORAGE_KEY);
-        }
-      }
-    } catch {}
-
-    // Sort newest first
-    return items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  } catch (e) {
-    console.warn("IndexedDB read failed, falling back to empty:", e);
-    return [];
-  }
-}
-
-async function saveArtworkToDB(item: SavedArtItem): Promise<void> {
-  const db = await openArtworkDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.put(item);
-
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function deleteArtworkFromDB(id: string): Promise<void> {
-  const db = await openArtworkDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.delete(id);
-
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function clearAllArtworksFromDB(): Promise<void> {
-  const db = await openArtworkDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.clear();
-
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-// Compress uploaded photo to 1280px max for fast rendering and minimal storage
-function optimizeImageFile(file: File, maxDim = 1280, quality = 0.88): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          resolve(reader.result as string);
-          return;
-        }
-
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const dataUrl = canvas.toDataURL("image/jpeg", quality);
-        resolve(dataUrl);
-      };
-      img.onerror = () => resolve(reader.result as string);
-      img.src = reader.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-export function AiGalleryModal(props: AiGalleryModalProps) {
-  const { t } = useTranslation();
-  const isOpen = props.isOpen ?? props.open ?? false;
+  // Filter & Search
+  const [filterCity, setFilterCity] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleClose = () => {
-    props.onClose?.();
-    props.onOpenChange?.(false);
+  // Status feedback
+  const [appliedUrl, setAppliedUrl] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState(false);
+
+  // Tier info for display
+  const [tierName, setTierName] = useState("Free");
+
+  useEffect(() => {
+    try {
+      const isParty = localStorage.getItem("weather:is_party_pack") === "true";
+      const isAdFree = localStorage.getItem("weather:ad_free_forever") === "true";
+      const paidTier = localStorage.getItem("weather:paid_tier") || "";
+      if (isParty || isAdFree) setTierName("Party Pack (Unlimited)");
+      else if (paidTier.toLowerCase().includes("large")) setTierName("Large Tier");
+      else if (paidTier.toLowerCase().includes("medium")) setTierName("Medium Tier");
+      else if (paidTier.toLowerCase().includes("small")) setTierName("Small Tier");
+      else setTierName("Free Plan");
+    } catch {}
+  }, [isOpen]);
+
+  const activeCity = cityName || "Bangkok";
+
+  // Derive catalog cities
+  const catalogCityKeys = Object.keys(LANDMARK_WATERCOLORS);
+
+  const getCityDisplayName = (key: string): string => {
+    return key
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
   };
 
-  const activeCity = props.city || props.cityName || "Bangkok";
-  const activeBackground = props.activeBackground || props.activeBg || "";
+  const getArtworkTitle = (url: string, city: string, index: number): string => {
+    const cityKey = city.toLowerCase().trim();
+    if (LANDMARK_TITLES[cityKey] && LANDMARK_TITLES[cityKey][index]) {
+      return LANDMARK_TITLES[cityKey][index];
+    }
+    const cleanCity = getCityDisplayName(cityKey);
+    const styles = ["Watercolor View", "Morning Light", "Heritage Landmark", "Evening Skyline"];
+    return `${cleanCity} — ${styles[index % styles.length]}`;
+  };
 
-  const [activeTab, setActiveTab] = useState<"curated" | "saved" | "generate">("curated");
-  const [curatedList, setCuratedList] = useState<{ url: string; title: string }[]>([]);
-  const [savedArts, setSavedArts] = useState<SavedArtItem[]>([]);
-  const [prompt, setPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Load curated artworks and persistent IndexedDB collection
@@ -237,45 +134,169 @@ export function AiGalleryModal(props: AiGalleryModalProps) {
         .map((item: any, idx: number) => {
           const url = typeof item === "string" ? item : item?.url || "";
           if (!url) return null;
-
-          const title =
-            LANDMARK_TITLES[url] ||
-            item?.title ||
-            (idx === 0 ? `${activeCity} Landmark` : `${activeCity} View #${idx + 1}`);
-
-          return { url, title };
+          return {
+            id: `curated-${activeCity}-${idx}-${url.slice(-15)}`,
+            url,
+            title: getArtworkTitle(url, activeCity, idx),
+            city: activeCity,
+            timestamp: Date.now(),
+          } as SavedItem;
         })
-        .filter((item): item is { url: string; title: string } => Boolean(item?.url));
+        .filter(Boolean) as SavedItem[];
 
-      setCuratedList(normalized);
+      setCuratedArts(normalized);
 
-      // Load saved artworks directly from IndexedDB
-      getAllSavedArtworksFromDB()
-        .then((items) => setSavedArts(items))
-        .catch(() => setSavedArts([]));
+      getSavedArtworks()
+        .then((dbArts) => setSavedArts(dbArts))
+        .catch((err) => console.error("Could not load saved wallpapers from DB:", err));
+
+      try {
+        const currentHero = localStorage.getItem("weather:custom-hero-art");
+        if (currentHero) setAppliedUrl(currentHero);
+      } catch {}
     }
   }, [isOpen, activeCity, props.weatherCode, props.weatherDesc, props.country]);
 
-  if (!isOpen) return null;
+  // Escape key closes modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
-  const handleSelect = (url: string) => {
-    props.onSelectBackground?.(url);
-    props.onSelectBg?.(url);
+  const { t } = useTranslation();
+
+  const handleApply = (art: SavedItem) => {
+    try {
+      applyCustomWallpaper(art.url);
+      setAppliedUrl(art.url);
+      if (onApplyArtwork) {
+        onApplyArtwork(art.url);
+      }
+    } catch (e) {
+      console.error("Failed to apply custom wallpaper:", e);
+    }
+  };
+
+  const handleSaveToCollection = async (art: SavedItem) => {
+    try {
+      const alreadySaved = savedArts.some((item) => item.url === art.url);
+      if (alreadySaved) {
+        return;
+      }
+
+      const updated = [
+        {
+          ...art,
+          id: `saved-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: Date.now(),
+        },
+        ...savedArts,
+      ];
+
+      setSavedArts(updated);
+      await saveSavedArtworks(updated);
+    } catch (e) {
+      console.error("Failed to save to collection:", e);
+    }
+  };
+
+  const handleDeleteSingleSaved = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const updated = savedArts.filter((item) => item.id !== id);
+      setSavedArts(updated);
+      await saveSavedArtworks(updated);
+      if (selectedArt?.id === id) {
+        setSelectedArt(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete wallpaper:", err);
+    }
+  };
+
+  const handleGenerateAiScene = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsGenerating(true);
+    setGeneratedArtUrl(null);
+    setErrorMessage(null);
 
     try {
-      const storageKey = `weather:custom-bg:${activeCity.toLowerCase().trim()}`;
-      if (url) {
-        localStorage.setItem(storageKey, url);
-      } else {
-        localStorage.removeItem(storageKey);
+      let promptBuilder = `${activeCity} ${props.country ? ", " + props.country : ""}`;
+      if (customPrompt.trim()) {
+        promptBuilder += `, ${customPrompt.trim()}`;
       }
-    } catch {}
+      if (includeWeather && props.weatherDesc) {
+        promptBuilder += `, ${props.weatherDesc} weather atmosphere`;
+      }
+      promptBuilder += `, ${timeOfDay} light, ${customStyle}, detailed watercolor painting on textured paper, vibrant artistic hues, professional fine art`;
 
-    handleClose();
+      const result = await generateWatercolorFn({ data: { prompt: promptBuilder } });
+
+      if (result && result.imageUrl) {
+        setGeneratedArtUrl(result.imageUrl);
+        const newItem: SavedItem = {
+          id: `ai-${Date.now()}`,
+          url: result.imageUrl,
+          title: customPrompt.trim() ? `${activeCity}: ${customPrompt.slice(0, 24)}...` : `${activeCity} AI Scene`,
+          city: activeCity,
+          timestamp: Date.now(),
+        };
+
+        const updated = [newItem, ...savedArts];
+        setSavedArts(updated);
+        await saveSavedArtworks(updated);
+        setSelectedArt(newItem);
+      } else {
+        throw new Error(result?.error || "AI Generation failed to return an image.");
+      }
+    } catch (err: any) {
+      console.error("AI Scene Generation Error:", err);
+      setErrorMessage(
+        err?.message || "Generation paused. An API key or image quota is needed."
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file (JPEG, PNG, WEBP).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Url = event.target?.result as string;
+      if (base64Url) {
+        setUploadPreview(base64Url);
+        const customItem: SavedItem = {
+          id: `upload-${Date.now()}`,
+          url: base64Url,
+          title: `${file.name.slice(0, 20)} (Photo)`,
+          city: activeCity,
+          timestamp: Date.now(),
+        };
+
+        const updated = [customItem, ...savedArts];
+        setSavedArts(updated);
+        await saveSavedArtworks(updated);
+        setSelectedArt(customItem);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleClearSaved = async () => {
-    if (window.confirm("Remove all saved artworks from your gallery?")) {
+    if (window.confirm(t("gallery_clear_confirm", "Remove all saved artworks from your gallery?"))) {
       try {
         await clearAllArtworksFromDB();
         setSavedArts([]);
@@ -285,430 +306,542 @@ export function AiGalleryModal(props: AiGalleryModalProps) {
     }
   };
 
-  const handleDeleteSingleSaved = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await deleteArtworkFromDB(id);
-      setSavedArts((prev) => prev.filter((item) => item.id !== id));
-    } catch (err) {
-      console.error("Failed to delete art:", err);
-    }
+  const handleClose = () => {
+    setSelectedArt(null);
+    setUploadPreview(null);
+    setGeneratedArtUrl(null);
+    onClose();
   };
 
-  const handleSaveToCollection = async (url: string, label: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (!url) return;
+  const filteredCurated = curatedArts.filter((art) => {
+    const matchCity = filterCity ? art.city?.toLowerCase() === filterCity.toLowerCase() : true;
+    const matchSearch = searchQuery
+      ? art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        art.city?.toLowerCase().includes(searchQuery.toLowerCase())
+      : true;
+    return matchCity && matchSearch;
+  });
 
-    if (savedArts.some((art) => art.url === url)) {
-      return;
-    }
+  const filteredSaved = savedArts.filter((art) => {
+    const matchSearch = searchQuery
+      ? art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (art.city && art.city.toLowerCase().includes(searchQuery.toLowerCase()))
+      : true;
+    return matchSearch;
+  });
 
-    const newArt: SavedArtItem = {
-      id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
-      url,
-      label,
-      date: new Date().toLocaleDateString(),
-      city: activeCity,
-      timestamp: Date.now(),
-    };
-
-    try {
-      await saveArtworkToDB(newArt);
-      setSavedArts((prev) => [newArt, ...prev]);
-    } catch (err) {
-      console.error("Failed to save to collection:", err);
-    }
-  };
-
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const optimizedUrl = await optimizeImageFile(file);
-      const newArt: SavedArtItem = {
-        id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
-        url: optimizedUrl,
-        label: `${activeCity} — ${file.name.replace(/\.[^/.]+$/, "")}`,
-        date: new Date().toLocaleDateString(),
-        city: activeCity,
-        timestamp: Date.now(),
-      };
-
-      await saveArtworkToDB(newArt);
-      setSavedArts((prev) => [newArt, ...prev]);
-
-      try {
-        localStorage.setItem(`weather:custom-bg:${activeCity.toLowerCase().trim()}`, optimizedUrl);
-      } catch {}
-
-      props.onSelectBackground?.(optimizedUrl);
-      props.onSelectBg?.(optimizedUrl);
-      setActiveTab("saved");
-    } catch (err) {
-      console.error("Failed to process uploaded photo:", err);
-      setErrorMessage("Could not process this image file. Please try another image.");
-    } finally {
-      e.target.value = "";
-    }
-  };
-
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prompt.trim() || isGenerating) return;
-
-    setIsGenerating(true);
-    setErrorMessage(null);
-
-    try {
-      const res = await generateWatercolorFn({
-        data: {
-          city: activeCity,
-          userPrompt: prompt.trim(),
-          weatherDesc: props.weatherDesc,
-        },
-      });
-
-      if (!res?.imageUrl) {
-        throw new Error("No image was returned from the generator.");
-      }
-
-      const newArt: SavedArtItem = {
-        id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
-        url: res.imageUrl,
-        label: `${activeCity} — ${prompt.trim()}`,
-        date: new Date().toLocaleDateString(),
-        city: activeCity,
-        timestamp: Date.now(),
-      };
-
-      await saveArtworkToDB(newArt);
-      setSavedArts((prev) => [newArt, ...prev.filter((item) => item.url !== res.imageUrl)]);
-
-      try {
-        localStorage.setItem(`weather:custom-bg:${activeCity.toLowerCase().trim()}`, res.imageUrl);
-      } catch {}
-
-      props.onSelectBackground?.(res.imageUrl);
-      props.onSelectBg?.(res.imageUrl);
-      setPrompt("");
-      handleClose();
-    } catch (err: any) {
-      console.error("AI Generation error:", err);
-      setErrorMessage(err?.message || "Failed to generate image.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl bg-card border border-border shadow-2xl text-card-foreground overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={handleClose}
+    >
+      <div
+        className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-white/20 bg-card/95 text-card-foreground shadow-2xl backdrop-blur-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="p-4 border-b border-border flex items-center justify-between bg-muted/20">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-border/60 bg-muted/40">
+          <div className="flex items-center gap-2.5">
             <span className="text-xl">🎨</span>
             <div>
-              <h3 className="font-bold text-sm sm:text-base leading-tight">
-                {t("gallery_title", "AI & Landmark Art Gallery")}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">{activeCity}</p>
+              <h2 className="text-base sm:text-lg font-bold tracking-tight">
+                {t("gallery_title", "Watercolor Art Gallery")}
+              </h2>
+              <p className="text-xs text-muted-foreground hidden sm:block">
+                {t("gallery_subtitle", "Curated landmarks, AI generated scenes & custom hero wallpapers")}
+              </p>
             </div>
           </div>
           <button
             onClick={handleClose}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
-            aria-label="Close"
+            aria-label={t("close", "Close")}
           >
             ✕
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-border bg-muted/40 px-4 gap-2 pt-2 text-xs font-medium">
-          <button
-            onClick={() => setActiveTab("curated")}
-            className={`pb-2 px-3 border-b-2 transition cursor-pointer ${
-              activeTab === "curated"
-                ? "border-primary text-primary font-bold"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t("tab_curated", "Curated Landmarks")} ({curatedList.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("saved")}
-            className={`pb-2 px-3 border-b-2 transition cursor-pointer ${
-              activeTab === "saved"
-                ? "border-primary text-primary font-bold"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t("tab_saved", "Saved & Created")} ({savedArts.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("generate")}
-            className={`pb-2 px-3 border-b-2 transition cursor-pointer ${
-              activeTab === "generate"
-                ? "border-primary text-primary font-bold"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            ✨ {t("tab_generate", "Generate with AI")}
-          </button>
-        </div>
+        {/* Tab Selection & Search Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 px-4 sm:px-6 py-2.5 border-b border-border/40 bg-card/60">
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl text-xs font-semibold">
+            <button
+              onClick={() => setActiveTab("curated")}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === "curated"
+                  ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              🏛️ {t("city_wallpapers", "Curated Landmarks")} ({curatedArts.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("saved")}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === "saved"
+                  ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              ⭐ {t("saved_wallpapers", "Saved Collection")} ({savedArts.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("ai")}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === "ai"
+                  ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              ✨ {t("ai_generated", "AI Studio")}
+            </button>
+          </div>
 
-        {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[60vh] space-y-4">
-          {errorMessage && (
-            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center justify-between">
-              <span>{errorMessage}</span>
-              <button onClick={() => setErrorMessage(null)} className="ml-2 font-bold cursor-pointer">
+          {/* Quick Search */}
+          <div className="relative flex-1 sm:max-w-xs">
+            <input
+              type="text"
+              placeholder={t("search_placeholder", "Filter by landmark or city...")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-xs rounded-xl border border-input/60 bg-background/80 px-3 py-1.5 pr-7 focus:outline-hidden focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/70"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+              >
                 ✕
               </button>
+            )}
+          </div>
+        </div>
+
+        {/* Tab 1: Curated Landmarks Gallery */}
+        {activeTab === "curated" && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+            {/* City Catalog Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+              <span className="text-[11px] text-muted-foreground font-semibold shrink-0">City:</span>
+              <button
+                onClick={() => setFilterCity("")}
+                className={`px-2.5 py-1 rounded-full text-xs shrink-0 cursor-pointer border transition ${
+                  filterCity === ""
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-2xs"
+                    : "bg-muted/40 border-border/50 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All Cities
+              </button>
+              {catalogCityKeys.map((cityKey) => (
+                <button
+                  key={cityKey}
+                  onClick={() => setFilterCity(cityKey)}
+                  className={`px-2.5 py-1 rounded-full text-xs shrink-0 cursor-pointer border transition ${
+                    filterCity.toLowerCase() === cityKey.toLowerCase()
+                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-2xs"
+                      : "bg-muted/40 border-border/50 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {getCityDisplayName(cityKey)}
+                </button>
+              ))}
             </div>
-          )}
 
-          {/* TAB 1: CURATED LANDMARKS */}
-          {activeTab === "curated" && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-3">
-                Select any landmark to set it as the live watercolor background for <strong>{activeCity}</strong>.
-              </p>
+            {/* Grid of Curated Artworks */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              {filteredCurated.map((art) => {
+                const isApplied = appliedUrl === art.url;
+                const isSaved = savedArts.some((item) => item.url === art.url);
 
-              {curatedList.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground text-xs">
-                  No curated scenes found for this city. Use the Generate tab to create one!
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {curatedList.map((art, idx) => {
-                    const isCurActive = activeBackground === art.url;
-                    const isAlreadySaved = savedArts.some((s) => s.url === art.url);
-
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => handleSelect(art.url)}
-                        className={`group relative rounded-xl overflow-hidden border cursor-pointer aspect-video transition-all shadow-xs ${
-                          isCurActive
-                            ? "border-primary ring-2 ring-primary/50 shadow-md"
-                            : "border-border hover:border-primary/60 hover:shadow"
+                return (
+                  <div
+                    key={art.id}
+                    onClick={() => setSelectedArt(art)}
+                    className="group relative flex flex-col rounded-xl overflow-hidden border border-border/60 bg-muted/20 hover:border-primary/60 transition shadow-sm hover:shadow-md cursor-pointer"
+                  >
+                    <div className="relative aspect-4/3 w-full overflow-hidden bg-muted/60">
+                      <img
+                        src={art.url}
+                        alt={art.title}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                      />
+                      {isApplied && (
+                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary text-primary-foreground shadow-md">
+                          ✓ {t("applied", "Active")}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSaveToCollection(art);
+                        }}
+                        className={`absolute top-2 right-2 p-1.5 rounded-full text-xs shadow-md transition backdrop-blur-md ${
+                          isSaved
+                            ? "bg-amber-500 text-white"
+                            : "bg-black/40 text-white/80 hover:text-white hover:bg-black/60"
                         }`}
+                        title={isSaved ? "Saved in collection" : "Save to collection"}
                       >
+                        {isSaved ? "★" : "☆"}
+                      </button>
+                    </div>
+
+                    <div className="p-2 sm:p-2.5 flex flex-col justify-between flex-1">
+                      <div className="truncate text-xs font-semibold" title={art.title}>
+                        {art.title}
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span className="truncate">{art.city}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApply(art);
+                          }}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer ${
+                            isApplied
+                              ? "bg-primary/20 text-primary"
+                              : "bg-primary text-primary-foreground hover:opacity-90"
+                          }`}
+                        >
+                          {isApplied ? t("applied", "Applied") : t("apply_wallpaper", "Apply")}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Saved Collection (IndexedDB) */}
+        {activeTab === "saved" && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {savedArts.length} {savedArts.length === 1 ? "artwork" : "artworks"} saved on this device (IndexedDB)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-muted text-foreground transition text-xs font-semibold cursor-pointer"
+                >
+                  📁 Upload Photo
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                {savedArts.length > 0 && (
+                  <button
+                    onClick={handleClearSaved}
+                    className="text-destructive hover:underline text-xs"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {savedArts.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-xs space-y-2">
+                <p>{t("no_saved_artworks", "No saved artworks yet.")}</p>
+                <p className="text-[11px]">
+                  Bookmark scenes with ★ from the Curated tab, create new ones with AI, or upload your own photos!
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+                {filteredSaved.map((art) => {
+                  const isApplied = appliedUrl === art.url;
+
+                  return (
+                    <div
+                      key={art.id}
+                      onClick={() => setSelectedArt(art)}
+                      className="group relative flex flex-col rounded-xl overflow-hidden border border-border/60 bg-muted/20 hover:border-primary/60 transition shadow-sm hover:shadow-md cursor-pointer"
+                    >
+                      <div className="relative aspect-4/3 w-full overflow-hidden bg-muted/60">
                         <img
                           src={art.url}
                           alt={art.title}
                           loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
-                          }}
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-
-                        <span className="absolute bottom-2 left-2 right-2 text-[11px] font-medium text-white truncate drop-shadow-xs">
-                          {art.title}
-                        </span>
-
-                        {isCurActive && (
-                          <span className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-bold shadow">
-                            {t("gallery_active_badge", "Active")}
-                          </span>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleSaveToCollection(art.url, art.title, e)}
-                          title={isAlreadySaved ? "Saved in Gallery" : "Save to my collection"}
-                          className={`absolute top-2 right-2 p-1 rounded-full text-xs transition backdrop-blur-md cursor-pointer ${
-                            isAlreadySaved
-                              ? "bg-amber-500/80 text-white"
-                              : "bg-black/40 text-white/80 hover:text-white hover:bg-black/60"
-                          }`}
-                        >
-                          {isAlreadySaved ? "★" : "☆"}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: SAVED & USER CREATIONS */}
-          {activeTab === "saved" && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-muted-foreground font-medium">
-                  {savedArts.length} saved creations (IndexedDB)
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleUploadClick}
-                    className="px-2.5 py-1 text-xs rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium transition cursor-pointer"
-                  >
-                    📁 {t("gallery_upload", "Upload Photo")}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                  {savedArts.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleClearSaved}
-                      className="text-xs text-destructive hover:underline cursor-pointer"
-                    >
-                      {t("clear_all", "Clear All")}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {savedArts.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground text-xs space-y-2">
-                  <p>No saved artworks yet.</p>
-                  <p className="text-[11px]">
-                    Bookmark scenes with ★ from the Curated tab, create new ones with AI, or upload your own photos!
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {savedArts.map((art) => {
-                    const isCurActive = activeBackground === art.url;
-
-                    return (
-                      <div
-                        key={art.id}
-                        onClick={() => handleSelect(art.url)}
-                        className={`group relative rounded-xl overflow-hidden border cursor-pointer aspect-video transition-all shadow-xs ${
-                          isCurActive
-                            ? "border-primary ring-2 ring-primary/50 shadow-md"
-                            : "border-border hover:border-primary/60 hover:shadow"
-                        }`}
-                      >
-                        <img
-                          src={art.url}
-                          alt={art.label}
-                          loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-
-                        <span className="absolute bottom-2 left-2 right-2 text-[11px] font-medium text-white truncate drop-shadow-xs">
-                          {art.label}
-                        </span>
-
-                        {isCurActive && (
-                          <span className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-bold shadow">
-                            {t("gallery_active_badge", "Active")}
+                        {isApplied && (
+                          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary text-primary-foreground shadow-md">
+                            ✓ {t("applied", "Active")}
                           </span>
                         )}
 
                         <button
                           type="button"
                           onClick={(e) => handleDeleteSingleSaved(art.id, e)}
-                          title="Remove from saved"
+                          title={t("remove_saved", "Remove from saved")}
                           className="absolute top-2 right-2 p-1 rounded-full text-xs bg-black/40 text-white/80 hover:text-destructive hover:bg-black/60 transition backdrop-blur-md cursor-pointer"
                         >
                           ✕
                         </button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+
+                      <div className="p-2 sm:p-2.5 flex flex-col justify-between flex-1">
+                        <div className="truncate text-xs font-semibold" title={art.title}>
+                          {art.title}
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                          <span className="truncate">{art.city || "Custom"}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApply(art);
+                            }}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer ${
+                              isApplied
+                                ? "bg-primary/20 text-primary"
+                                : "bg-primary text-primary-foreground hover:opacity-90"
+                            }`}
+                          >
+                            {isApplied ? t("applied", "Applied") : t("apply_wallpaper", "Apply")}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: AI Scene Studio */}
+        {activeTab === "ai" && (
+          <form
+            onSubmit={handleGenerateAiScene}
+            className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs"
+          >
+            {/* Status & Plan Info */}
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
+              <div>
+                <span className="font-bold text-primary">✨ AI Watercolor Generator</span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Generates 1024×1024 watercolor scenery based on local weather & landmark cues.
+                </p>
+              </div>
+              <span className="text-[11px] px-2 py-1 rounded-md bg-muted font-mono font-semibold">
+                {tierName}
+              </span>
             </div>
-          )}
 
-          {/* TAB 3: GENERATE WITH AI */}
-          {activeTab === "generate" && (
-            <form onSubmit={handleGenerate} className="space-y-4">
-              <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
-                Enter any scene description to generate a unique custom watercolor for <strong>{activeCity}</strong>.
+            {errorMessage && (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-destructive space-y-1">
+                <p className="font-semibold">Notice</p>
+                <p className="text-[11px]">{errorMessage}</p>
+                {onOpenPaymentModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenPaymentModal}
+                    className="mt-1 inline-block text-[11px] font-bold underline hover:opacity-80 cursor-pointer"
+                  >
+                    View Root Beer Tiers to unlock unlimited slots & scenes →
+                  </button>
+                )}
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-semibold mb-1">
-                  Scene Description
-                </label>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder={`Describe a scenic watercolor view for ${activeCity}...`}
-                  rows={3}
-                  className="w-full text-xs p-2.5 rounded-xl border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-primary resize-none"
-                  disabled={isGenerating}
-                />
+            {/* Prompt Input */}
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">
+                Scene Subject / Landmark (City: <span className="text-primary">{activeCity}</span>)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. ancient temple with cherry blossoms, floating market at dawn..."
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                className="w-full text-xs rounded-xl border border-input bg-background/80 px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* Style Selector */}
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Watercolor Style</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {FALLBACK_STYLES.map((style) => (
+                  <button
+                    type="button"
+                    key={style}
+                    onClick={() => setCustomStyle(style)}
+                    className={`p-2 rounded-xl text-left border text-[11px] transition cursor-pointer capitalize ${
+                      customStyle === style
+                        ? "border-primary bg-primary/10 text-primary font-bold shadow-2xs"
+                        : "border-border/60 bg-muted/20 hover:bg-muted/40 text-muted-foreground"
+                    }`}
+                  >
+                    {style}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Suggestions */}
-              <div>
-                <span className="text-[11px] text-muted-foreground block mb-1.5">
-                  Or pick a suggestion:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    `Khao Ngu limestone peaks across emerald water`,
-                    `Damnoen Saduak floating market morning mist`,
-                    `Golden temple stupa reflection in river at sunset`,
-                    `Tropical bay with longtail boats and limestone cliffs`,
-                    `Ancient temple ruins at golden hour watercolor`,
-                  ].map((sug, i) => (
+            {/* Lighting & Options */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Time of Day & Atmosphere</label>
+                <div className="flex gap-1.5">
+                  {(["day", "sunset", "night"] as const).map((tVal) => (
                     <button
-                      key={i}
                       type="button"
-                      onClick={() => setPrompt(sug)}
-                      className="text-[11px] px-2 py-1 rounded-lg bg-muted/60 hover:bg-muted text-foreground border border-border/50 transition text-left cursor-pointer"
+                      key={tVal}
+                      onClick={() => setTimeOfDay(tVal)}
+                      className={`flex-1 py-1.5 rounded-lg border text-center text-xs font-semibold capitalize transition cursor-pointer ${
+                        timeOfDay === tVal
+                          ? "border-primary bg-primary/10 text-primary font-bold"
+                          : "border-border/60 bg-muted/20 text-muted-foreground"
+                      }`}
                     >
-                      {sug}
+                      {tVal === "day" ? "☀️ Day" : tVal === "sunset" ? "🌅 Sunset" : "🌙 Night"}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div className="flex items-center gap-2 pt-4">
+                <input
+                  type="checkbox"
+                  id="includeWeatherCheck"
+                  checked={includeWeather}
+                  onChange={(e) => setIncludeWeather(e.target.checked)}
+                  className="rounded-sm border-input text-primary focus:ring-primary h-4 w-4"
+                />
+                <label htmlFor="includeWeatherCheck" className="text-xs text-foreground cursor-pointer">
+                  Reflect current weather ({props.weatherDesc || "clear conditions"})
+                </label>
+              </div>
+            </div>
+
+            {/* Generated Art Preview */}
+            {generatedArtUrl && (
+              <div className="p-3 rounded-xl border border-primary/40 bg-card space-y-2">
+                <p className="font-bold text-primary text-xs">Generated Artwork Preview:</p>
+                <div className="aspect-square w-full max-w-xs mx-auto rounded-lg overflow-hidden border border-border shadow-md">
+                  <img src={generatedArtUrl} alt="AI Scene" className="h-full w-full object-cover" />
+                </div>
+                <div className="flex justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyCustomWallpaper(generatedArtUrl);
+                      setAppliedUrl(generatedArtUrl);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs cursor-pointer"
+                  >
+                    {t("apply_wallpaper", "Apply as Hero Wallpaper")}
+                  </button>
+                  <a
+                    href={generatedArtUrl}
+                    download={`${activeCity}_ai_artwork.png`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg border border-border bg-muted hover:bg-muted/80 text-foreground font-semibold text-xs inline-flex items-center gap-1"
+                  >
+                    ⬇️ {t("download", "Download")}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={isGenerating}
+                className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-md hover:opacity-95 transition disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <span className="animate-spin inline-block">↻</span>
+                    <span>{t("generating_art", "Generating Art...")}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    <span>{t("generate_scene", "Generate Scene")}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Selected Artwork Detail Modal Overlay */}
+        {selectedArt && (
+          <div
+            className="absolute inset-0 z-10 flex flex-col justify-end sm:justify-center items-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in"
+            onClick={() => setSelectedArt(null)}
+          >
+            <div
+              className="relative w-full max-w-lg rounded-2xl border border-white/20 bg-card p-4 sm:p-5 shadow-2xl space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative aspect-4/3 w-full rounded-xl overflow-hidden border border-border">
+                <img
+                  src={selectedArt.url}
+                  alt={selectedArt.title}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-foreground">{selectedArt.title}</h3>
+                <p className="text-xs text-muted-foreground">{selectedArt.city || "Custom Scenery"}</p>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
                 <button
                   type="button"
-                  onClick={handleClose}
-                  className="px-3 py-1.5 rounded-xl text-xs text-muted-foreground hover:bg-muted transition cursor-pointer"
+                  onClick={() => setSelectedArt(null)}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted cursor-pointer"
                 >
-                  {t("cancel", "Cancel")}
+                  {t("close", "Close")}
                 </button>
-                <button
-                  type="submit"
-                  disabled={!prompt.trim() || isGenerating}
-                  className="px-4 py-1.5 rounded-xl text-xs bg-primary text-primary-foreground font-semibold hover:opacity-90 disabled:opacity-50 transition flex items-center gap-1.5 cursor-pointer shadow"
-                >
-                  {isGenerating ? (
-                    <>
-                      <span className="animate-spin inline-block">↻</span>
-                      <span>Generating Art...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>✨</span>
-                      <span>Generate Scene</span>
-                    </>
-                  )}
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={selectedArt.url}
+                    download={`${selectedArt.title.replace(/\s+/g, "_")}.jpg`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg border border-border bg-muted/60 hover:bg-muted text-xs font-semibold cursor-pointer"
+                  >
+                    ⬇️ {t("download", "Download")}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleApply(selectedArt);
+                      setSelectedArt(null);
+                    }}
+                    className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold shadow-md hover:opacity-95 cursor-pointer"
+                  >
+                    {t("apply_wallpaper", "Apply as Wallpaper")}
+                  </button>
+                </div>
               </div>
-            </form>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-export default AiGalleryModal;
