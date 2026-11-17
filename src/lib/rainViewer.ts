@@ -80,12 +80,12 @@ export function getRadarTileUrl(
 
 /**
  * High-contrast OpenStreetMap basemap tile URL
+ * 100% free and open public tile servers with zero API key required.
  */
 export function getBaseMapTileUrl(z: number, x: number, y: number): string {
-  // Uses CartoDB Voyager raster tiles for clean weather contrast
-  const subdomains = ["a", "b", "c", "d"];
+  const subdomains = ["a", "b", "c"];
   const sub = subdomains[Math.abs(x + y) % subdomains.length];
-  return `https://cartodb-basemaps-${sub}.global.ssl.fastly.net/rastertiles/voyager/${z}/${x}/${y}.png`;
+  return `https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
 }
 
 /**
@@ -108,23 +108,23 @@ export function formatFrameTime(timestamp: number, lang: string): string {
  * 14-Language dictionary for Radar controls and legend
  */
 export const RADAR_EN = {
-    title: "Live Rain Radar",
-    subtitle: "Real-time precipitation & storm tracking",
-    play: "Play Loop",
-    pause: "Pause",
-    recenter: "Recenter City",
-    opacity: "Radar Opacity",
-    light: "Light",
-    moderate: "Moderate",
-    heavy: "Heavy",
-    severe: "Severe / Hail",
-    zoomIn: "Zoom In",
-    zoomOut: "Zoom Out",
-    layerRadar: "Rain Radar",
-    layerSatellite: "Satellite Clouds",
-    loadingRadar: "Loading radar stream...",
-    radarNotice: "Powered by global radar stations with 10-minute updates.",
-  };
+  title: "Live Rain Radar",
+  subtitle: "Real-time precipitation & storm tracking",
+  play: "Play Loop",
+  pause: "Pause",
+  recenter: "Recenter City",
+  opacity: "Radar Opacity",
+  light: "Light",
+  moderate: "Moderate",
+  heavy: "Heavy",
+  severe: "Severe / Hail",
+  zoomIn: "Zoom In",
+  zoomOut: "Zoom Out",
+  layerRadar: "Rain Radar",
+  layerSatellite: "Satellite Clouds",
+  loadingRadar: "Loading radar stream...",
+  radarNotice: "Powered by global radar stations with 10-minute updates.",
+};
 export type RadarKey = keyof typeof RADAR_EN;
 
 export const RADAR_I18N: Record<string, Partial<Record<RadarKey, string>>> = {
@@ -364,3 +364,5 @@ export const RADAR_I18N: Record<string, Partial<Record<RadarKey, string>>> = {
     radarNotice: "Cập nhật mỗi 10 phút từ các trạm rada thời tiết toàn cầu.",
   },
 };
+
+export default getRainViewerMetadata;
