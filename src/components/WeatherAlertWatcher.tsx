@@ -74,7 +74,8 @@ function playAlertChime() {
   if (typeof window === "undefined") return;
   try {
     const AudioContextClass =
-      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
 
@@ -113,7 +114,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
   unit,
   activeAlerts = [],
 }) => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = (i18n.language || "en").slice(0, 2).toLowerCase();
 
   // Merge English base with current language dictionary from alertTranslations.ts
@@ -124,10 +125,14 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
 
   const tLocal = useCallback(
     (key: string, fallback: string): string => {
+      // Check standard i18next first, fallback to alert dictionary, then fallback string
+      const i18nVal = t(key);
+      if (i18nVal && i18nVal !== key) return i18nVal;
+
       const val = (dict as unknown as Record<string, string | undefined>)[key];
       return val || fallback;
     },
-    [dict]
+    [dict, t]
   );
 
   // Settings configuration state
@@ -181,7 +186,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         titleKey: "hazard_thunderstorm_title",
         descKey: "hazard_thunderstorm_desc",
         adviceKey: "hazard_thunderstorm_advice",
-        metricValue: "Code " + code,
+        metricValue: `${t("weather_code", "Code")} ${code}`,
       });
     }
 
@@ -209,7 +214,10 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         titleKey: "hazard_heat_title",
         descKey: "hazard_heat_desc",
         adviceKey: "hazard_heat_advice",
-        metricValue: unit === "imperial" ? `${Math.round(feels)}°F Feels` : `${Math.round(feelsC)}°C Feels`,
+        metricValue:
+          unit === "imperial"
+            ? `${Math.round(feels)}°F ${t("feels_like_short", "Feels")}`
+            : `${Math.round(feelsC)}°C ${t("feels_like_short", "Feels")}`,
       });
     }
 
@@ -262,7 +270,10 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
       if (alert.severity === "danger" || alert.severity === "disaster" || alert.severity === "warning") {
         const translatedHeadline = resolveAlertHeadline(alert, lang);
         const resolvedHeadline =
-          translatedHeadline || alert.headline || alert.text || tLocal("hazard_official_desc", "Official weather bulletin active");
+          translatedHeadline ||
+          alert.headline ||
+          alert.text ||
+          tLocal("hazard_official_desc", "Official weather bulletin active");
 
         list.push({
           id: `official-${alert.id || idx}`,
@@ -272,13 +283,13 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
           titleKey: alert.tag || "hazard_official_title",
           descKey: resolvedHeadline,
           adviceKey: alert.details || "hazard_official_advice",
-          metricValue: alert.area || alert.source || "Official Alert",
+          metricValue: alert.area || alert.source || t("official_alert_badge", "Official Alert"),
         });
       }
     });
 
     return list;
-  }, [weather, unit, config, activeAlerts, lang, tLocal]);
+  }, [weather, unit, config, activeAlerts, lang, tLocal, t]);
 
   const requestNotificationPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -332,7 +343,10 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
   const handleTestAlert = () => {
     if (config.soundEnabled) playAlertChime();
     const testTitle = tLocal("test_toast_title", "Severe Weather Watcher Active");
-    const testDesc = tLocal("test_toast_desc", "This is a test notification with synthesized alert chime. Stay safe!");
+    const testDesc = tLocal(
+      "test_toast_desc",
+      "This is a test notification with synthesized alert chime. Stay safe!"
+    );
 
     setToastMessage({ title: testTitle, desc: testDesc });
     setTimeout(() => setToastMessage(null), 4500);
@@ -343,11 +357,11 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
   };
 
   const hasHazards = detectedHazards.length > 0;
-  const cityName = weather?.place?.name || "Current Location";
+  const cityName = weather?.place?.name || t("current_location", "Current Location");
 
   return (
     <section
-      aria-label="Severe Weather Alert Watcher"
+      aria-label={t("alert_watcher_aria", "Severe Weather Alert Watcher")}
       className="relative overflow-hidden rounded-2xl border-2 border-border/80 bg-card/95 p-4 sm:p-6 shadow-xl backdrop-blur-lg transition-all duration-300"
     >
       {/* Test Notification Banner Toast */}
@@ -362,6 +376,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
             type="button"
             onClick={() => setToastMessage(null)}
             className="text-foreground hover:bg-background/40 font-bold text-lg px-2 py-0.5 rounded-lg"
+            aria-label={t("close", "Close")}
           >
             ✕
           </button>
@@ -421,6 +436,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
                 : "bg-muted border-border text-foreground/70 hover:bg-muted/80"
             }`}
             title={config.soundEnabled ? tLocal("sound_on", "Sound On") : tLocal("sound_muted", "Muted")}
+            aria-label={config.soundEnabled ? tLocal("sound_on", "Sound On") : tLocal("sound_muted", "Muted")}
           >
             <span className="text-base">{config.soundEnabled ? "🔊" : "🔇"}</span>
             <span>{config.soundEnabled ? tLocal("sound_on", "Sound On") : tLocal("sound_muted", "Muted")}</span>
@@ -432,6 +448,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
               type="button"
               onClick={requestNotificationPermission}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 text-amber-950 border-2 border-amber-600 hover:bg-amber-400 transition-all shadow-xs"
+              aria-label={tLocal("notify_permission_cta", "Enable Notifications")}
             >
               <span className="text-base">🔔</span>
               <span>{tLocal("notify_permission_cta", "Enable Notifications")}</span>
@@ -445,6 +462,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
                   ? "bg-emerald-600 text-white border-emerald-700"
                   : "bg-muted border-border text-foreground/70"
               }`}
+              aria-label={tLocal("notify_enabled", "Active")}
             >
               <span className="text-base">🔔</span>
               <span>{tLocal("notify_enabled", "Active")}</span>
@@ -457,6 +475,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
             onClick={handleTestAlert}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-card hover:bg-muted border-2 border-border text-foreground transition-all shadow-xs"
             title={tLocal("test_btn", "Test Alert & Chime")}
+            aria-label={tLocal("test_btn", "Test Alert & Chime")}
           >
             <span className="text-base">▶️</span>
             <span>{tLocal("test_btn", "Test Alert")}</span>
@@ -468,7 +487,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
             onClick={() => setSettingsOpen(!settingsOpen)}
             className="inline-flex items-center justify-center p-2 rounded-xl text-sm font-bold bg-card hover:bg-muted border-2 border-border text-foreground transition-all shadow-xs"
             title={tLocal("settings_btn", "Alert Settings")}
-            aria-label="Alert settings"
+            aria-label={tLocal("settings_btn", "Alert Settings")}
           >
             ⚙️
           </button>
@@ -520,7 +539,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
             );
           })
         ) : (
-          /* HIGH-CONTRAST "ALL CLEAR" STATE */
+          /* High-Contrast "All Clear" State */
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 rounded-2xl border-2 border-emerald-600/50 bg-emerald-500/15 dark:bg-emerald-950/40 p-4 sm:p-5 shadow-xs text-foreground">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white text-2xl shadow-md">
               ✓
@@ -551,6 +570,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
               type="button"
               onClick={() => setSettingsOpen(false)}
               className="text-xs sm:text-sm font-bold text-foreground px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 border border-border"
+              aria-label={t("done", "Done")}
             >
               {tLocal("close", "Done")}
             </button>
