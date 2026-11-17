@@ -119,24 +119,20 @@ async function fetchUSGSEarthquakes(
       const placeName = f.properties.place || t("unknown_location", "Unknown Location");
       const time = f.properties.time;
 
-      if (now - time > 48 * 3600 * 1000) continue;
-
-      const dLat = (qLat - lat) * 111;
-      const dLon = (qLon - lon) * 111 * Math.cos((lat * Math.PI) / 180);
+      const dLat = (lat - qLat) * 111;
+      const dLon = (lon - qLon) * 111 * Math.cos((lat * Math.PI) / 180);
       const distKm = Math.sqrt(dLat * dLat + dLon * dLon);
 
-      if (distKm <= 1200) {
+      if (distKm < 1200) {
         quakes.push({
           id: `usgs-${f.id}`,
-          severity: mag >= 6.0 ? "warning" : "advisory",
-          category: "earthquake",
-          tag: mag >= 6.0 ? t("alert_earthquake_tag", "Earthquake Alert") : t("alert_earthquake_tag", "Earthquake"),
-          tagKey: "alert_earthquake_tag",
-          headline: `M${mag.toFixed(1)} ${t("earthquake", "Earthquake")} — ${placeName} (${Math.round(distKm)} km ${t("away", "away")})`,
-          headlineEn: `M${mag.toFixed(1)} Earthquake — ${placeName} (${Math.round(distKm)} km away)`,
-          headlineTh: `แผ่นดินไหวขนาด M${mag.toFixed(1)} — ${placeName} (ห่าง ${Math.round(distKm)} กม.)`,
-          source: "USGS",
-          timeAgo: formatRelativeTime(time, t),
+          title: `M${mag.toFixed(1)} ${t("alert_earthquake", "Earthquake")} (${placeName})`,
+          severity: mag >= 6.0 ? "severe" : "moderate",
+          urgency: "Immediate",
+          event: "Earthquake",
+          source: `USGS (${Math.round(distKm)} km ${t("away", "away")})`,
+          updatedAt: time ? formatRelativeTime(time, t) : t("recent", "Recent"),
+          url: f.properties.url,
         });
       }
     }
@@ -146,227 +142,107 @@ async function fetchUSGSEarthquakes(
   }
 }
 
-// Fetch TMD (Thailand Meteorological Department) Warnings via server proxy
-async function fetchTMDWarnings(place: Place): Promise<TickerAlertItem[]> {
-  const isThailand =
-    place.country?.toLowerCase().includes("thailand") ||
-    (place.lat >= 5.6 && place.lat <= 20.5 && place.lon >= 97.3 && place.lon <= 105.7);
+// Fetch Thai Meteorological Department (TMD) advisories
+async function fetchTMDWarnings(
+  placeName: string,
+  country: string,
+  t: (k: string, fb: string) => string
+): Promise<TickerAlertItem[]> {
+  const isThai =
+    country.toLowerCase().includes("thai") ||
+    placeName.toLowerCase().includes("bangkok") ||
+    placeName.toLowerCase().includes("chiang") ||
+    placeName.toLowerCase().includes("phuket");
 
-  if (!isThailand) return [];
+  if (!isThai) return [];
 
   try {
-    const alerts = await getTmdAlertsFn();
-    return alerts || [];
+    const tmdRes = await getTmdAlertsFn({ data: {} });
+    if (!tmdRes || !tmdRes.success || !tmdRes.alerts) return [];
+
+    return tmdRes.alerts.slice(0, 3).map((a: any, idx: number) => ({
+      id: `tmd-${idx}-${a.TitleEn || a.TitleTh}`,
+      title: a.TitleEn || a.TitleTh,
+      severity: "severe",
+      urgency: "Expected",
+      event: "Weather Advisory",
+      source: "TMD",
+      updatedAt: a.IssueDate ? a.IssueDate.substring(0, 10) : t("active", "Active"),
+      url: "https://www.tmd.go.th/en",
+    }));
   } catch {
     return [];
   }
 }
 
-// Fetch Open-Meteo Global Severe Weather Hazards
-async function fetchOpenMeteoAlerts(
-  lat: number,
-  lon: number,
-  weatherData: Weather | null | undefined,
-  t: (k: string, fb: string) => string
-): Promise<TickerAlertItem[]> {
-  try {
-    const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,temperature_2m_max,temperature_2m_min&timezone=auto`,
-      { signal: AbortSignal.timeout(4000) }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    const alerts: TickerAlertItem[] = [];
+// Weather Loading Skeleton Card
+function WeatherSkeleton({ t }: { t: (k: string, fb: string) => string }) {
+  return (
+    <div className="space-y-4 animate-pulse">
+      {/* Hero Card Skeleton */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-card/60 p-6 md:p-8 backdrop-blur-md shadow-lg min-h-[260px] flex flex-col justify-between">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2.5">
+            <div className="h-7 w-44 rounded-xl bg-muted/60" />
+            <div className="h-4 w-28 rounded-lg bg-muted/50" />
+          </div>
+          <div className="h-10 w-24 rounded-full bg-muted/60" />
+        </div>
+        <div className="my-6 flex items-baseline gap-4">
+          <div className="h-16 w-32 rounded-2xl bg-muted/70" />
+          <div className="space-y-2">
+            <div className="h-5 w-24 rounded-lg bg-muted/50" />
+            <div className="h-4 w-36 rounded-lg bg-muted/40" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <div className="h-6 w-20 rounded-md bg-muted/50" />
+          <div className="h-6 w-20 rounded-md bg-muted/50" />
+        </div>
+      </div>
 
-    const rainSum = data.daily?.precipitation_sum?.[0] ?? 0;
-    const rainProb = data.daily?.precipitation_probability_max?.[0] ?? 0;
-    const maxWind = data.daily?.wind_speed_10m_max?.[0] ?? 0;
-    const maxGust = data.daily?.wind_gusts_10m_max?.[0] ?? 0;
-    const maxTemp = data.daily?.temperature_2m_max?.[0] ?? 0;
-    const minTemp = data.daily?.temperature_2m_min?.[0] ?? 0;
+      {/* Hourly Forecast Bar Skeleton */}
+      <div className="rounded-2xl border border-border/40 bg-card/60 p-4 backdrop-blur-sm">
+        <div className="mb-3 h-4 w-32 rounded-md bg-muted/60" />
+        <div className="flex gap-3 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex-1 min-w-[70px] flex flex-col items-center gap-2 p-3 rounded-xl bg-muted/30">
+              <div className="h-3 w-10 rounded bg-muted/50" />
+              <div className="h-8 w-8 rounded-full bg-muted/60" />
+              <div className="h-4 w-8 rounded bg-muted/50" />
+            </div>
+          ))}
+        </div>
+      </div>
 
-    // 1. Severe Thunderstorm / Squalls / Hail
-    const currentCode = weatherData?.current?.code ?? -1;
-    const nearHourlyThunder = weatherData?.hourly?.slice(0, 12).some((h) => [95, 96, 99].includes(h.code));
-    if ([95, 96, 99].includes(currentCode) || nearHourlyThunder) {
-      alerts.push({
-        id: "om-severe-thunderstorm",
-        severity: "warning",
-        category: "storm",
-        tag: t("alert_thunderstorm_tag", "Severe Storm"),
-        tagKey: "alert_thunderstorm_tag",
-        headline: t(
-          "headline_thunderstorm",
-          "Severe Thunderstorm Warning: High lightning risk, hail, and squall gusts in area"
-        ),
-        headlineEn: "Severe Thunderstorm Warning: High lightning risk, hail, and squall gusts in area",
-        headlineTh: "เตือนภัยพายุฝนฟ้าคะนองรุนแรง: มีความเสี่ยงฟ้าผ่า ลูกเห็บตก และลมกระโชกแรง",
-        source: "Open-Meteo",
-        timeAgo: t("active_now", "Active"),
-      });
-    }
+      {/* Metrics Grid Skeleton */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-2xl border border-border/40 bg-card/60 p-4 space-y-2">
+            <div className="h-3 w-16 rounded bg-muted/50" />
+            <div className="h-6 w-14 rounded bg-muted/70" />
+            <div className="h-2.5 w-20 rounded bg-muted/40" />
+          </div>
+        ))}
+      </div>
 
-    // 2. Heavy Rain & Flash Flood Risk
-    if (rainSum >= 45) {
-      alerts.push({
-        id: "om-heavy-rain",
-        severity: "warning",
-        category: "flood",
-        tag: t("alert_flood_tag", "Flood Watch"),
-        tagKey: "alert_flood_tag",
-        headline: `${t("heavy_rain_alert", "Heavy Rain Alert")}: ${Math.round(rainSum)}mm (${rainProb}%)`,
-        headlineEn: `Heavy Rain Alert: Up to ${Math.round(rainSum)}mm expected (${rainProb}% chance)`,
-        headlineTh: `เตือนภัยฝนตกหนักมาก: คาดปริมาณฝนสะสมสูงถึง ${Math.round(rainSum)} มม. (โอกาส ${rainProb}%)`,
-        source: "Open-Meteo",
-        timeAgo: t("today", "Today"),
-      });
-    } else if (rainSum >= 25) {
-      alerts.push({
-        id: "om-moderate-rain",
-        severity: "advisory",
-        category: "rain",
-        tag: t("alert_rain_tag", "Rain Advisory"),
-        tagKey: "alert_rain_tag",
-        headline: `${t("rain_advisory", "Rain Advisory")}: ${Math.round(rainSum)}mm (${rainProb}%)`,
-        headlineEn: `Rain Advisory: ${Math.round(rainSum)}mm rain expected (${rainProb}% chance)`,
-        headlineTh: `ข้อแนะนำสภาพฝน: คาดว่าจะมีฝนตก ${Math.round(rainSum)} มม. (โอกาส ${rainProb}%)`,
-        source: "Open-Meteo",
-        timeAgo: t("today", "Today"),
-      });
-    }
-
-    // 3. High Wind & Gale Warning
-    const peakWind = Math.max(maxWind, maxGust);
-    if (peakWind >= 60) {
-      alerts.push({
-        id: "om-high-wind",
-        severity: "warning",
-        category: "storm",
-        tag: t("high_wind", "High Wind"),
-        tagKey: "alert_hazard",
-        headline: `${t("high_wind_warning", "High Wind Warning")}: ${Math.round(peakWind)} km/h`,
-        headlineEn: `High Wind Warning: Dangerous gusts up to ${Math.round(peakWind)} km/h`,
-        headlineTh: `เตือนภัยลมกระโชกแรง: ความเร็วลมสูงสุด ${Math.round(peakWind)} กม./ชม.`,
-        source: "Open-Meteo",
-        timeAgo: t("today", "Today"),
-      });
-    }
-
-    // 4. Extreme Heatwave Warning (>= 38°C)
-    if (maxTemp >= 38 || (weatherData?.current?.temp && weatherData.current.temp >= 38)) {
-      alerts.push({
-        id: "om-heatwave",
-        severity: "warning",
-        category: "heat",
-        tag: t("extreme_heat", "Extreme Heat"),
-        tagKey: "alert_hazard",
-        headline: `${t("heatwave_warning", "Extreme Heat Warning")}: ${Math.round(maxTemp)}°C`,
-        headlineEn: `Extreme Heat Warning: Peak temperatures near ${Math.round(maxTemp)}°C — stay hydrated`,
-        headlineTh: `เตือนภัยอากาศร้อนจัด: อุณหภูมิสูงสุดแตะ ${Math.round(maxTemp)}°C — โปรดดื่มน้ำบ่อยๆ`,
-        source: "Open-Meteo",
-        timeAgo: t("today", "Today"),
-      });
-    }
-
-    // 5. Severe Freeze / Frost Warning (<= -6°C)
-    if (minTemp <= -6 || (weatherData?.current?.temp && weatherData.current.temp <= -6)) {
-      alerts.push({
-        id: "om-freeze",
-        severity: "warning",
-        category: "snow",
-        tag: t("severe_freeze", "Severe Freeze"),
-        tagKey: "alert_hazard",
-        headline: `${t("freeze_warning", "Severe Freeze Warning")}: ${Math.round(minTemp)}°C`,
-        headlineEn: `Severe Freeze Warning: Sub-zero lows near ${Math.round(minTemp)}°C — beware of black ice`,
-        headlineTh: `เตือนภัยความหนาวจัด: อุณหภูมิต่ำสุดลดลงถึง ${Math.round(minTemp)}°C — ระวังถนนลื่น`,
-        source: "Open-Meteo",
-        timeAgo: t("today", "Today"),
-      });
-    }
-
-    // 6. Dense Fog Advisory
-    if (
-      currentCode === 45 ||
-      currentCode === 48 ||
-      (weatherData?.current?.vis !== undefined && weatherData.current.vis > 0 && weatherData.current.vis < 1.0)
-    ) {
-      alerts.push({
-        id: "om-dense-fog",
-        severity: "advisory",
-        category: "fog",
-        tag: t("dense_fog", "Dense Fog"),
-        tagKey: "alert_hazard",
-        headline: t(
-          "fog_advisory_desc",
-          "Dense Fog Advisory: Low visibility on roads — drive with extreme caution"
-        ),
-        headlineEn: "Dense Fog Advisory: Low visibility on roads — drive with extreme caution",
-        headlineTh: "ข้อแนะนำหมอกหนาจัด: ทัศนวิสัยบนท้องถนนต่ำมาก โปรดเปิดไฟหน้ารถและระมัดระวัง",
-        source: "Open-Meteo",
-        timeAgo: t("active_now", "Now"),
-      });
-    }
-
-    return alerts;
-  } catch {
-    return [];
-  }
-}
-
-// Fetch NWS Active Alerts (US locations only)
-async function fetchNWSAlerts(
-  lat: number,
-  lon: number,
-  t: (k: string, fb: string) => string
-): Promise<TickerAlertItem[]> {
-  try {
-    const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`, {
-      headers: { "User-Agent": "(myweatherpal.app, contact@myweatherpal.app)" },
-      signal: AbortSignal.timeout(3500),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const features = data.features || [];
-
-    return features.slice(0, 2).map((f: { properties: { event?: string; severity?: string; headline?: string; description?: string }; id: string }) => {
-      const isFlood = f.properties.event?.toLowerCase().includes("flood");
-      return {
-        id: `nws-${f.id}`,
-        severity: f.properties.severity === "Severe" ? "warning" : "advisory",
-        category: isFlood ? "flood" : "storm",
-        tag: isFlood ? t("alert_flood_tag", "Flood Watch") : t("alert_hazard", "NWS Alert"),
-        tagKey: isFlood ? "alert_flood_tag" : "alert_hazard",
-        headline: `${f.properties.event}: ${f.properties.headline || f.properties.description?.slice(0, 100)}`,
-        headlineEn: `${f.properties.event}: ${f.properties.headline || f.properties.description?.slice(0, 100)}`,
-        headlineTh: `ประกาศเตือน NWS: ${f.properties.event}`,
-        source: "NWS",
-        timeAgo: t("active_now", "Active"),
-      };
-    });
-  } catch {
-    return [];
-  }
+      <div className="text-center text-xs text-muted-foreground pt-1">
+        {t("loading_weather", "Loading live weather forecast...")}
+      </div>
+    </div>
+  );
 }
 
 function Index() {
   const { t, i18n } = useTranslation();
-  const currentLang = i18n.language || "en";
   const navigate = useNavigate();
+
+  // Unit State (defaults to metric)
   const [unit, setUnit] = useState<WeatherUnit>("metric");
 
-  // Lazy initialize place so Bangkok never flashes or fetches first
+  // Place & Weather Data
   const [place, setPlace] = useState<Place>(() => {
-    if (typeof window === "undefined") return DEFAULT_PLACE;
     try {
-      const galleryPlaceRaw = localStorage.getItem("weather:gallery-selected-place");
-      if (galleryPlaceRaw) {
-        localStorage.removeItem("weather:gallery-selected-place");
-        const parsed = JSON.parse(galleryPlaceRaw);
-        if (parsed?.name && typeof parsed.lat === "number" && typeof parsed.lon === "number") {
-          return parsed as Place;
-        }
-      }
-
       const saved = loadLastPlace();
       if (saved) return saved;
     } catch {}
@@ -410,160 +286,134 @@ function Index() {
     setFavorites(loadFavorites());
 
     try {
-      const storedSky = localStorage.getItem("weather:sky-pref") || "auto";
-      setSkyPref(storedSky);
+      const savedBg = localStorage.getItem("weather:custom-bg");
+      if (savedBg) setCustomBgUrl(savedBg);
     } catch {}
 
     // Check for Buy Me a Coffee return redirect (?paid=rootbeer)
     if (typeof window !== "undefined") {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const paid = urlParams.get("paid");
-        if (paid === "rootbeer" || paid === "true") {
-          const tier =
-            urlParams.get("tier") ||
-            localStorage.getItem("weather:pending-donation-tier") ||
-            "small_root_beer_tier";
-
-          saveThankYouBackgroundForever(tier);
-          setPurchasedTierId(tier);
-          localStorage.removeItem("weather:pending-donation-tier");
-
-          const cleanUrl = window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-        }
-      } catch {}
+      const params = new URLSearchParams(window.location.search);
+      const paid = params.get("paid");
+      if (paid === "rootbeer") {
+        setPurchasedTierId("medium");
+        saveThankYouBackgroundForever();
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
-
-    const handleSkyChange = (e: Event) => {
-      const customEvent = e as CustomEvent<{ sky: string }>;
-      if (customEvent.detail?.sky) {
-        setSkyPref(customEvent.detail.sky);
-      }
-    };
-    window.addEventListener("weather:sky-change", handleSkyChange);
-
-    const handleThankYouEvent = (e: Event) => {
-      const customEvent = e as CustomEvent<{ tierId: string }>;
-      if (customEvent.detail?.tierId) {
-        setPurchasedTierId(customEvent.detail.tierId);
-      }
-    };
-    window.addEventListener("weather:trigger-tier-thankyou", handleThankYouEvent);
-
-    return () => {
-      window.removeEventListener("weather:sky-change", handleSkyChange);
-      window.removeEventListener("weather:trigger-tier-thankyou", handleThankYouEvent);
-    };
   }, []);
 
-  // 2. Fetch Weather and Global Disaster & Meteorological Alerts
+  // 2. Fetch Forecast, Air Quality, and Live Regional Alerts
   const fetchAllWeatherData = async (
     targetPlace: Place,
-    currentUnit: WeatherUnit,
-    forceRefresh = false
+    targetUnit: WeatherUnit,
+    forceFresh: boolean = false
   ) => {
     setLoading(true);
     setError(null);
+
     try {
-      const data = await getWeather(targetPlace, currentUnit, forceRefresh);
-      setWeather(data);
+      const w = await getWeather(targetPlace, targetUnit, forceFresh);
+      setWeather(w);
 
-      const isUS = targetPlace.country === "United States" || targetPlace.country === "USA";
-
-      const [quakeAlerts, tmdAlerts, omAlerts, nwsAlerts] = await Promise.allSettled([
+      // Concurrent retrieval of alerts from USGS, TMD, and local weather thresholds
+      const [usgsAlerts, tmdAlerts] = await Promise.all([
         fetchUSGSEarthquakes(targetPlace.lat, targetPlace.lon, t),
-        fetchTMDWarnings(targetPlace),
-        fetchOpenMeteoAlerts(targetPlace.lat, targetPlace.lon, data, t),
-        isUS ? fetchNWSAlerts(targetPlace.lat, targetPlace.lon, t) : Promise.resolve([]),
+        fetchTMDWarnings(targetPlace.name, targetPlace.country, t),
       ]);
 
-      const combined: TickerAlertItem[] = [
-        ...(quakeAlerts.status === "fulfilled" ? quakeAlerts.value : []),
-        ...(tmdAlerts.status === "fulfilled" ? tmdAlerts.value : []),
-        ...(omAlerts.status === "fulfilled" ? omAlerts.value : []),
-        ...(nwsAlerts.status === "fulfilled" ? nwsAlerts.value : []),
-      ];
+      const consolidatedAlerts: TickerAlertItem[] = [...usgsAlerts, ...tmdAlerts];
 
-      setAlerts(combined);
-    } catch (err: unknown) {
-      setError((err as Error)?.message || t("error_fetch_weather", "Failed to load weather forecast"));
+      // Add severe meteorological warnings based on fetched Open-Meteo data
+      if (w.current?.temp != null) {
+        const temp = w.current.temp;
+        const code = w.current.weather_code ?? 0;
+        const isFahrenheit = targetUnit === "imperial";
+        const tempCelsius = isFahrenheit ? ((temp - 32) * 5) / 9 : temp;
+
+        if (tempCelsius >= 38) {
+          consolidatedAlerts.push({
+            id: `extreme-heat-${Date.now()}`,
+            title: t("alert_extreme_heat", "Extreme Heat Warning — Stay Hydrated & Avoid Sun"),
+            severity: "severe",
+            urgency: "Immediate",
+            event: "Excessive Heat",
+            source: "Open-Meteo",
+            updatedAt: t("now", "Now"),
+          });
+        } else if (tempCelsius <= -10) {
+          consolidatedAlerts.push({
+            id: `extreme-cold-${Date.now()}`,
+            title: t("alert_extreme_cold", "Freeze Warning — Dangerous Wind Chill"),
+            severity: "severe",
+            urgency: "Immediate",
+            event: "Extreme Cold",
+            source: "Open-Meteo",
+            updatedAt: t("now", "Now"),
+          });
+        }
+
+        // Severe Thunderstorms & Hail codes
+        if ([95, 96, 99].includes(code)) {
+          consolidatedAlerts.push({
+            id: `thunderstorm-warning-${Date.now()}`,
+            title: t("alert_severe_storm", "Severe Thunderstorm Warning — Lightning & Heavy Rain"),
+            severity: "severe",
+            urgency: "Immediate",
+            event: "Severe Thunderstorm",
+            source: "Open-Meteo",
+            updatedAt: t("now", "Now"),
+          });
+        }
+      }
+
+      setAlerts(consolidatedAlerts);
+    } catch (err: any) {
+      setError(
+        err?.message ||
+          t("error_fetch_failed", "Unable to load live weather. Please check your connection.")
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Trigger load on place or unit change
+  // Fetch when place or unit changes
   useEffect(() => {
     fetchAllWeatherData(place, unit);
-  }, [place, unit]);
+  }, [place.lat, place.lon, unit]);
 
-  // Sync custom background from localStorage with fallback to current
+  // Periodic 10-Minute Auto-Refresh
   useEffect(() => {
-    const cityKey = `weather:custom-bg:${place.name.trim().toLowerCase()}`;
-    const saved =
-      localStorage.getItem(cityKey) ||
-      localStorage.getItem("weather:custom-bg:current");
-    setCustomBgUrl(saved);
-
-    const handleCustomBgChange = (e: Event) => {
-      const customEvent = e as CustomEvent<{ city?: string; url?: string }>;
-      if (
-        !customEvent.detail?.city ||
-        customEvent.detail.city.toLowerCase() === place.name.trim().toLowerCase() ||
-        customEvent.detail.city === "current"
-      ) {
-        setCustomBgUrl(customEvent.detail?.url || null);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchAllWeatherData(place, unit, true);
       }
-    };
-    window.addEventListener("weather:custom-bg-change", handleCustomBgChange);
-    return () => window.removeEventListener("weather:custom-bg-change", handleCustomBgChange);
-  }, [place]);
-
-  // Periodic Auto-Refresh (Every 10 minutes) & Staleness-Guarded Visibility Handler
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchAllWeatherData(place, unit, true);
     }, 10 * 60 * 1000);
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        if (!weather || Date.now() - weather.fetchedAt >= 10 * 60 * 1000) {
-          fetchAllWeatherData(place, unit);
-        }
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
+    return () => clearInterval(timer);
+  }, [place, unit]);
 
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [place, unit, weather?.fetchedAt]);
-
-  // Debounced City Search with In-Flight Request Cancellation
+  // Debounced Search Handling with Abort Cancellation
   useEffect(() => {
-    if (!query.trim() || query.length < 2) {
-      if (searchAbortRef.current) {
-        searchAbortRef.current.abort();
-      }
+    if (!query.trim()) {
       setSuggestions([]);
+      setSearching(false);
       return;
     }
 
-    const timer = setTimeout(async () => {
-      if (searchAbortRef.current) {
-        searchAbortRef.current.abort();
-      }
-      const controller = new AbortController();
-      searchAbortRef.current = controller;
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
 
-      setSearching(true);
+    setSearching(true);
+    const timeout = setTimeout(async () => {
       try {
-        const results = await searchCity(query, currentLang, controller.signal);
+        const results = await searchCity(query, controller.signal);
         setSuggestions(results);
-      } catch (err: unknown) {
-        if ((err as { name?: string })?.name !== "AbortError") {
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
           setSuggestions([]);
         }
       } finally {
@@ -572,291 +422,259 @@ function Index() {
     }, 300);
 
     return () => {
-      clearTimeout(timer);
-      if (searchAbortRef.current) {
-        searchAbortRef.current.abort();
-      }
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [query, currentLang]);
+  }, [query]);
 
-  const handleSelectPlace = (newPlace: Place) => {
-    setPlace(newPlace);
-    saveLastPlace(newPlace);
+  // Handle City Selection
+  const handleSelectPlace = (selected: Place) => {
+    setPlace(selected);
     setQuery("");
     setSuggestions([]);
   };
 
-  const handleToggleFavorite = () => {
-    const isFav = isFavorite(favorites, place);
-    const updated = isFav
-      ? favorites.filter((f) => !isSamePlace(f, place))
-      : [...favorites, place];
-
-    setFavorites(updated);
-    saveFavorites(updated);
-  };
-
-  // Reverse geocoding HTML5 GPS with automatic IP fallback
-  const handleUseCurrentLocation = () => {
-    setLoading(true);
-    setError(null);
-
-    const fallbackToIp = async () => {
-      try {
-        const res = await fetch("https://get.geojs.io/v1/ip/geo.json", {
-          signal: AbortSignal.timeout(4000),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const lat = parseFloat(data.latitude);
-          const lon = parseFloat(data.longitude);
-          const cityName = data.city || data.region || t("current_location", "Current Location");
-          const countryName = data.country || "";
-
-          if (!isNaN(lat) && !isNaN(lon)) {
-            handleSelectPlace({
-              name: cityName,
-              country: countryName,
-              lat,
-              lon,
-            });
-            return;
-          }
-        }
-      } catch {}
-      setLoading(false);
-      setError(t("error_location_fallback", "Unable to determine location. Please search for your city above."));
-    };
-
+  // GPS Geolocation Handler with Photon Reverse Geocoding
+  const handleGPS = () => {
     if (!navigator.geolocation) {
-      fallbackToIp();
+      setError(t("gps_not_supported", "GPS location is not supported on this device."));
       return;
     }
 
+    setLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude, longitude } = pos.coords;
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
         try {
+          // Photon Reverse Geocoding
           const res = await fetch(
-            `https://photon.komoot.io/reverse?lat=${latitude}&lon=${longitude}`,
+            `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`,
             { signal: AbortSignal.timeout(4000) }
           );
           if (res.ok) {
             const data = await res.json();
-            const feat = data.features?.[0]?.properties;
-            const cityName =
-              feat?.city || feat?.name || feat?.district || feat?.state || t("current_location", "Current Location");
-            const countryName = feat?.country || "";
-
-            handleSelectPlace({
-              name: cityName,
-              country: countryName,
-              lat: latitude,
-              lon: longitude,
-            });
-            return;
+            const feat = data?.features?.[0]?.properties;
+            if (feat) {
+              const name = feat.city || feat.town || feat.village || feat.name || t("my_location", "My Location");
+              const country = feat.country || "";
+              handleSelectPlace({ name, country, lat, lon });
+              return;
+            }
           }
         } catch {}
 
+        // Fallback name if reverse geocoding fails
         handleSelectPlace({
-          name: t("my_location", "My Location"),
-          country: "",
-          lat: latitude,
-          lon: longitude,
+          name: t("gps_coordinates", "GPS Location"),
+          country: `${lat.toFixed(2)}, ${lon.toFixed(2)}`,
+          lat,
+          lon,
         });
       },
       () => {
-        fallbackToIp();
+        setError(t("gps_denied", "GPS access was denied. Please search your city manually."));
+        setLoading(false);
       },
-      {
-        enableHighAccuracy: false,
-        timeout: 10000,
-        maximumAge: 300000,
-      }
+      { timeout: 8000 }
     );
   };
 
-  const handleSelectCustomBg = (url: string) => {
-    const cityKey = `weather:custom-bg:${place.name.trim().toLowerCase()}`;
-    const currentKey = "weather:custom-bg:current";
-    if (url) {
-      localStorage.setItem(cityKey, url);
-      localStorage.setItem(currentKey, url);
-      setCustomBgUrl(url);
+  // Toggle Units (Metric °C / Imperial °F)
+  const handleToggleUnit = () => {
+    const next: WeatherUnit = unit === "metric" ? "imperial" : "metric";
+    setUnit(next);
+    saveUnitPref(next);
+  };
+
+  // Favorites Management
+  const handleToggleFavorite = () => {
+    let next: Place[];
+    if (isFavorite(favorites, place)) {
+      next = favorites.filter((f) => !isSamePlace(f, place));
     } else {
-      localStorage.removeItem(cityKey);
-      localStorage.removeItem(currentKey);
-      setCustomBgUrl(null);
+      next = [...favorites, place];
     }
-    window.dispatchEvent(
-      new CustomEvent("weather:custom-bg-change", {
-        detail: { city: place.name.trim().toLowerCase(), url },
-      })
-    );
+    setFavorites(next);
+    saveFavorites(next);
   };
 
-  const rawSky =
-    skyPref === "auto"
-      ? weather
-        ? skyKey(weather.current.code, weather.current.is_day)
-        : "clear-day"
-      : skyPref;
+  // Custom Background Handlers
+  const handleSelectCustomBg = (url: string | null) => {
+    setCustomBgUrl(url);
+    if (url) {
+      localStorage.setItem("weather:custom-bg", url);
+    } else {
+      localStorage.removeItem("weather:custom-bg");
+    }
+  };
 
-  const activeSky =
-    rawSky === "day"
-      ? "clear-day"
-      : rawSky === "night"
-      ? "clear-night"
-      : rawSky === "cloudy"
-      ? "cloudy-day"
-      : rawSky;
-
-  const activeGradient =
-    SKY_GRADIENTS[activeSky] ||
-    SKY_GRADIENTS[rawSky] ||
-    SKY_GRADIENTS["clear-day"];
+  // Dynamic Background Style
+  const currentSky = weather ? skyKey(weather) : "day";
+  const bgStyle =
+    customBgUrl && isAdUnlocked()
+      ? {
+          backgroundImage: `url(${customBgUrl})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+        }
+      : {
+          backgroundImage: SKY_GRADIENTS[currentSky] || SKY_GRADIENTS.day,
+        };
 
   return (
     <div
-      style={{ background: activeGradient }}
-      className={`min-h-screen text-foreground transition-all duration-700 sky sky-${activeSky}`}
+      className="min-h-screen text-foreground transition-all duration-700 ease-in-out selection:bg-primary/20"
+      style={bgStyle}
     >
-      {/* Top Application Header */}
-      <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl select-none leading-none">🌤️</span>
+      {/* Background Ambient Overlay */}
+      <div className="fixed inset-0 pointer-events-none bg-black/10 backdrop-blur-[0.5px]" />
+
+      {/* Main Container */}
+      <main className="relative z-10 mx-auto max-w-4xl px-3.5 py-4 sm:px-6 sm:py-6 space-y-4">
+        {/* Navigation / Header Bar */}
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl" role="img" aria-label="sun">
+              ☀️
+            </span>
             <div>
-              <h1 className="text-base font-bold tracking-tight leading-tight">
-                {t("app_title", "My Weather Pal")}
+              <h1 className="text-lg font-black tracking-tight drop-shadow-sm sm:text-xl">
+                My Weather Pal
               </h1>
-              <p className="text-[11px] font-medium text-muted-foreground leading-none">
-                {t("app_tagline", "Private • Accurate • Curated Art")}
+              <p className="text-[11px] font-medium text-muted-foreground/90">
+                {getLocalizedCity(place.name, i18n.language)},{" "}
+                {getLocalizedCountry(place.country, i18n.language)}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <AppMenu
-              unit={unit}
-              onUnitChange={(u) => {
-                setUnit(u);
-                saveUnitPref(u);
-              }}
-            />
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="mx-auto max-w-4xl px-4 py-5 sm:px-6 space-y-4">
-        {/* Search & Location Bar */}
-        <section className="relative">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("search_placeholder", "Search city or landmark...")}
-                aria-label={t("search_placeholder", "Search city or landmark...")}
-                className="w-full rounded-2xl border border-border/60 bg-card/80 px-4 py-2.5 pl-10 text-sm shadow-xs backdrop-blur-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-              <span className="absolute left-3.5 top-3 text-sm text-muted-foreground select-none">
-                🔍
-              </span>
-              {searching && (
-                <span className="absolute right-3.5 top-3 text-xs text-muted-foreground animate-spin">
-                  ⏳
-                </span>
-              )}
-            </div>
-
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Quick Unit Switcher */}
             <button
               type="button"
-              onClick={handleUseCurrentLocation}
-              title={t("use_location", "Use GPS Location")}
-              aria-label={t("use_location", "Use GPS Location")}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/60 bg-card/80 text-foreground shadow-xs hover:bg-muted/80 backdrop-blur-xs transition cursor-pointer"
+              onClick={handleToggleUnit}
+              aria-label={t("switch_unit", "Switch between Celsius and Fahrenheit")}
+              className="px-2.5 py-1.5 rounded-xl border border-white/20 bg-background/60 text-xs font-bold shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer"
             >
-              <span className="text-base select-none">📍</span>
+              {unit === "metric" ? "°C" : "°F"}
             </button>
+
+            {/* GPS Geolocation Button */}
+            <button
+              type="button"
+              onClick={handleGPS}
+              aria-label={t("use_current_location", "Use current GPS location")}
+              className="p-2 rounded-xl border border-white/20 bg-background/60 text-xs shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer"
+              title={t("use_current_location", "Use GPS Location")}
+            >
+              📍
+            </button>
+
+            {/* Full Feature Drawer Menu */}
+            <AppMenu
+              currentPlace={place}
+              favorites={favorites}
+              onSelectPlace={handleSelectPlace}
+              unit={unit}
+              onToggleUnit={handleToggleUnit}
+              onSelectBackground={handleSelectCustomBg}
+            />
           </div>
+        </header>
 
-          {/* Autocomplete Dropdown */}
-          {suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-12 z-30 max-h-60 overflow-y-auto rounded-2xl border border-border bg-card/95 p-1.5 shadow-xl backdrop-blur-md">
-              {suggestions.map((s, idx) => {
-                const localizedSugCity = getLocalizedCity(s.name, currentLang);
-                const localizedSugCountry = getLocalizedCountry(s.country, currentLang);
-                return (
-                  <button
-                    key={`${s.name}-${s.lat}-${idx}`}
-                    type="button"
-                    onClick={() => handleSelectPlace(s)}
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/80 transition cursor-pointer"
-                  >
-                    <span className="font-medium text-foreground">{localizedSugCity}</span>
-                    <span className="text-xs text-muted-foreground">{localizedSugCountry}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* Favorite Cities Chips & Comparison Hub Toggle */}
-        <section className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {favorites.length > 0 && (
-              <>
-                <span className="text-xs font-semibold text-muted-foreground mr-1">
-                  ★ {t("favorites", "Favorites")}:
-                </span>
-                {favorites.map((fav) => {
-                  const active = isSamePlace(fav, place);
-                  const localizedFavCity = getLocalizedCity(fav.name, currentLang);
-                  return (
-                    <button
-                      key={`${fav.name}-${fav.lat}`}
-                      type="button"
-                      onClick={() => handleSelectPlace(fav)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
-                        active
-                          ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                          : "border border-border/60 bg-card/80 text-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      {localizedFavCity}
-                    </button>
-                  );
-                })}
-              </>
+        {/* City Search Bar with Autocomplete Dropdown */}
+        <div className="relative">
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("search_placeholder", "Search city or airport...")}
+              aria-label={t("search_city", "Search city or airport")}
+              className="w-full rounded-2xl border border-white/25 bg-background/70 px-4 py-2.5 text-sm shadow-md backdrop-blur-md placeholder:text-muted-foreground/70 focus:outline-hidden focus:ring-2 focus:ring-primary/50 transition"
+            />
+            {searching && (
+              <div className="absolute right-3.5 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            )}
+            {query && !searching && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label={t("clear_search", "Clear search")}
+                className="absolute right-3 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                ✕
+              </button>
             )}
           </div>
 
-          {/* Toggle Multi-City Comparison Hub */}
-          <button
-            type="button"
-            onClick={() => setShowComparison((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border transition cursor-pointer active:scale-95 ${
-              showComparison
-                ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                : "border-border/60 bg-card/80 text-foreground hover:bg-muted/80"
-            }`}
-            title={showComparison ? t("hide_comparison", "Hide Compare") : t("compare_cities", "Compare Cities")}
-            aria-label={showComparison ? t("hide_comparison", "Hide Compare") : t("compare_cities", "Compare Cities")}
-          >
-            <span>📊</span>
-            <span>
-              {showComparison
-                ? t("hide_comparison", "Hide Compare")
-                : t("compare_cities", "Compare Cities")}
-            </span>
-          </button>
-        </section>
+          {/* Autocomplete Suggestions */}
+          {suggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-40 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-xl backdrop-blur-md">
+              {suggestions.map((s, idx) => (
+                <button
+                  key={`${s.name}-${s.lat}-${s.lon}-${idx}`}
+                  type="button"
+                  onClick={() => handleSelectPlace(s)}
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs hover:bg-accent/60 transition cursor-pointer"
+                >
+                  <span className="font-semibold">
+                    {getLocalizedCity(s.name, i18n.language)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {getLocalizedCountry(s.country, i18n.language)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-        {/* Multi-City Weather Comparison Hub (When toggled or when viewing comparisons) */}
+        {/* Saved Favorites & Quick Switch Chips */}
+        {favorites.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-semibold text-muted-foreground/90 uppercase tracking-wider">
+              {t("favorites", "Favorites")}:
+            </span>
+            {favorites.map((fav) => {
+              const active = isSamePlace(fav, place);
+              return (
+                <button
+                  key={`${fav.name}-${fav.lat}-${fav.lon}`}
+                  type="button"
+                  onClick={() => handleSelectPlace(fav)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-md transition cursor-pointer ${
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "border border-white/20 bg-background/50 hover:bg-background/80"
+                  }`}
+                >
+                  {getLocalizedCity(fav.name, i18n.language)}
+                </button>
+              );
+            })}
+
+            {/* Compare Cities Toggle Button */}
+            {favorites.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setShowComparison(!showComparison)}
+                className={`ml-auto text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-md border border-white/20 transition cursor-pointer ${
+                  showComparison
+                    ? "bg-secondary text-secondary-foreground"
+                    : "bg-background/50 hover:bg-background/80 text-muted-foreground"
+                }`}
+              >
+                ⚖️ {showComparison ? t("hide_comparison", "Hide Compare") : t("compare_cities", "Compare Cities")}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Multi-City Comparison Panel */}
         {showComparison && (
           <CityComparison
             favorites={favorites}
@@ -876,8 +694,8 @@ function Index() {
           </div>
         )}
 
-        {/* Weather View Section with Active Ticker */}
-        {weather && (
+        {/* Weather View Section or Loading Skeleton */}
+        {weather ? (
           <WeatherView
             weather={weather}
             activeAlerts={alerts}
@@ -890,7 +708,9 @@ function Index() {
             onOpenAiGallery={() => navigate({ to: "/gallery" })}
             customBgUrl={customBgUrl}
           />
-        )}
+        ) : loading ? (
+          <WeatherSkeleton t={t} />
+        ) : null}
 
         {/* Multi-City Comparison Hub Footer Card (Shown if not toggled above and favorites exist) */}
         {!showComparison && favorites.length > 1 && (
