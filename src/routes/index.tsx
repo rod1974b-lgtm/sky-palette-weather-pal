@@ -15,15 +15,12 @@ import {
   isSamePlace,
   isFavorite,
   skyKey,
-  describe,
 } from "@/lib/weather";
 import { WeatherView, type TickerAlertItem } from "@/components/WeatherView";
 import { AppMenu } from "@/components/AppMenu";
 import { RootBeerThankYou } from "@/components/RootBeerThankYou_DEEPER_AMBER";
 import {
   isAdUnlocked,
-  unlockWithAd24h,
-  getAllUnlockedThankYouBackgrounds,
   saveThankYouBackgroundForever,
 } from "@/lib/monetization";
 import { getTmdAlertsFn } from "@/lib/tmdAlerts.functions";
@@ -93,8 +90,19 @@ function saveLastPlace(p: Place): void {
   } catch {}
 }
 
+function formatRelativeTime(timestamp: number, t: (k: string, fb: string) => string): string {
+  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
+  if (diffSec < 3600) return `${Math.max(1, Math.floor(diffSec / 60))}${t("time_min_short", "m")} ${t("ago", "ago")}`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}${t("time_hr_short", "h")} ${t("ago", "ago")}`;
+  return `${Math.floor(diffSec / 86400)}${t("time_day_short", "d")} ${t("ago", "ago")}`;
+}
+
 // Fetch USGS Significant Earthquakes (M4.5+ within 1,200km)
-async function fetchUSGSEarthquakes(lat: number, lon: number): Promise<TickerAlertItem[]> {
+async function fetchUSGSEarthquakes(
+  lat: number,
+  lon: number,
+  t: (k: string, fb: string) => string
+): Promise<TickerAlertItem[]> {
   try {
     const res = await fetch(
       "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson",
@@ -108,7 +116,7 @@ async function fetchUSGSEarthquakes(lat: number, lon: number): Promise<TickerAle
     for (const f of data.features || []) {
       const [qLon, qLat] = f.geometry.coordinates;
       const mag = Number(f.properties?.mag ?? 0);
-      const placeName = f.properties.place || "Unknown Location";
+      const placeName = f.properties.place || t("unknown_location", "Unknown Location");
       const time = f.properties.time;
 
       if (now - time > 48 * 3600 * 1000) continue;
@@ -122,13 +130,13 @@ async function fetchUSGSEarthquakes(lat: number, lon: number): Promise<TickerAle
           id: `usgs-${f.id}`,
           severity: mag >= 6.0 ? "warning" : "advisory",
           category: "earthquake",
-          tag: mag >= 6.0 ? "Earthquake Alert" : "Earthquake",
+          tag: mag >= 6.0 ? t("alert_earthquake_tag", "Earthquake Alert") : t("alert_earthquake_tag", "Earthquake"),
           tagKey: "alert_earthquake_tag",
-          headline: `M${mag.toFixed(1)} Earthquake — ${placeName} (${Math.round(distKm)} km away)`,
+          headline: `M${mag.toFixed(1)} ${t("earthquake", "Earthquake")} — ${placeName} (${Math.round(distKm)} km ${t("away", "away")})`,
           headlineEn: `M${mag.toFixed(1)} Earthquake — ${placeName} (${Math.round(distKm)} km away)`,
           headlineTh: `แผ่นดินไหวขนาด M${mag.toFixed(1)} — ${placeName} (ห่าง ${Math.round(distKm)} กม.)`,
           source: "USGS",
-          timeAgo: formatTimeAgo(time),
+          timeAgo: formatRelativeTime(time, t),
         });
       }
     }
@@ -158,7 +166,8 @@ async function fetchTMDWarnings(place: Place): Promise<TickerAlertItem[]> {
 async function fetchOpenMeteoAlerts(
   lat: number,
   lon: number,
-  weatherData?: Weather | null
+  weatherData: Weather | null | undefined,
+  t: (k: string, fb: string) => string
 ): Promise<TickerAlertItem[]> {
   try {
     const res = await fetch(
@@ -184,13 +193,16 @@ async function fetchOpenMeteoAlerts(
         id: "om-severe-thunderstorm",
         severity: "warning",
         category: "storm",
-        tag: "Severe Storm",
+        tag: t("alert_thunderstorm_tag", "Severe Storm"),
         tagKey: "alert_thunderstorm_tag",
-        headline: "Severe Thunderstorm Warning: High lightning risk, hail, and squall gusts in area",
+        headline: t(
+          "headline_thunderstorm",
+          "Severe Thunderstorm Warning: High lightning risk, hail, and squall gusts in area"
+        ),
         headlineEn: "Severe Thunderstorm Warning: High lightning risk, hail, and squall gusts in area",
         headlineTh: "เตือนภัยพายุฝนฟ้าคะนองรุนแรง: มีความเสี่ยงฟ้าผ่า ลูกเห็บตก และลมกระโชกแรง",
         source: "Open-Meteo",
-        timeAgo: "Active",
+        timeAgo: t("active_now", "Active"),
       });
     }
 
@@ -200,26 +212,26 @@ async function fetchOpenMeteoAlerts(
         id: "om-heavy-rain",
         severity: "warning",
         category: "flood",
-        tag: "Flood Watch",
+        tag: t("alert_flood_tag", "Flood Watch"),
         tagKey: "alert_flood_tag",
-        headline: `Heavy Rain Alert: Up to ${Math.round(rainSum)}mm expected (${rainProb}% chance)`,
+        headline: `${t("heavy_rain_alert", "Heavy Rain Alert")}: ${Math.round(rainSum)}mm (${rainProb}%)`,
         headlineEn: `Heavy Rain Alert: Up to ${Math.round(rainSum)}mm expected (${rainProb}% chance)`,
         headlineTh: `เตือนภัยฝนตกหนักมาก: คาดปริมาณฝนสะสมสูงถึง ${Math.round(rainSum)} มม. (โอกาส ${rainProb}%)`,
         source: "Open-Meteo",
-        timeAgo: "Today",
+        timeAgo: t("today", "Today"),
       });
     } else if (rainSum >= 25) {
       alerts.push({
         id: "om-moderate-rain",
         severity: "advisory",
         category: "rain",
-        tag: "Rain Advisory",
+        tag: t("alert_rain_tag", "Rain Advisory"),
         tagKey: "alert_rain_tag",
-        headline: `Rain Advisory: ${Math.round(rainSum)}mm rain expected (${rainProb}% chance)`,
+        headline: `${t("rain_advisory", "Rain Advisory")}: ${Math.round(rainSum)}mm (${rainProb}%)`,
         headlineEn: `Rain Advisory: ${Math.round(rainSum)}mm rain expected (${rainProb}% chance)`,
         headlineTh: `ข้อแนะนำสภาพฝน: คาดว่าจะมีฝนตก ${Math.round(rainSum)} มม. (โอกาส ${rainProb}%)`,
         source: "Open-Meteo",
-        timeAgo: "Today",
+        timeAgo: t("today", "Today"),
       });
     }
 
@@ -230,13 +242,13 @@ async function fetchOpenMeteoAlerts(
         id: "om-high-wind",
         severity: "warning",
         category: "storm",
-        tag: "High Wind",
+        tag: t("high_wind", "High Wind"),
         tagKey: "alert_hazard",
-        headline: `High Wind Warning: Dangerous gusts up to ${Math.round(peakWind)} km/h`,
+        headline: `${t("high_wind_warning", "High Wind Warning")}: ${Math.round(peakWind)} km/h`,
         headlineEn: `High Wind Warning: Dangerous gusts up to ${Math.round(peakWind)} km/h`,
         headlineTh: `เตือนภัยลมกระโชกแรง: ความเร็วลมสูงสุด ${Math.round(peakWind)} กม./ชม.`,
         source: "Open-Meteo",
-        timeAgo: "Today",
+        timeAgo: t("today", "Today"),
       });
     }
 
@@ -246,13 +258,13 @@ async function fetchOpenMeteoAlerts(
         id: "om-heatwave",
         severity: "warning",
         category: "heat",
-        tag: "Extreme Heat",
+        tag: t("extreme_heat", "Extreme Heat"),
         tagKey: "alert_hazard",
-        headline: `Extreme Heat Warning: Peak temperatures near ${Math.round(maxTemp)}°C — stay hydrated`,
+        headline: `${t("heatwave_warning", "Extreme Heat Warning")}: ${Math.round(maxTemp)}°C`,
         headlineEn: `Extreme Heat Warning: Peak temperatures near ${Math.round(maxTemp)}°C — stay hydrated`,
         headlineTh: `เตือนภัยอากาศร้อนจัด: อุณหภูมิสูงสุดแตะ ${Math.round(maxTemp)}°C — โปรดดื่มน้ำบ่อยๆ`,
         source: "Open-Meteo",
-        timeAgo: "Today",
+        timeAgo: t("today", "Today"),
       });
     }
 
@@ -262,13 +274,13 @@ async function fetchOpenMeteoAlerts(
         id: "om-freeze",
         severity: "warning",
         category: "snow",
-        tag: "Severe Freeze",
+        tag: t("severe_freeze", "Severe Freeze"),
         tagKey: "alert_hazard",
-        headline: `Severe Freeze Warning: Sub-zero lows near ${Math.round(minTemp)}°C — beware of black ice`,
+        headline: `${t("freeze_warning", "Severe Freeze Warning")}: ${Math.round(minTemp)}°C`,
         headlineEn: `Severe Freeze Warning: Sub-zero lows near ${Math.round(minTemp)}°C — beware of black ice`,
         headlineTh: `เตือนภัยความหนาวจัด: อุณหภูมิต่ำสุดลดลงถึง ${Math.round(minTemp)}°C — ระวังถนนลื่น`,
         source: "Open-Meteo",
-        timeAgo: "Today",
+        timeAgo: t("today", "Today"),
       });
     }
 
@@ -282,13 +294,16 @@ async function fetchOpenMeteoAlerts(
         id: "om-dense-fog",
         severity: "advisory",
         category: "fog",
-        tag: "Dense Fog",
+        tag: t("dense_fog", "Dense Fog"),
         tagKey: "alert_hazard",
-        headline: "Dense Fog Advisory: Low visibility on roads — drive with extreme caution",
+        headline: t(
+          "fog_advisory_desc",
+          "Dense Fog Advisory: Low visibility on roads — drive with extreme caution"
+        ),
         headlineEn: "Dense Fog Advisory: Low visibility on roads — drive with extreme caution",
         headlineTh: "ข้อแนะนำหมอกหนาจัด: ทัศนวิสัยบนท้องถนนต่ำมาก โปรดเปิดไฟหน้ารถและระมัดระวัง",
         source: "Open-Meteo",
-        timeAgo: "Now",
+        timeAgo: t("active_now", "Now"),
       });
     }
 
@@ -299,7 +314,11 @@ async function fetchOpenMeteoAlerts(
 }
 
 // Fetch NWS Active Alerts (US locations only)
-async function fetchNWSAlerts(lat: number, lon: number): Promise<TickerAlertItem[]> {
+async function fetchNWSAlerts(
+  lat: number,
+  lon: number,
+  t: (k: string, fb: string) => string
+): Promise<TickerAlertItem[]> {
   try {
     const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`, {
       headers: { "User-Agent": "(myweatherpal.app, contact@myweatherpal.app)" },
@@ -309,31 +328,24 @@ async function fetchNWSAlerts(lat: number, lon: number): Promise<TickerAlertItem
     const data = await res.json();
     const features = data.features || [];
 
-    return features.slice(0, 2).map((f: any) => {
+    return features.slice(0, 2).map((f: { properties: { event?: string; severity?: string; headline?: string; description?: string }; id: string }) => {
       const isFlood = f.properties.event?.toLowerCase().includes("flood");
       return {
         id: `nws-${f.id}`,
         severity: f.properties.severity === "Severe" ? "warning" : "advisory",
         category: isFlood ? "flood" : "storm",
-        tag: isFlood ? "Flood Watch" : "NWS Alert",
+        tag: isFlood ? t("alert_flood_tag", "Flood Watch") : t("alert_hazard", "NWS Alert"),
         tagKey: isFlood ? "alert_flood_tag" : "alert_hazard",
         headline: `${f.properties.event}: ${f.properties.headline || f.properties.description?.slice(0, 100)}`,
         headlineEn: `${f.properties.event}: ${f.properties.headline || f.properties.description?.slice(0, 100)}`,
         headlineTh: `ประกาศเตือน NWS: ${f.properties.event}`,
         source: "NWS",
-        timeAgo: "Active",
+        timeAgo: t("active_now", "Active"),
       };
     });
   } catch {
     return [];
   }
-}
-
-function formatTimeAgo(timestamp: number): string {
-  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-  if (diffSec < 3600) return `${Math.max(1, Math.floor(diffSec / 60))}m ago`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-  return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
 function Index() {
@@ -384,20 +396,6 @@ function Index() {
 
   // Monetization & Ad Unlock state
   const [purchasedTierId, setPurchasedTierId] = useState<string | null>(null);
-  const [adUnlockedBgs, setAdUnlockedBgs] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    const adBgs: string[] = [];
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith("ad_unlocked_")) {
-          const bg = key.replace("ad_unlocked_", "");
-          if (isAdUnlocked(bg)) adBgs.push(bg);
-        }
-      }
-    } catch {}
-    return adBgs;
-  });
 
   // Always keep localStorage synchronized with current place
   useEffect(() => {
@@ -459,7 +457,7 @@ function Index() {
     };
   }, []);
 
-  // 2. Fetch Weather and Global Disaster & Meteorological Alerts (with optional forceRefresh)
+  // 2. Fetch Weather and Global Disaster & Meteorological Alerts
   const fetchAllWeatherData = async (
     targetPlace: Place,
     currentUnit: WeatherUnit,
@@ -474,10 +472,10 @@ function Index() {
       const isUS = targetPlace.country === "United States" || targetPlace.country === "USA";
 
       const [quakeAlerts, tmdAlerts, omAlerts, nwsAlerts] = await Promise.allSettled([
-        fetchUSGSEarthquakes(targetPlace.lat, targetPlace.lon),
+        fetchUSGSEarthquakes(targetPlace.lat, targetPlace.lon, t),
         fetchTMDWarnings(targetPlace),
-        fetchOpenMeteoAlerts(targetPlace.lat, targetPlace.lon, data),
-        isUS ? fetchNWSAlerts(targetPlace.lat, targetPlace.lon) : Promise.resolve([]),
+        fetchOpenMeteoAlerts(targetPlace.lat, targetPlace.lon, data, t),
+        isUS ? fetchNWSAlerts(targetPlace.lat, targetPlace.lon, t) : Promise.resolve([]),
       ]);
 
       const combined: TickerAlertItem[] = [
@@ -488,8 +486,8 @@ function Index() {
       ];
 
       setAlerts(combined);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load weather forecast");
+    } catch (err: unknown) {
+      setError((err as Error)?.message || t("error_fetch_weather", "Failed to load weather forecast"));
     } finally {
       setLoading(false);
     }
@@ -530,7 +528,6 @@ function Index() {
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        // Guard against tab-switch storms: only refetch if data is older than 10 minutes
         if (!weather || Date.now() - weather.fetchedAt >= 10 * 60 * 1000) {
           fetchAllWeatherData(place, unit);
         }
@@ -565,8 +562,8 @@ function Index() {
       try {
         const results = await searchCity(query, currentLang, controller.signal);
         setSuggestions(results);
-      } catch (err: any) {
-        if (err?.name !== "AbortError") {
+      } catch (err: unknown) {
+        if ((err as { name?: string })?.name !== "AbortError") {
           setSuggestions([]);
         }
       } finally {
@@ -613,7 +610,7 @@ function Index() {
           const data = await res.json();
           const lat = parseFloat(data.latitude);
           const lon = parseFloat(data.longitude);
-          const cityName = data.city || data.region || "Current Location";
+          const cityName = data.city || data.region || t("current_location", "Current Location");
           const countryName = data.country || "";
 
           if (!isNaN(lat) && !isNaN(lon)) {
@@ -628,7 +625,7 @@ function Index() {
         }
       } catch {}
       setLoading(false);
-      setError("Unable to determine location. Please search for your city above.");
+      setError(t("error_location_fallback", "Unable to determine location. Please search for your city above."));
     };
 
     if (!navigator.geolocation) {
@@ -648,7 +645,7 @@ function Index() {
             const data = await res.json();
             const feat = data.features?.[0]?.properties;
             const cityName =
-              feat?.city || feat?.name || feat?.district || feat?.state || "Current Location";
+              feat?.city || feat?.name || feat?.district || feat?.state || t("current_location", "Current Location");
             const countryName = feat?.country || "";
 
             handleSelectPlace({
@@ -662,7 +659,7 @@ function Index() {
         } catch {}
 
         handleSelectPlace({
-          name: "My Location",
+          name: t("my_location", "My Location"),
           country: "",
           lat: latitude,
           lon: longitude,
@@ -762,6 +759,7 @@ function Index() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t("search_placeholder", "Search city or landmark...")}
+                aria-label={t("search_placeholder", "Search city or landmark...")}
                 className="w-full rounded-2xl border border-border/60 bg-card/80 px-4 py-2.5 pl-10 text-sm shadow-xs backdrop-blur-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
               <span className="absolute left-3.5 top-3 text-sm text-muted-foreground select-none">
@@ -778,6 +776,7 @@ function Index() {
               type="button"
               onClick={handleUseCurrentLocation}
               title={t("use_location", "Use GPS Location")}
+              aria-label={t("use_location", "Use GPS Location")}
               className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/60 bg-card/80 text-foreground shadow-xs hover:bg-muted/80 backdrop-blur-xs transition cursor-pointer"
             >
               <span className="text-base select-none">📍</span>
@@ -845,13 +844,14 @@ function Index() {
                 ? "bg-primary text-primary-foreground border-primary shadow-xs"
                 : "border-border/60 bg-card/80 text-foreground hover:bg-muted/80"
             }`}
-            title={showComparison ? t("hide_comparison", "Hide Comparison Hub") : t("compare_cities", "Compare Cities")}
+            title={showComparison ? t("hide_comparison", "Hide Compare") : t("compare_cities", "Compare Cities")}
+            aria-label={showComparison ? t("hide_comparison", "Hide Compare") : t("compare_cities", "Compare Cities")}
           >
             <span>📊</span>
             <span>
               {showComparison
-                ? t("hide_comparison", currentLang === "th" ? "ซ่อนเปรียบเทียบ" : "Hide Compare")
-                : t("compare_cities", currentLang === "th" ? "เปรียบเทียบเมือง" : "Compare Cities")}
+                ? t("hide_comparison", "Hide Compare")
+                : t("compare_cities", "Compare Cities")}
             </span>
           </button>
         </section>
@@ -932,7 +932,7 @@ function Index() {
             />
             <button
               onClick={() => setPurchasedTierId(null)}
-              aria-label="Close"
+              aria-label={t("close", "Close")}
               className="absolute -top-3 -right-3 bg-white text-zinc-700 hover:text-black rounded-full w-8 h-8 flex items-center justify-center shadow-lg font-bold text-sm transition hover:scale-105 cursor-pointer"
             >
               ✕
