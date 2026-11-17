@@ -37,7 +37,7 @@ function buildResourceBundle(langJson: Record<string, string>, langCode: string)
 }
 
 export const resources: Record<string, { translation: Record<string, string> }> = {
-  en: { translation: { ...enJson, ...(extraResources.en || {}) } },
+  en: { translation: { ...enJson, ...(extraResources["en"] || {}) } },
   th: buildResourceBundle(thJson, "th"),
   es: buildResourceBundle(esJson, "es"),
   ja: buildResourceBundle(jaJson, "ja"),
