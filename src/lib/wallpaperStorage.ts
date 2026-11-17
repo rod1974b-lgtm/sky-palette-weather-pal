@@ -7,6 +7,7 @@ export interface SavedItem {
   url: string;
   title: string;
   timestamp: number;
+  city?: string;
 }
 
 const DB_NAME = "MyWeatherPalDB";
@@ -174,26 +175,51 @@ export async function saveSavedArtworks(items: SavedItem[]): Promise<void> {
 }
 
 /**
+ * Clear all saved artworks from IndexedDB and local storage.
+ */
+export async function clearAllArtworksFromDB(): Promise<void> {
+  memoryCache.delete("weather:custom-art-saved");
+  await deleteWallpaperItem("weather:custom-art-saved");
+}
+
+/**
  * Apply wallpaper and broadcast live event to WeatherView and Index routes.
+ * Supports both applyCustomWallpaper(url) and applyCustomWallpaper(cityName, currentCityName, imageUrl).
  */
 export async function applyCustomWallpaper(
-  cityName: string,
-  currentCityName: string,
-  imageUrl: string
+  targetOrCity: string,
+  currentCityName?: string,
+  imageUrl?: string
 ): Promise<void> {
-  const cityKey = `weather:custom-bg:${cityName.toLowerCase().trim()}`;
-  const currentCityKey = `weather:custom-bg:${currentCityName.toLowerCase().trim()}`;
+  let targetUrl = targetOrCity;
+  let city = currentCityName || "";
+  let currentCity = currentCityName || "";
 
-  await Promise.all([
-    setWallpaperItem(cityKey, imageUrl),
-    setWallpaperItem(currentCityKey, imageUrl),
-    setWallpaperItem("weather:custom-bg:current", imageUrl),
-  ]);
+  if (imageUrl) {
+    city = targetOrCity;
+    currentCity = currentCityName || targetOrCity;
+    targetUrl = imageUrl;
+  }
+
+  const cityKey = city ? `weather:custom-bg:${city.toLowerCase().trim()}` : null;
+  const currentCityKey = currentCity ? `weather:custom-bg:${currentCity.toLowerCase().trim()}` : null;
+
+  const promises: Promise<void>[] = [
+    setWallpaperItem("weather:custom-bg:current", targetUrl),
+  ];
+  if (cityKey) promises.push(setWallpaperItem(cityKey, targetUrl));
+  if (currentCityKey) promises.push(setWallpaperItem(currentCityKey, targetUrl));
+
+  await Promise.all(promises);
 
   if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("weather:custom-hero-art", targetUrl);
+    } catch {}
+
     window.dispatchEvent(
       new CustomEvent("weather:custom-bg-change", {
-        detail: { city: cityName, currentCity: currentCityName, url: imageUrl },
+        detail: { city, currentCity, url: targetUrl },
       })
     );
   }
