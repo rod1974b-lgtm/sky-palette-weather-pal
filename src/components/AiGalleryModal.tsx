@@ -18,10 +18,13 @@ import {
 export interface AiGalleryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  city?: string;
   cityName?: string;
   country?: string;
   weatherCode?: number;
   weatherDesc?: string;
+  onSelectBackground?: (url: string) => void | Promise<void>;
+  onSelectBg?: (url: string) => void | Promise<void>;
   onApplyArtwork?: (artworkUrl: string) => void;
   onOpenPaymentModal?: () => void;
 }
@@ -38,7 +41,10 @@ const FALLBACK_STYLES = [
 export function AiGalleryModal({
   isOpen,
   onClose,
+  city,
   cityName,
+  onSelectBackground,
+  onSelectBg,
   onApplyArtwork,
   onOpenPaymentModal,
   ...props
@@ -64,7 +70,6 @@ export function AiGalleryModal({
 
   // Status feedback
   const [appliedUrl, setAppliedUrl] = useState<string | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState(false);
 
   // Tier info for display
   const [tierName, setTierName] = useState("Free");
@@ -82,7 +87,7 @@ export function AiGalleryModal({
     } catch {}
   }, [isOpen]);
 
-  const activeCity = cityName || "Bangkok";
+  const activeCity = cityName || city || "Bangkok";
 
   // Derive catalog cities
   const catalogCityKeys = Object.keys(LANDMARK_WATERCOLORS);
@@ -94,8 +99,8 @@ export function AiGalleryModal({
       .join(" ");
   };
 
-  const getArtworkTitle = (url: string, city: string, index: number): string => {
-    const cityKey = city.toLowerCase().trim();
+  const getArtworkTitle = (url: string, cName: string, index: number): string => {
+    const cityKey = cName.toLowerCase().trim();
     if (LANDMARK_TITLES[cityKey] && LANDMARK_TITLES[cityKey][index]) {
       return LANDMARK_TITLES[cityKey][index];
     }
@@ -172,11 +177,11 @@ export function AiGalleryModal({
 
   const handleApply = (art: SavedItem) => {
     try {
-      applyCustomWallpaper(art.url);
+      applyCustomWallpaper(activeCity, activeCity, art.url);
       setAppliedUrl(art.url);
-      if (onApplyArtwork) {
-        onApplyArtwork(art.url);
-      }
+      if (onApplyArtwork) onApplyArtwork(art.url);
+      if (onSelectBackground) onSelectBackground(art.url);
+      if (onSelectBg) onSelectBg(art.url);
     } catch (e) {
       console.error("Failed to apply custom wallpaper:", e);
     }
@@ -185,11 +190,9 @@ export function AiGalleryModal({
   const handleSaveToCollection = async (art: SavedItem) => {
     try {
       const alreadySaved = savedArts.some((item) => item.url === art.url);
-      if (alreadySaved) {
-        return;
-      }
+      if (alreadySaved) return;
 
-      const updated = [
+      const updated: SavedItem[] = [
         {
           ...art,
           id: `saved-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -226,23 +229,26 @@ export function AiGalleryModal({
     setErrorMessage(null);
 
     try {
-      let promptBuilder = `${activeCity} ${props.country ? ", " + props.country : ""}`;
-      if (customPrompt.trim()) {
-        promptBuilder += `, ${customPrompt.trim()}`;
-      }
-      if (includeWeather && props.weatherDesc) {
-        promptBuilder += `, ${props.weatherDesc} weather atmosphere`;
-      }
-      promptBuilder += `, ${timeOfDay} light, ${customStyle}, detailed watercolor painting on textured paper, vibrant artistic hues, professional fine art`;
+      const userPrompt = customPrompt.trim()
+        ? `${customPrompt.trim()}, ${customStyle}, ${timeOfDay} light`
+        : `${customStyle}, ${timeOfDay} light`;
 
-      const result = await generateWatercolorFn({ data: { prompt: promptBuilder } });
+      const result = await generateWatercolorFn({
+        data: {
+          city: activeCity,
+          userPrompt,
+          weatherDesc: includeWeather ? props.weatherDesc : undefined,
+        },
+      });
 
       if (result && result.imageUrl) {
         setGeneratedArtUrl(result.imageUrl);
         const newItem: SavedItem = {
           id: `ai-${Date.now()}`,
           url: result.imageUrl,
-          title: customPrompt.trim() ? `${activeCity}: ${customPrompt.slice(0, 24)}...` : `${activeCity} AI Scene`,
+          title: customPrompt.trim()
+            ? `${activeCity}: ${customPrompt.slice(0, 24)}...`
+            : `${activeCity} AI Scene`,
           city: activeCity,
           timestamp: Date.now(),
         };
@@ -252,7 +258,7 @@ export function AiGalleryModal({
         await saveSavedArtworks(updated);
         setSelectedArt(newItem);
       } else {
-        throw new Error(result?.error || "AI Generation failed to return an image.");
+        throw new Error("AI Generation failed to return an image.");
       }
     } catch (err: any) {
       console.error("AI Scene Generation Error:", err);
@@ -317,7 +323,7 @@ export function AiGalleryModal({
     const matchCity = filterCity ? art.city?.toLowerCase() === filterCity.toLowerCase() : true;
     const matchSearch = searchQuery
       ? art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        art.city?.toLowerCase().includes(searchQuery.toLowerCase())
+        Boolean(art.city?.toLowerCase().includes(searchQuery.toLowerCase()))
       : true;
     return matchCity && matchSearch;
   });
@@ -325,7 +331,7 @@ export function AiGalleryModal({
   const filteredSaved = savedArts.filter((art) => {
     const matchSearch = searchQuery
       ? art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (art.city && art.city.toLowerCase().includes(searchQuery.toLowerCase()))
+        Boolean(art.city && art.city.toLowerCase().includes(searchQuery.toLowerCase()))
       : true;
     return matchSearch;
   });
@@ -545,7 +551,7 @@ export function AiGalleryModal({
                 {savedArts.length > 0 && (
                   <button
                     onClick={handleClearSaved}
-                    className="text-destructive hover:underline text-xs"
+                    className="text-destructive hover:underline text-xs cursor-pointer"
                   >
                     Clear All
                   </button>
@@ -741,7 +747,7 @@ export function AiGalleryModal({
                   <button
                     type="button"
                     onClick={() => {
-                      applyCustomWallpaper(generatedArtUrl);
+                      applyCustomWallpaper(activeCity, activeCity, generatedArtUrl);
                       setAppliedUrl(generatedArtUrl);
                     }}
                     className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs cursor-pointer"
@@ -845,3 +851,5 @@ export function AiGalleryModal({
     </div>
   );
 }
+
+export default AiGalleryModal;
