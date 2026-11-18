@@ -2,25 +2,31 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LANGUAGES } from "./LanguageSelector";
-import type { WeatherUnit } from "@/lib/weather";
+import type { WeatherUnit, Place } from "@/lib/weather";
+import { saveUnitPref } from "@/lib/weather";
 import { ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE } from "@/lib/monetization";
 import { PaymentModal } from "./PaymentModal";
 
 interface AppMenuProps {
   unit: WeatherUnit;
-  onUnitChange: (unit: WeatherUnit) => void;
+  onUnitChange?: (unit: WeatherUnit) => void;
+  onToggleUnit?: () => void;
   onOpenAiGallery?: () => void;
+  currentPlace?: Place;
+  favorites?: Place[];
+  onSelectPlace?: (p: Place) => void;
+  onSelectBackground?: (url: string | null) => void;
 }
 
-export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
-  const { t, i18n } = useTranslation();
+export function AppMenu({
+  unit,
+  onUnitChange,
+  onToggleUnit,
+}: AppMenuProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [skyPref, setSkyPref] = useState("auto");
   const [fontSize, setFontSize] = useState("100%");
-  const [currentLang, setCurrentLang] = useState(() => {
-    return i18n?.language?.toLowerCase().split("-")[0] || "en";
-  });
   const [showTiers, setShowTiers] = useState(false);
   const [paymentTierId, setPaymentTierId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -51,16 +57,8 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
       const storedFont = localStorage.getItem("weather:font-size") || "100%";
       setFontSize(storedFont);
       document.documentElement.style.fontSize = storedFont;
-
-      const savedLang =
-        localStorage.getItem("weather:lang") ||
-        localStorage.getItem("app_language") ||
-        i18n?.language;
-      if (savedLang) {
-        setCurrentLang(savedLang.toLowerCase().split("-")[0] || "en");
-      }
     } catch {}
-  }, [i18n?.language]);
+  }, []);
 
   // Listen for global open-payment-modal events (from Gallery, headers, etc.)
   useEffect(() => {
@@ -93,6 +91,15 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
     };
   }, [open]);
 
+  const handleUnitSelect = (newUnit: WeatherUnit) => {
+    if (onUnitChange) {
+      onUnitChange(newUnit);
+    } else if (onToggleUnit && newUnit !== unit) {
+      onToggleUnit();
+    }
+    saveUnitPref(newUnit);
+  };
+
   const handleSkyChange = (val: string) => {
     setSkyPref(val);
     try {
@@ -111,29 +118,6 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
     } catch {}
   };
 
-  const handleLanguageSelect = (code: string) => {
-    setCurrentLang(code);
-    try {
-      if (typeof i18n?.changeLanguage === "function") {
-        i18n.changeLanguage(code);
-      }
-      localStorage.setItem("weather:lang", code);
-      localStorage.setItem("app_language", code);
-      localStorage.setItem("i18nextLng", code);
-      if (typeof document !== "undefined") {
-        document.documentElement.lang = code;
-      }
-      window.dispatchEvent(
-        new CustomEvent("weather:lang-change", { detail: code })
-      );
-      setTimeout(() => {
-        setOpen(false);
-      }, 150);
-    } catch (err) {
-      console.error("Language switch error:", err);
-    }
-  };
-
   const handleSelectTier = (tierId: string) => {
     setPaymentTierId(tierId);
     setOpen(false);
@@ -145,13 +129,13 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-label={t("settings", "Settings")}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-xs hover:bg-muted transition cursor-pointer"
+        className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-background/60 text-foreground shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer"
       >
         <span className="text-base select-none">⚙️</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur-md space-y-4 max-h-[85vh] overflow-y-auto">
+        <div className="absolute right-0 top-11 z-50 w-[300px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur-md space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border pb-2.5">
             <span className="text-sm font-bold text-foreground">
@@ -215,7 +199,7 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
             )}
           </div>
 
-          {/* Units */}
+          {/* Units Selection - Fixed & Synchronized */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
               {t("units", "Units")}
@@ -223,7 +207,7 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
-                onClick={() => onUnitChange("metric")}
+                onClick={() => handleUnitSelect("metric")}
                 className={`py-1.5 text-xs font-medium rounded-lg transition cursor-pointer ${
                   unit === "metric"
                     ? "bg-primary text-primary-foreground font-semibold shadow-xs"
@@ -234,7 +218,7 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
               </button>
               <button
                 type="button"
-                onClick={() => onUnitChange("imperial")}
+                onClick={() => handleUnitSelect("imperial")}
                 className={`py-1.5 text-xs font-medium rounded-lg transition cursor-pointer ${
                   unit === "imperial"
                     ? "bg-primary text-primary-foreground font-semibold shadow-xs"
@@ -264,18 +248,18 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
             </select>
           </div>
 
-          {/* Text size */}
+          {/* Font size */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              {t("text_size", "Text Size")}
+              {t("font_size", "Text Size")}
             </label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 gap-1">
               {fontSizes.map((f) => (
                 <button
                   key={f.value}
                   type="button"
                   onClick={() => handleFontChange(f.value)}
-                  className={`py-1.5 px-1 text-xs font-medium rounded-lg transition text-center truncate cursor-pointer ${
+                  className={`py-1.5 text-xs rounded-lg transition cursor-pointer ${
                     fontSize === f.value
                       ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                       : "bg-muted hover:bg-muted/80 text-foreground"
@@ -284,41 +268,6 @@ export function AppMenu({ unit, onUnitChange }: AppMenuProps) {
                   {f.label}
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* Languages (Instant Touch & Click for Mobile & PC) */}
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
-              {t("language", "Language")}
-            </label>
-            <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-              {LANGUAGES.map((lang) => {
-                const isActive =
-                  currentLang === lang.code ||
-                  (lang.code === "en" && currentLang.startsWith("en"));
-                return (
-                  <button
-                    key={lang.code}
-                    type="button"
-                    onClick={() => handleLanguageSelect(lang.code)}
-                    onTouchEnd={(e) => {
-                      e.preventDefault();
-                      handleLanguageSelect(lang.code);
-                    }}
-                    style={{ touchAction: "manipulation" }}
-                    className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition text-left cursor-pointer border active:scale-95 ${
-                      isActive
-                        ? "bg-primary text-primary-foreground border-primary font-semibold shadow-xs"
-                        : "bg-muted hover:bg-muted/80 text-foreground border-border"
-                    }`}
-                  >
-                    <span className="text-base leading-none select-none">{lang.flag}</span>
-                    <span className="truncate flex-1">{lang.native}</span>
-                    {isActive && <span className="text-xs font-bold">✓</span>}
-                  </button>
-                );
-              })}
             </div>
           </div>
 
