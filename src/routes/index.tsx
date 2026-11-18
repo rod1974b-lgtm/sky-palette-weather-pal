@@ -111,7 +111,6 @@ async function fetchUSGSEarthquakes(
     );
     if (!res.ok) return [];
     const data = await res.json();
-    const now = Date.now();
 
     const quakes: TickerAlertItem[] = [];
     for (const f of data.features || []) {
@@ -536,10 +535,13 @@ function Index() {
       <main className="relative z-10 mx-auto max-w-4xl px-3.5 py-4 sm:px-6 sm:py-6 space-y-4">
         {/* Navigation / Header Bar */}
         <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl" role="img" aria-label="sun">
-              ☀️
-            </span>
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/icons/weather_pal_1_512.png"
+              alt="My Weather Pal"
+              className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-xl drop-shadow-sm shrink-0"
+              loading="eager"
+            />
             <div>
               <h1 className="text-lg font-black tracking-tight drop-shadow-sm sm:text-xl">
                 My Weather Pal
