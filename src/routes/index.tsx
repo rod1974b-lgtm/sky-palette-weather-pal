@@ -61,6 +61,7 @@ const LAST_PLACE_KEY = "weather:last-place";
 const SKY_GRADIENTS: Record<string, string> = {
   "clear-day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
   "day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
+  "clear_day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
   "clear-night": "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
   "night": "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
   "cloudy-day": "linear-gradient(180deg, oklch(0.8 0.03 248), oklch(0.92 0.02 250))",
@@ -268,6 +269,7 @@ function Index() {
 
   // Background and Sky Theme
   const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
+  const [skyPref, setSkyPref] = useState<string>("auto");
 
   // Monetization & Ad Unlock state
   const [purchasedTierId, setPurchasedTierId] = useState<string | null>(null);
@@ -279,7 +281,7 @@ function Index() {
     }
   }, [place]);
 
-  // 1. Initial Preferences, Auto-Redirect Return & Listeners
+  // 1. Initial Preferences, Sky Theme Listener, Auto-Redirect Return & Listeners
   useEffect(() => {
     setUnit(loadUnitPref());
     setFavorites(loadFavorites());
@@ -287,7 +289,19 @@ function Index() {
     try {
       const savedBg = localStorage.getItem("weather:custom-bg");
       if (savedBg) setCustomBgUrl(savedBg);
+
+      const savedSky = localStorage.getItem("weather:sky-pref") || "auto";
+      setSkyPref(savedSky);
     } catch {}
+
+    // Listen for sky theme preference changes from AppMenu
+    const handleSkyChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ sky: string }>).detail;
+      if (detail?.sky) {
+        setSkyPref(detail.sky);
+      }
+    };
+    window.addEventListener("weather:sky-change", handleSkyChange);
 
     // Check for Buy Me a Coffee return redirect (?paid=rootbeer)
     if (typeof window !== "undefined") {
@@ -299,6 +313,10 @@ function Index() {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
+
+    return () => {
+      window.removeEventListener("weather:sky-change", handleSkyChange);
+    };
   }, []);
 
   // 2. Fetch Forecast, Air Quality, and Live Regional Alerts
@@ -509,10 +527,20 @@ function Index() {
     }
   };
 
-  // Dynamic Background Style
-  const currentSky = weather ? skyKey(weather) : "day";
+  // Dynamic Background Style — matches user's chosen Sky Theme or live meteorological conditions
+  const liveSky = weather?.current
+    ? skyKey(weather.current.code, weather.current.is_day ?? 1)
+    : "day";
+
+  const activeSky = skyPref !== "auto" ? skyPref : liveSky;
+  const activeGradient =
+    SKY_GRADIENTS[activeSky] ||
+    SKY_GRADIENTS[liveSky] ||
+    SKY_GRADIENTS["clear-day"] ||
+    SKY_GRADIENTS.day;
+
   const bgStyle =
-    customBgUrl && isAdUnlocked()
+    skyPref === "auto" && customBgUrl && isAdUnlocked()
       ? {
           backgroundImage: `url(${customBgUrl})`,
           backgroundSize: "cover",
@@ -520,7 +548,7 @@ function Index() {
           backgroundAttachment: "fixed",
         }
       : {
-          backgroundImage: SKY_GRADIENTS[currentSky] || SKY_GRADIENTS.day,
+          backgroundImage: activeGradient,
         };
 
   return (
@@ -543,13 +571,17 @@ function Index() {
               loading="eager"
             />
             <div>
-              <h1 className="text-lg font-black tracking-tight drop-shadow-sm sm:text-xl">
+              <h1 className="text-lg font-black tracking-tight text-foreground drop-shadow-md sm:text-xl">
                 My Weather Pal
               </h1>
-              <p className="text-[11px] font-medium text-muted-foreground/90">
-                {getLocalizedCity(place.name, i18n.language)},{" "}
-                {getLocalizedCountry(place.country, i18n.language)}
-              </p>
+              {/* High-Contrast Frosted Badge for Clear Visibility */}
+              <div className="mt-0.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-xs sm:text-sm font-bold text-foreground shadow-xs">
+                <span className="text-xs">📍</span>
+                <span className="truncate max-w-[190px] sm:max-w-[280px]">
+                  {getLocalizedCity(place.name, i18n.language)}
+                  {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
+                </span>
+              </div>
             </div>
           </div>
 
