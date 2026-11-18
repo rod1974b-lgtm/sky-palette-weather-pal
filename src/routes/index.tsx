@@ -128,7 +128,7 @@ async function fetchUSGSEarthquakes(
         quakes.push({
           id: `usgs-${f.id}`,
           title: `M${mag.toFixed(1)} ${t("alert_earthquake", "Earthquake")} (${placeName})`,
-          severity: mag >= 6.0 ? "severe" : "moderate",
+          severity: mag >= 6.0 ? "danger" : "warning",
           urgency: "Immediate",
           event: "Earthquake",
           source: `USGS (${Math.round(distKm)} km ${t("away", "away")})`,
@@ -158,13 +158,14 @@ async function fetchTMDWarnings(
   if (!isThai) return [];
 
   try {
-    const tmdRes = await getTmdAlertsFn({ data: {} });
-    if (!tmdRes || !tmdRes.success || !tmdRes.alerts) return [];
+    const tmdRes: any = await getTmdAlertsFn();
+    const alertsList = Array.isArray(tmdRes) ? tmdRes : tmdRes?.alerts || [];
+    if (!alertsList.length) return [];
 
-    return tmdRes.alerts.slice(0, 3).map((a: any, idx: number) => ({
-      id: `tmd-${idx}-${a.TitleEn || a.TitleTh}`,
-      title: a.TitleEn || a.TitleTh,
-      severity: "severe",
+    return alertsList.slice(0, 3).map((a: any, idx: number) => ({
+      id: `tmd-${idx}-${a.TitleEn || a.TitleTh || idx}`,
+      title: a.TitleEn || a.TitleTh || "Weather Advisory",
+      severity: "danger",
       urgency: "Expected",
       event: "Weather Advisory",
       source: "TMD",
@@ -228,7 +229,7 @@ function WeatherSkeleton({ t }: { t: (k: string, fb: string) => string }) {
       </div>
 
       <div className="text-center text-xs text-muted-foreground pt-1">
-        {t("loading_weather", "Loading live weather forecast...")}
+        {t("loading_weather", "Loading latest weather forecast...")}
       </div>
     </div>
   );
@@ -274,14 +275,14 @@ function Index() {
   // Monetization & Ad Unlock state
   const [purchasedTierId, setPurchasedTierId] = useState<string | null>(null);
 
-  // Always keep localStorage synchronized with current place
+  // Keep localStorage synchronized with current place
   useEffect(() => {
     if (place) {
       saveLastPlace(place);
     }
   }, [place]);
 
-  // 1. Initial Preferences, Sky Theme Listener, Auto-Redirect Return & Listeners
+  // 1. Initial Preferences, Sky Theme, and Auto-Redirect
   useEffect(() => {
     setUnit(loadUnitPref());
     setFavorites(loadFavorites());
@@ -308,8 +309,8 @@ function Index() {
       const params = new URLSearchParams(window.location.search);
       const paid = params.get("paid");
       if (paid === "rootbeer") {
-        setPurchasedTierId("medium");
-        saveThankYouBackgroundForever();
+        setPurchasedTierId("medium_root_beer_tier");
+        saveThankYouBackgroundForever("medium_root_beer_tier");
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
@@ -335,7 +336,7 @@ function Index() {
       // Concurrent retrieval of alerts from USGS, TMD, and local weather thresholds
       const [usgsAlerts, tmdAlerts] = await Promise.all([
         fetchUSGSEarthquakes(targetPlace.lat, targetPlace.lon, t),
-        fetchTMDWarnings(targetPlace.name, targetPlace.country, t),
+        fetchTMDWarnings(targetPlace.name, targetPlace.country || "", t),
       ]);
 
       const consolidatedAlerts: TickerAlertItem[] = [...usgsAlerts, ...tmdAlerts];
@@ -343,7 +344,7 @@ function Index() {
       // Add severe meteorological warnings based on fetched Open-Meteo data
       if (w.current?.temp != null) {
         const temp = w.current.temp;
-        const code = w.current.weather_code ?? 0;
+        const code = w.current.code ?? 0;
         const isFahrenheit = targetUnit === "imperial";
         const tempCelsius = isFahrenheit ? ((temp - 32) * 5) / 9 : temp;
 
@@ -351,7 +352,7 @@ function Index() {
           consolidatedAlerts.push({
             id: `extreme-heat-${Date.now()}`,
             title: t("alert_extreme_heat", "Extreme Heat Warning — Stay Hydrated & Avoid Sun"),
-            severity: "severe",
+            severity: "danger",
             urgency: "Immediate",
             event: "Excessive Heat",
             source: "Open-Meteo",
@@ -361,7 +362,7 @@ function Index() {
           consolidatedAlerts.push({
             id: `extreme-cold-${Date.now()}`,
             title: t("alert_extreme_cold", "Freeze Warning — Dangerous Wind Chill"),
-            severity: "severe",
+            severity: "warning",
             urgency: "Immediate",
             event: "Extreme Cold",
             source: "Open-Meteo",
@@ -374,7 +375,7 @@ function Index() {
           consolidatedAlerts.push({
             id: `thunderstorm-warning-${Date.now()}`,
             title: t("alert_severe_storm", "Severe Thunderstorm Warning — Lightning & Heavy Rain"),
-            severity: "severe",
+            severity: "danger",
             urgency: "Immediate",
             event: "Severe Thunderstorm",
             source: "Open-Meteo",
@@ -410,7 +411,7 @@ function Index() {
     return () => clearInterval(timer);
   }, [place, unit]);
 
-  // Debounced Search Handling with Abort Cancellation
+  // Debounced Search Handling with Fixed Language & Abort Controller
   useEffect(() => {
     if (!query.trim()) {
       setSuggestions([]);
@@ -427,7 +428,7 @@ function Index() {
     setSearching(true);
     const timeout = setTimeout(async () => {
       try {
-        const results = await searchCity(query, controller.signal);
+        const results = await searchCity(query, i18n.language || "en", controller.signal);
         setSuggestions(results);
       } catch (err: any) {
         if (err.name !== "AbortError") {
@@ -442,7 +443,7 @@ function Index() {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [query]);
+  }, [query, i18n.language]);
 
   // Handle City Selection
   const handleSelectPlace = (selected: Place) => {
@@ -465,7 +466,6 @@ function Index() {
         const lon = pos.coords.longitude;
 
         try {
-          // Photon Reverse Geocoding
           const res = await fetch(
             `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`,
             { signal: AbortSignal.timeout(4000) }
@@ -482,7 +482,6 @@ function Index() {
           }
         } catch {}
 
-        // Fallback name if reverse geocoding fails
         handleSelectPlace({
           name: t("gps_coordinates", "GPS Location"),
           country: `${lat.toFixed(2)}, ${lon.toFixed(2)}`,
@@ -527,7 +526,7 @@ function Index() {
     }
   };
 
-  // Dynamic Background Style — matches user's chosen Sky Theme or live meteorological conditions
+  // Dynamic Background Style — matches user's chosen Sky Theme or live weather
   const liveSky = weather?.current
     ? skyKey(weather.current.code, weather.current.is_day ?? 1)
     : "day";
@@ -537,7 +536,7 @@ function Index() {
     SKY_GRADIENTS[activeSky] ||
     SKY_GRADIENTS[liveSky] ||
     SKY_GRADIENTS["clear-day"] ||
-    SKY_GRADIENTS.day;
+    SKY_GRADIENTS["day"];
 
   const bgStyle =
     skyPref === "auto" && customBgUrl && isAdUnlocked()
