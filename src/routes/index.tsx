@@ -18,6 +18,7 @@ import {
 } from "@/lib/weather";
 import { WeatherView, type TickerAlertItem } from "@/components/WeatherView";
 import { AppMenu } from "@/components/AppMenu";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { RootBeerThankYou } from "@/components/RootBeerThankYou_DEEPER_AMBER";
 import {
   isAdUnlocked,
@@ -268,7 +269,6 @@ function Index() {
 
   // Background and Sky Theme
   const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
-  const [skyPref, setSkyPref] = useState<string>("auto");
 
   // Monetization & Ad Unlock state
   const [purchasedTierId, setPurchasedTierId] = useState<string | null>(null);
@@ -552,6 +552,9 @@ function Index() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Top-Header Language Pull-Down Selector */}
+            <LanguageSelector variant="dropdown" />
+
             {/* Quick Unit Switcher */}
             <button
               type="button"
@@ -579,6 +582,10 @@ function Index() {
               favorites={favorites}
               onSelectPlace={handleSelectPlace}
               unit={unit}
+              onUnitChange={(newUnit) => {
+                setUnit(newUnit);
+                saveUnitPref(newUnit);
+              }}
               onToggleUnit={handleToggleUnit}
               onSelectBackground={handleSelectCustomBg}
             />
@@ -712,7 +719,7 @@ function Index() {
           <WeatherSkeleton t={t} />
         ) : null}
 
-        {/* Multi-City Comparison Hub Footer Card (Shown if not toggled above and favorites exist) */}
+        {/* Multi-City Comparison Hub Footer Card */}
         {!showComparison && favorites.length > 1 && (
           <CityComparison
             favorites={favorites}
