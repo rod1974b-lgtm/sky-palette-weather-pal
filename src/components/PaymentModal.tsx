@@ -11,6 +11,7 @@ import {
   type RootBeerTier,
   type DonationProvider,
 } from "@/lib/monetization";
+import { redeemPromoCode } from "@/lib/promoCodes";
 
 interface PaymentModalProps {
   tierId: string;
@@ -24,6 +25,12 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [playBillingLoading, setPlayBillingLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Promo Code Redemption State
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
 
   const tier: RootBeerTier | undefined = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.find(
     (t) => t.id === tierId
@@ -74,6 +81,32 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
         );
       }
     );
+  };
+
+  const handleRedeemCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoCodeInput.trim()) return;
+
+    setRedeemLoading(true);
+    setPromoError(null);
+    setPromoSuccess(null);
+
+    try {
+      const res = await redeemPromoCode(promoCodeInput);
+      if (res.success && res.tierId) {
+        setPromoSuccess(res.message);
+        if (onSuccess) onSuccess(res.tierId);
+        setTimeout(() => {
+          onClose();
+        }, 1200);
+      } else {
+        setPromoError(res.message);
+      }
+    } catch {
+      setPromoError("Failed to redeem code. Please try again.");
+    } finally {
+      setRedeemLoading(false);
+    }
   };
 
   return (
@@ -260,6 +293,55 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
                   </span>
                 </button>
               )}
+
+              {/* ========================================================= */}
+              {/* 4. REDEEM SINGLE-USE CODE SECTION                        */}
+              {/* ========================================================= */}
+              <div className="pt-2">
+                <form
+                  onSubmit={handleRedeemCode}
+                  className="p-3 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 space-y-2"
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                    <span>🎁</span>
+                    <span>{t("have_promo_code", "Have a Gift or Promo Code?")}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={promoCodeInput}
+                      onChange={(e) => {
+                        setPromoCodeInput(e.target.value.toUpperCase());
+                        setPromoError(null);
+                        setPromoSuccess(null);
+                      }}
+                      placeholder="PAL-XXXX-XXXX"
+                      maxLength={15}
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-border bg-background text-xs font-mono font-bold tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:tracking-normal focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={redeemLoading || !promoCodeInput.trim()}
+                      className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                    >
+                      {redeemLoading ? "..." : t("redeem_btn", "Redeem")}
+                    </button>
+                  </div>
+
+                  {promoError && (
+                    <p className="text-[11px] text-destructive font-medium">
+                      ⚠️ {promoError}
+                    </p>
+                  )}
+
+                  {promoSuccess && (
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                      🎉 {promoSuccess}
+                    </p>
+                  )}
+                </form>
+              </div>
 
               <div className="pt-2 text-center">
                 <p className="text-[10px] text-muted-foreground">
