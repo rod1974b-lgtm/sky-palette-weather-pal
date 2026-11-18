@@ -29,6 +29,8 @@ import { WeatherRadar } from "@/components/WeatherRadar";
 import { WeatherPostcardModal } from "@/components/WeatherPostcardModal";
 import { OutdoorActivityPlanner } from "@/components/OutdoorActivityPlanner";
 import { WeatherAlertWatcher } from "@/components/WeatherAlertWatcher";
+import { WeatherGuideModal, type GuideTopic } from "@/components/WeatherGuideModal";
+import { ForecastDetailModal } from "@/components/ForecastDetailModal";
 
 export interface TickerAlertItem {
   id: string;
@@ -43,71 +45,130 @@ export interface TickerAlertItem {
   headlineEn?: string;
   urgency?: string;
   timeAgo?: string;
+  updatedAt?: string;
+  title?: string;
+  desc?: string;
+  url?: string;
+  event?: string;
 }
 
-interface WeatherViewProps {
-  weather?: Weather | null;
-  w?: Weather | null;
+export interface WeatherViewProps {
+  weather: Weather;
   activeAlerts?: TickerAlertItem[];
-  disasters?: TickerAlertItem[];
   unit: WeatherUnit;
   loading: boolean;
   onRefresh: () => void;
-  onSelectBg?: (url: string) => void;
-  onSelectBackground?: (url: string) => void;
-  isFav?: boolean;
-  onToggleFavorite?: () => void;
+  isFav: boolean;
+  onToggleFavorite: () => void;
+  onSelectBackground: (url: string | null) => void;
   onOpenAiGallery?: () => void;
   customBgUrl?: string | null;
 }
 
-type WearCategory = "casual" | "business" | "sports";
+type WearCategory = "business" | "casual" | "workout" | "evening";
 
 const WMO_KEY_MAP: Record<number, { key: string; fallback: string }> = {
-  0: { key: "cond_clear", fallback: "Clear sky" },
-  1: { key: "cond_mainly_clear", fallback: "Mainly clear" },
-  2: { key: "cond_partly_cloudy", fallback: "Partly cloudy" },
-  3: { key: "cond_overcast", fallback: "Overcast" },
-  45: { key: "cond_fog", fallback: "Fog" },
-  48: { key: "cond_depositing_rime_fog", fallback: "Depositing rime fog" },
-  51: { key: "cond_drizzle_light", fallback: "Light drizzle" },
-  53: { key: "cond_drizzle_mod", fallback: "Moderate drizzle" },
-  55: { key: "cond_drizzle_dense", fallback: "Dense drizzle" },
-  56: { key: "cond_freezing_drizzle_light", fallback: "Freezing drizzle (light)" },
-  57: { key: "cond_freezing_drizzle_dense", fallback: "Freezing drizzle (dense)" },
-  61: { key: "cond_rain_slight", fallback: "Slight rain" },
-  63: { key: "cond_rain_mod", fallback: "Moderate rain" },
-  65: { key: "cond_rain_heavy", fallback: "Heavy rain" },
-  66: { key: "cond_freezing_rain_light", fallback: "Freezing rain (light)" },
-  67: { key: "cond_freezing_rain_heavy", fallback: "Freezing rain (heavy)" },
-  71: { key: "cond_snow_slight", fallback: "Slight snow" },
-  73: { key: "cond_snow_mod", fallback: "Moderate snow" },
-  75: { key: "cond_snow_heavy", fallback: "Heavy snow" },
-  77: { key: "cond_snow_grains", fallback: "Snow grains" },
-  80: { key: "cond_rain_showers_slight", fallback: "Slight rain showers" },
-  81: { key: "cond_rain_showers_mod", fallback: "Moderate rain showers" },
-  82: { key: "cond_rain_showers_violent", fallback: "Violent rain showers" },
-  85: { key: "cond_snow_showers_slight", fallback: "Slight snow showers" },
-  86: { key: "cond_snow_showers_heavy", fallback: "Heavy snow showers" },
-  95: { key: "cond_thunderstorm", fallback: "Thunderstorm" },
-  96: { key: "cond_thunderstorm_slight_hail", fallback: "Thunderstorm with slight hail" },
-  99: { key: "cond_thunderstorm_heavy_hail", fallback: "Thunderstorm with heavy hail" },
+  0: { key: "wmo_0", fallback: "Clear sky" },
+  1: { key: "wmo_1", fallback: "Mainly clear" },
+  2: { key: "wmo_2", fallback: "Partly cloudy" },
+  3: { key: "wmo_3", fallback: "Overcast" },
+  45: { key: "wmo_45", fallback: "Fog" },
+  48: { key: "wmo_48", fallback: "Depositing rime fog" },
+  51: { key: "wmo_51", fallback: "Light drizzle" },
+  53: { key: "wmo_53", fallback: "Moderate drizzle" },
+  55: { key: "wmo_55", fallback: "Dense drizzle" },
+  56: { key: "wmo_56", fallback: "Light freezing drizzle" },
+  57: { key: "wmo_57", fallback: "Dense freezing drizzle" },
+  61: { key: "wmo_61", fallback: "Slight rain" },
+  63: { key: "wmo_63", fallback: "Moderate rain" },
+  65: { key: "wmo_65", fallback: "Heavy rain" },
+  66: { key: "wmo_66", fallback: "Light freezing rain" },
+  67: { key: "wmo_67", fallback: "Heavy freezing rain" },
+  71: { key: "wmo_71", fallback: "Slight snow fall" },
+  73: { key: "wmo_73", fallback: "Moderate snow fall" },
+  75: { key: "wmo_75", fallback: "Heavy snow fall" },
+  77: { key: "wmo_77", fallback: "Snow grains" },
+  80: { key: "wmo_80", fallback: "Slight rain showers" },
+  81: { key: "wmo_81", fallback: "Moderate rain showers" },
+  82: { key: "wmo_82", fallback: "Violent rain showers" },
+  85: { key: "wmo_85", fallback: "Slight snow showers" },
+  86: { key: "wmo_86", fallback: "Heavy snow showers" },
+  95: { key: "wmo_95", fallback: "Thunderstorm" },
+  96: { key: "wmo_96", fallback: "Thunderstorm with slight hail" },
+  99: { key: "wmo_99", fallback: "Thunderstorm with heavy hail" },
 };
 
-function getConditionLabel(code: number | undefined, t: TFunction): string {
-  if (code === undefined || code === null) return t("cond_unknown", "Unknown");
+export function getConditionLabel(code: number, t: TFunction): string {
   const mapping = WMO_KEY_MAP[code];
-  if (!mapping) return t("cond_unknown", "Unknown");
-  return t(mapping.key, mapping.fallback);
+  if (mapping) {
+    return t(mapping.key, mapping.fallback);
+  }
+  return describe(code);
 }
 
-function formatHourlyTime(timeStr: string): string {
-  if (!timeStr) return "";
+function getUvIndexInfo(uv: number, t: TFunction): { label: string; color: string } {
+  if (uv <= 2) return { label: t("uv_low", "Low"), color: "text-emerald-500" };
+  if (uv <= 5) return { label: t("uv_mod", "Moderate"), color: "text-amber-500" };
+  if (uv <= 7) return { label: t("uv_high", "High"), color: "text-orange-500" };
+  if (uv <= 10) return { label: t("uv_vhigh", "Very High"), color: "text-rose-500" };
+  return { label: t("uv_ext", "Extreme"), color: "text-purple-600" };
+}
+
+function getAqiAdvisory(
+  aqi: number | undefined,
+  pm25: number | undefined,
+  t: TFunction,
+  lang: string
+): { label: string; advice: string; color: string; bg: string } | null {
+  if (aqi === undefined && pm25 === undefined) return null;
+  const val = aqi ?? Math.round((pm25 ?? 0) * 2.5);
+
+  if (val <= 50) {
+    return {
+      label: t("aqi_good", "Good"),
+      advice: t("aqi_good_advice", lang === "th" ? "อากาศบริสุทธิ์ เหมาะกับการทำกิจกรรมกลางแจ้ง" : "Clean air. Perfect for outdoor sports and activities."),
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10 border-emerald-500/20",
+    };
+  }
+  if (val <= 100) {
+    return {
+      label: t("aqi_moderate", "Moderate"),
+      advice: t("aqi_mod_advice", lang === "th" ? "คุณภาพอากาศปานกลาง กลุ่มเสี่ยงควรระวัง" : "Acceptable. Sensitive individuals should consider limiting long exertion."),
+      color: "text-amber-500",
+      bg: "bg-amber-500/10 border-amber-500/20",
+    };
+  }
+  if (val <= 150) {
+    return {
+      label: t("aqi_unhealthy_sensitive", "Unhealthy for Sensitive"),
+      advice: t("aqi_sens_advice", lang === "th" ? "กลุ่มเสี่ยงควรสวมหน้ากาก N95 เมื่ออยู่กลางแจ้ง" : "Sensitive groups should wear an N95 mask outside."),
+      color: "text-orange-500",
+      bg: "bg-orange-500/10 border-orange-500/20",
+    };
+  }
+  return {
+    label: t("aqi_unhealthy", "Unhealthy"),
+    advice: t("aqi_unhealthy_advice", lang === "th" ? "ฝุ่นละอองสูง ควรหลีกเลี่ยงกิจกรรมกลางแจ้งและสวมหน้ากาก" : "High pollution. Avoid outdoor exercise and wear an N95 mask."),
+    color: "text-rose-500",
+    bg: "bg-rose-500/10 border-rose-500/20",
+  };
+}
+
+function degreesToCompass(deg: number | undefined, t: TFunction): string {
+  if (deg === undefined || deg === null) return "";
+  const val = Math.floor((deg / 22.5) + 0.5) % 16;
+  const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  const dir = dirs[val] ?? "N";
+  return t(`dir_${dir.toLowerCase()}`, dir);
+}
+
+function formatHourlyTime(isoString: string): string {
   try {
-    const d = new Date(timeStr);
-    return isNaN(d.getTime()) ? timeStr : d.toLocaleTimeString([], { hour: "numeric", hour12: true });
+    const d = new Date(isoString);
+    return d.toLocaleTimeString([], { hour: "numeric", hour12: true });
   } catch {
-    return timeStr;
+    return isoString;
   }
 }
 
@@ -115,247 +176,86 @@ function getDailyDayLabel(dateStr: string, idx: number, t: TFunction): string {
   if (idx === 0) return t("day_today", "Today");
   if (idx === 1) return t("day_tomorrow", "Tomorrow");
   try {
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) {
-      const dayNum = d.getDay();
-      const keys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
-      const fallbacks = ["Sun", "Mon", "Wed", "Thu", "Fri", "Sat"];
-      return t(keys[dayNum] ?? "day_sun", fallbacks[dayNum] ?? "Sun");
-    }
-  } catch {}
-  return dateStr;
-}
-
-function getUvIndexInfo(uv: number | undefined, t: TFunction): { label: string; color: string } {
-  const val = uv ?? 0;
-  if (val <= 2) return { label: t("uv_low", "Low"), color: "text-emerald-500 dark:text-emerald-400" };
-  if (val <= 5) return { label: t("uv_moderate", "Moderate"), color: "text-amber-500 dark:text-amber-400" };
-  if (val <= 7) return { label: t("uv_high", "High"), color: "text-orange-500 dark:text-orange-400" };
-  if (val <= 10) return { label: t("uv_very_high", "Very High"), color: "text-rose-500 dark:text-rose-400" };
-  return { label: t("uv_extreme", "Extreme"), color: "text-purple-600 dark:text-purple-400 font-extrabold" };
-}
-
-function degreesToCompass(deg: number | undefined, t: TFunction): string {
-  if (deg === undefined || deg === null) return "";
-  const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-  const val = Math.floor((deg / 22.5) + 0.5) % 16;
-  const dir = dirs[val] ?? "N";
-  return t(`dir_${dir.toLowerCase()}`, dir);
-}
-
-function getAqiAdvisory(aqi: number | undefined, pm25: number | undefined, t: TFunction, lang: string) {
-  const effectiveAqi = aqi !== undefined ? aqi : (pm25 ? Math.round(pm25 * 3) : undefined);
-  if (effectiveAqi === undefined) return null;
-
-  if (effectiveAqi <= 50) {
-    return {
-      label: t("aqi_good", lang === "th" ? "ดีมาก" : "Good"),
-      advice: t("aqi_good_advice", lang === "th" ? "คุณภาพอากาศดี เหมาะสำหรับกิจกรรมกลางแจ้งทุกชนิด" : "Air quality is satisfactory; enjoy outdoor activities!"),
-      color: "text-emerald-600 dark:text-emerald-400",
-      bg: "bg-emerald-500/10 border-emerald-500/30",
-    };
+    const d = new Date(dateStr + "T00:00:00");
+    const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const key = `day_${dayNames[d.getDay()]}`;
+    return t(key, d.toLocaleDateString([], { weekday: "short" }));
+  } catch {
+    return dateStr;
   }
-  if (effectiveAqi <= 100) {
-    return {
-      label: t("aqi_moderate", lang === "th" ? "ปานกลาง" : "Moderate"),
-      advice: t("aqi_mod_advice", lang === "th" ? "คุณภาพอากาศปานกลาง ผู้แพ้ง่ายควรสังเกตอาการ" : "Acceptable quality; sensitive groups should consider limiting prolonged exertion."),
-      color: "text-amber-600 dark:text-amber-400",
-      bg: "bg-amber-500/10 border-amber-500/30",
-    };
-  }
-  if (effectiveAqi <= 150) {
-    return {
-      label: t("aqi_sensitive", lang === "th" ? "เริ่มมีผลต่อสุขภาพ" : "Unhealthy for Sensitive"),
-      advice: t("aqi_sens_advice", lang === "th" ? "เด็ก ผู้สูงอายุ และผู้มีโรคทางเดินหายใจควรลดการออกกำลังกายกลางแจ้ง" : "Children, seniors, and sensitive individuals should limit prolonged outdoor exertion."),
-      color: "text-orange-600 dark:text-orange-400",
-      bg: "bg-orange-500/10 border-orange-500/30",
-    };
-  }
-  if (effectiveAqi <= 200) {
-    return {
-      label: t("aqi_unhealthy", lang === "th" ? "มีผลต่อสุขภาพ" : "Unhealthy"),
-      advice: t("aqi_unhealthy_advice", lang === "th" ? "ทุกคนควรสวมหน้ากาก N95 เมื่ออยู่กลางแจ้ง และงดการออกกำลังกายหนัก" : "Everyone should wear an N95 mask outdoors, avoid prolonged exertion, and keep windows closed."),
-      color: "text-rose-600 dark:text-rose-400",
-      bg: "bg-rose-500/10 border-rose-500/30",
-    };
-  }
-  return {
-    label: t("aqi_hazardous", lang === "th" ? "อันตรายมาก" : "Hazardous"),
-    advice: t("aqi_hazard_advice", lang === "th" ? "คำเตือนสุขภาพ: ควรสวมหน้ากาก N95 หลีกเลี่ยงกิจกรรมกลางแจ้งทั้งหมด และเปิดเครื่องฟอกอากาศ" : "Health alert: Wear an N95 mask outdoors, keep windows shut, and run air purifiers indoors."),
-    color: "text-purple-600 dark:text-purple-400 font-extrabold",
-    bg: "bg-purple-500/15 border-purple-500/40",
-  };
 }
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
-  weather,
-  w: weatherProp,
+  weather: w,
   activeAlerts = [],
-  disasters = [],
   unit,
   loading,
   onRefresh,
-  onSelectBg,
-  onSelectBackground,
-  isFav = false,
+  isFav,
   onToggleFavorite,
+  onSelectBackground,
   onOpenAiGallery,
   customBgUrl,
 }) => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language || "en";
-  const w = weatherProp || weather;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
-  const [activeWearCategory, setActiveWearCategory] = useState<WearCategory>("casual");
+  const [activeWearTab, setActiveWearTab] = useState<WearCategory>("casual");
+  const [disasters, setDisasters] = useState<TickerAlertItem[]>([]);
 
-  // Artwork & Wallpaper Slot Cycling State
-  const [displayBg, setDisplayBg] = useState<string>("");
-  const [availableArtworks, setAvailableArtworks] = useState<string[]>([]);
-  const [artIdx, setArtIdx] = useState<number>(0);
-  const [artLoaded, setArtLoaded] = useState<boolean>(false);
+  // Modals for Explanations and Uncut Phone Forecasts
+  const [guideOpen, setGuideOpen] = useState<boolean>(false);
+  const [guideTopic, setGuideTopic] = useState<GuideTopic>("all");
+  const [forecastModalOpen, setForecastModalOpen] = useState<boolean>(false);
+  const [forecastModalType, setForecastModalType] = useState<"hourly" | "daily">("hourly");
+  const [forecastModalIndex, setForecastModalIndex] = useState<number>(0);
 
-  // Initialize DB migration once on mount
+  // Background artwork resolution
+  const [currentBgUrl, setCurrentBgUrl] = useState<string | null>(null);
+
   useEffect(() => {
-    migrateLegacyLocalStorage().catch(() => {});
+    migrateLegacyLocalStorage();
   }, []);
 
-  // Update wallpaper pool whenever place/weather changes
-  const refreshWallpaperPool = useCallback(async () => {
-    if (!w?.place?.name) return;
-    const resolveFallbackBg = async (): Promise<string> => {
-      const code = w.current?.code ?? 0;
-      const res = await getCityWeatherBackground(
-        w.place.name,
-        describe(code).label,
-        code,
-        w.current?.temp ?? 0,
-        undefined,
-        w.place.country,
-        w.place.lat,
-        w.place.lon
-      );
-      return res.initialBg;
-    };
-    try {
-      const [allDefaults, savedSlots] = await Promise.all([
-        Promise.resolve(getAllAvailableArtworks(w.place.name, w.current?.code ?? 0, describe(w.current?.code ?? 0).label, w.place.country)),
-        getSavedArtworks().catch(() => [] as SavedItem[]),
-      ]);
-
-      const pool: string[] = [];
-      savedSlots.forEach((slot) => {
-        if (slot.url && !pool.includes(slot.url)) {
-          pool.push(slot.url);
-        }
-      });
-
-      allDefaults.forEach((url) => {
-        if (url && !pool.includes(url)) {
-          pool.push(url);
-        }
-      });
-
-      setAvailableArtworks(pool);
-
-      const activeCustom = customBgUrl || (await getWallpaperItem("current_wallpaper"));
-      if (activeCustom) {
-        setDisplayBg(activeCustom);
-      } else if (pool[0]) {
-        setDisplayBg(pool[0]);
-      } else {
-        setDisplayBg(await resolveFallbackBg());
-      }
-      setArtLoaded(true);
-    } catch {
-      if (w?.place?.name) {
-        setDisplayBg(await resolveFallbackBg().catch(() => ""));
-      }
+  const loadActiveBackground = useCallback(async () => {
+    if (customBgUrl) {
+      setCurrentBgUrl(customBgUrl);
+      return;
     }
-  }, [w?.place?.name, w?.place?.country, w?.place?.lat, w?.place?.lon, w?.current?.code, w?.current?.temp, customBgUrl]);
+    const saved = await getWallpaperItem(w.place.name);
+    if (saved) {
+      setCurrentBgUrl(saved.url);
+      return;
+    }
+    const fallback = getCityWeatherBackground(w.place.name, w.current.code);
+    setCurrentBgUrl(fallback);
+  }, [w.place.name, w.current.code, customBgUrl]);
 
   useEffect(() => {
-    refreshWallpaperPool();
-  }, [refreshWallpaperPool]);
+    loadActiveBackground();
+  }, [loadActiveBackground]);
 
-  // Listen to cross-component wallpaper change events
-  useEffect(() => {
-    const handleWallpaperChanged = (e: CustomEvent<{ url: string }>) => {
-      if (e.detail?.url) {
-        setDisplayBg(e.detail.url);
-        setArtLoaded(true);
-      }
-    };
+  const displayBg = currentBgUrl || getCityWeatherBackground(w.place.name, w.current.code);
 
-    window.addEventListener("weather:wallpaper-changed" as any, handleWallpaperChanged as any);
-    return () => {
-      window.removeEventListener("weather:wallpaper-changed" as any, handleWallpaperChanged as any);
-    };
-  }, []);
+  const handleNextArtwork = async () => {
+    const artworks = getAllAvailableArtworks(w.place.name, w.current.code);
+    if (!artworks || artworks.length <= 1) return;
+    const curIdx = artworks.indexOf(displayBg);
+    const nextIdx = (curIdx + 1) % artworks.length;
+    const nextUrl = artworks[nextIdx];
+    setCurrentBgUrl(nextUrl);
+    onSelectBackground(nextUrl);
+    await setWallpaperItem({
+      city: w.place.name,
+      url: nextUrl,
+      timestamp: Date.now(),
+      title: `${w.place.name} Art`,
+      source: "curated",
+    });
+  };
 
-  const handleSelectBackground = useCallback(
-    async (url: string) => {
-      setDisplayBg(url);
-      setArtLoaded(true);
-      try {
-        await setWallpaperItem("current_wallpaper", url);
-      } catch {}
-      if (onSelectBg) onSelectBg(url);
-      if (onSelectBackground) onSelectBackground(url);
-    },
-    [onSelectBg, onSelectBackground]
-  );
-
-  const cycleNextArtwork = useCallback(async () => {
-    if (availableArtworks.length === 0) return;
-    const nextIdx = (artIdx + 1) % availableArtworks.length;
-    setArtIdx(nextIdx);
-    const nextUrl = availableArtworks[nextIdx];
-    if (!nextUrl) return;
-    setDisplayBg(nextUrl);
-    setArtLoaded(true);
-    try {
-      await setWallpaperItem("current_wallpaper", nextUrl);
-    } catch {}
-    if (onSelectBg) onSelectBg(nextUrl);
-    if (onSelectBackground) onSelectBackground(nextUrl);
-  }, [artIdx, availableArtworks, onSelectBg, onSelectBackground]);
-
-  const openGalleryModal = useCallback(() => {
-    if (onOpenAiGallery) {
-      onOpenAiGallery();
-    } else {
-      setGalleryOpen(true);
-    }
-  }, [onOpenAiGallery]);
-
-  if (loading && !w) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 text-center space-y-4">
-        <div className="w-14 h-14 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-        <p className="text-sm font-medium text-muted-foreground animate-pulse">
-          {t("loading_weather", "Loading latest weather forecast...")}
-        </p>
-      </div>
-    );
-  }
-
-  if (!w || !w.current) {
-    return (
-      <div className="p-8 text-center rounded-2xl bg-card border border-border/80 shadow-xs max-w-lg mx-auto space-y-3">
-        <span className="text-4xl">🌤️</span>
-        <h3 className="text-base font-semibold text-foreground">
-          {t("no_weather_title", "No Weather Data Available")}
-        </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          {t("no_weather_desc", "Search for a city or use your current location pin above to explore live forecasts.")}
-        </p>
-      </div>
-    );
-  }
-
-  // Unit display helpers
   const tempUnitStr = unit === "imperial" ? "°F" : "°C";
   const speedUnitStr = unit === "imperial" ? "mph" : "km/h";
   const visUnitStr = unit === "imperial" ? "mi" : "km";
@@ -368,55 +268,18 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const uvNum = typeof w.current.uv === "number" ? Math.round(w.current.uv) : 0;
   const uvInfo = getUvIndexInfo(uvNum, t);
 
-  // Daily High/Low and Rain Chance
   const todayDaily = w.daily && w.daily.length > 0 ? w.daily[0] : null;
   const highTemp = todayDaily ? Math.round(todayDaily.max) : tempVal;
   const lowTemp = todayDaily ? Math.round(todayDaily.min) : tempVal;
   const rainChanceVal = todayDaily ? Math.round(todayDaily.pop) : Math.round(w.hourly?.[0]?.precipProb ?? 0);
 
-  // Sunrise / Sunset formatting
-  let sunriseStr = "--:--";
-  let sunsetStr = "--:--";
-  if (todayDaily?.sunrise) {
-    try {
-      const parts = todayDaily.sunrise.split("T")[1];
-      sunriseStr = parts ? parts.slice(0, 5) : todayDaily.sunrise;
-    } catch {}
-  }
-  if (todayDaily?.sunset) {
-    try {
-      const parts = todayDaily.sunset.split("T")[1];
-      sunsetStr = parts ? parts.slice(0, 5) : todayDaily.sunset;
-    } catch {}
-  }
-
-  // Active Alerts combined for the interactive watcher
   const alertsToDisplay = activeAlerts.length > 0 ? activeAlerts : disasters;
 
-  // Air Quality & PM2.5 calculation
   const aqiVal = typeof w.current?.aqi === "number" ? Math.round(w.current.aqi) : undefined;
   const pm25Val = typeof w.current?.pm25 === "number" ? w.current.pm25 : undefined;
-  const pm10Val = typeof w.current?.pm10 === "number" ? w.current.pm10 : undefined;
-  const aqiCategoryInfo = aqiCategory(aqiVal ?? 0);
-  const aqiAdvisoryInfo = getAqiAdvisory(aqiVal, pm25Val, t, lang) || {
-    label: aqiCategoryInfo.label,
-    advice: t("aqi_normal_advice", "Air quality is suitable for standard activities."),
-    color: aqiCategoryInfo.color,
-    bg: aqiCategoryInfo.bg,
-  };
+  const aqiAdvisoryInfo = getAqiAdvisory(aqiVal, pm25Val, t, lang);
 
-  // What to Wear Logic (Celsius baseline)
   const tempC = unit === "imperial" ? ((w.current.temp - 32) * 5) / 9 : w.current.temp;
-  const rainExpected = rainChanceVal >= 40 || (w.current.code >= 51 && w.current.code <= 82);
-  const isHotSunny = tempC >= 27 && uvNum >= 6;
-
-  const locAccessory = {
-    umbrella: t("wear_acc_umbrella", lang === "th" ? "ร่มกันฝน / เสื้อกันฝน" : "Sturdy compact umbrella or raincoat"),
-    sunglasses: t("wear_acc_sunglasses", lang === "th" ? "แว่นกันแดด UV400 / ครีมกันแดด" : "UV400 sunglasses & SPF 50 sunscreen"),
-    mask: t("wear_acc_mask", lang === "th" ? "หน้ากากอนามัยป้องกันฝุ่น N95" : "N95 particulate respirator mask"),
-    windbreaker: t("wear_acc_windbreaker", lang === "th" ? "เสื้อกันลมมีฮู้ด" : "Windproof hooded shell"),
-    lightJacket: t("wear_acc_light_jacket", lang === "th" ? "เสื้อคลุมหรือคาร์ดิแกนบาง" : "Light layer / cardigans for evening"),
-  };
 
   const wearRecommendations: Record<WearCategory, { title: string; outfit: string; icon: string }> = {
     business: {
@@ -424,139 +287,149 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       icon: "💼",
       outfit:
         tempC < 10
-          ? t("wear_biz_cold", lang === "th" ? "เสื้อโค้ตผ้าวูลสูททางการ เสื้อเชิ้ตแขนยาว กางเกงสแล็ก" : "Tailored wool overcoat or blazer, dress shirt, thermal undershirt, and slacks.")
+          ? t("wear_biz_cold", lang === "th" ? "เสื้อโค้ตผ้าวูลสูททางการ เสื้อเชิ้ตแขนยาว กางเกงสแล็ก" : "Tailored wool overcoat or blazer, dress shirt, and slacks.")
           : tempC < 22
-          ? t("wear_biz_mild", lang === "th" ? "เสื้อเบลเซอร์ทำงาน เสื้อเชิ้ต หรือชุดเดรสสุภาพ" : "Structured blazer or cardigan, breathable dress shirt, and lightweight trousers.")
-          : t("wear_biz_warm", lang === "th" ? "เสื้อเชิ้ตผ้าลินิน/คอตตอนโปร่ง กางเกงสแล็กน้ำหนักเบา" : "Crisp lightweight cotton or linen dress shirt, lightweight slacks, and loafers."),
+          ? t("wear_biz_mild", lang === "th" ? "เสื้อเบลเซอร์ทำงาน เสื้อเชิ้ต หรือชุดเดรสสุภาพ" : "Structured blazer, breathable dress shirt, and lightweight trousers.")
+          : t("wear_biz_warm", lang === "th" ? "เสื้อเชิ้ตผ้าลินิน/คอตตอนโปร่ง กางเกงสแล็กน้ำหนักเบา" : "Crisp lightweight cotton or linen dress shirt and slacks."),
     },
-    sports: {
-      title: t("wear_cat_sports", lang === "th" ? "ออกกำลังกาย / กีฬา" : "Sports & Outdoor"),
+    casual: {
+      title: t("wear_cat_casual", lang === "th" ? "ชุดลำลอง / ท่องเที่ยว" : "Casual & Travel"),
+      icon: "👕",
+      outfit:
+        tempC < 10
+          ? t("wear_cas_cold", lang === "th" ? "เสื้อฮู้ดหนา แจ็กเก็ตดาวน์ กางเกงยีนส์ ผ้าพันคอ" : "Heavy hoodie, insulated winter jacket, jeans, and warm beanie.")
+          : tempC < 22
+          ? t("wear_cas_mild", lang === "th" ? "เสื้อยืดสวมทับคาร์ดิแกนบาง หรือเสื้อเชิ้ตโอเวอร์ไซส์" : "Comfy tee paired with an overshirt or light cardigan.")
+          : t("wear_cas_warm", lang === "th" ? "เสื้อยืดคอตตอนโปร่งสบาย กางเกงขาสั้นผ้าชิโน" : "Breathable cotton tee, light shorts, and comfortable sandals or sneakers."),
+    },
+    workout: {
+      title: t("wear_cat_workout", lang === "th" ? "ออกกำลังกาย / วิ่ง" : "Sport & Running"),
       icon: "🏃",
       outfit:
         tempC < 10
-          ? t("wear_sport_cold", lang === "th" ? "ชุดวิ่งแขนยาวแนบเนื้อ เสื้อกั๊กกันลม กางเกงเลกกิ้งขายาว" : "Thermal compression base layer, windproof running jacket, and running tights.")
+          ? t("wear_run_cold", lang === "th" ? "เสื้อรัดกล้ามเนื้อแขนยาว กางเกงเลกกิ้ง ถุงมือวิ่ง" : "Thermal compression top, running tights, and light gloves.")
           : tempC < 22
-          ? t("wear_sport_mild", lang === "th" ? "เสื้อวิ่งระบายเหงื่อ กางเกงจ็อกเกอร์ หรือกางเกงขาสั้น" : "Light moisture-wicking tech tee or long sleeve with flexible running shorts.")
-          : t("wear_sport_warm", lang === "th" ? "เสื้อกล้ามวิ่งหรือเสื้อยืดแห้งเร็ว กางเกงขาสั้นระบายอากาศ" : "Ultra-breathable singlet or quick-dry tee, running shorts, and anti-blister socks."),
+          ? t("wear_run_mild", lang === "th" ? "เสื้อวิ่ง Dri-FIT แขนสั้น กางเกงขาสั้นวิ่ง" : "Moisture-wicking technical tee and athletic shorts.")
+          : t("wear_run_warm", lang === "th" ? "เสื้อกล้ามวิ่งเบาบาง หมวกบังแดด กางเกงขาสั้น" : "Ultra-breathable singlet, running cap, and hydration pack."),
     },
-    casual: {
-      title: t("wear_cat_casual", lang === "th" ? "ชุดลำลองทั่วไป" : "Daily Casual"),
-      icon: "👕",
+    evening: {
+      title: t("wear_cat_evening", lang === "th" ? "เที่ยวกลางคืน / ปาร์ตี้" : "Evening & Out"),
+      icon: "✨",
       outfit:
-        tempC < 5
-          ? t("wear_cas_freezing", lang === "th" ? "เสื้อแจ็กเก็ตดาวน์หนา เสื้อไหมพรม กางเกงขายาวผ้าหนา" : "Heavy down parka, thermal base layer, insulated trousers, and warm boots.")
-          : tempC < 14
-          ? t("wear_cas_cold", lang === "th" ? "เสื้อกันหนาว เสื้อฮู้ดดี้ หรือแจ็กเก็ตยีนส์ กางเกงขายาว" : "Warm hoodie or knit sweater paired with a denim jacket and full-length pants.")
-          : tempC < 24
-          ? t("wear_cas_mild", lang === "th" ? "เสื้อยืดคอตตอน สวมทับด้วยคาร์ดิแกนบาง หรือเสื้อเชิ้ตแขนสั้น" : "Classic cotton t-shirt paired with a light cardigan, overshirt, and chinos.")
-          : tempC < 30
-          ? t("wear_cas_warm", lang === "th" ? "เสื้อยืดเนื้อโปร่งสบาย กางเกงขาสั้น หรือกางเกงผ้าลินิน" : "Breathable airy cotton t-shirt, casual linen shorts or trousers, and walking sneakers.")
-          : t("wear_cas_hot", lang === "th" ? "เสื้อผ้าฝ้ายเบาสบาย สีอ่อน ระบายอากาศได้ดีเยี่ยม" : "Comfortable casual tee or polo, relaxed jeans or breathable shorts, and sun protection."),
+        tempC < 14
+          ? t("wear_eve_cold", lang === "th" ? "แจ็กเก็ตหนัง เสื้อไหมพรม กางเกงสแล็ก รองเท้าบูท" : "Fitted leather or tailored jacket, fine sweater, and boots.")
+          : t("wear_eve_warm", lang === "th" ? "เสื้อเชิ้ตคิวบา กางเกงขายาวผ้าลินินทรงสวย" : "Relaxed camp-collar shirt, linen trousers, and loafers."),
     },
   };
 
-  const accessories: string[] = [];
-  if (rainExpected) accessories.push(locAccessory.umbrella);
-  if (isHotSunny) accessories.push(locAccessory.sunglasses);
-  if (aqiVal !== undefined && aqiVal > 100) accessories.push(locAccessory.mask);
-  if ((w.current.wind_speed ?? 0) >= 28) accessories.push(locAccessory.windbreaker);
-  if (tempC >= 12 && tempC <= 18 && accessories.length < 2) accessories.push(locAccessory.lightJacket);
+  const openGuide = (targetTopic: GuideTopic = "all") => {
+    setGuideTopic(targetTopic);
+    setGuideOpen(true);
+  };
+
+  const openHourlyDetail = (idx: number) => {
+    setForecastModalType("hourly");
+    setForecastModalIndex(idx);
+    setForecastModalOpen(true);
+  };
+
+  const openDailyDetail = (idx: number) => {
+    setForecastModalType("daily");
+    setForecastModalIndex(idx);
+    setForecastModalOpen(true);
+  };
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto w-full pb-8">
-      {/* 1. REAL-TIME SEVERE WEATHER HAZARD WATCHER & NOTIFICATIONS */}
+      {/* 1. SEVERE WEATHER ALERT WATCHER */}
       <WeatherAlertWatcher
         weather={w}
-        unit={unit}
-        activeAlerts={alertsToDisplay}
+        alerts={alertsToDisplay}
+        onRefreshWeather={onRefresh}
       />
 
-      {/* 2. ACTION CONTROLS BAR: NEXT ART -> AI GALLERY -> POSTCARD -> REFRESH -> FAVORITE */}
-      <div className="flex items-center justify-between gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-card border border-border/60 shadow-xs flex-wrap">
-        <div className="flex items-center gap-1.5">
+      {/* 2. HERO CARD: UNOBSTRUCTED WALLPAPER WITH INTEGRATED CONTROLS */}
+      <section className="relative overflow-hidden rounded-3xl border border-white/25 shadow-xl min-h-[360px] sm:min-h-[420px] flex flex-col justify-between transition-all duration-500">
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
+          style={{ backgroundImage: `url(${displayBg})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+
+        {/* Top Floating Control Bar */}
+        <div className="relative z-10 flex items-center justify-between p-3.5 sm:p-4">
+          <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+            <span>🎨</span>
+            <span className="truncate max-w-[140px] sm:max-w-[200px]">
+              {w.place.name} Art
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={handleNextArtwork}
+              className="px-3 py-1.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+              title={t("next_art", "Next Artwork")}
+            >
+              <span>🖼️</span>
+              <span className="hidden sm:inline">{t("next_art", "Next")}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={loading}
+              className={`p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs shadow-sm transition active:scale-95 cursor-pointer ${
+                loading ? "animate-spin" : ""
+              }`}
+              title={t("refresh", "Refresh Weather")}
+            >
+              🔄
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleFavorite}
+              className={`p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-xs shadow-sm transition active:scale-95 cursor-pointer ${
+                isFav ? "text-amber-400" : "text-white"
+              }`}
+              title={isFav ? t("fav_saved", "Favorited") : t("fav_add", "Add Favorite")}
+            >
+              {isFav ? "★" : "☆"}
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Floating Bar */}
+        <div className="relative z-10 p-3.5 sm:p-4 flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={cycleNextArtwork}
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-muted/70 hover:bg-muted text-foreground transition cursor-pointer active:scale-95"
-            title={t("cycle_art_desc", "Cycle to next watercolor art or saved slot")}
+            onClick={() => setGalleryOpen(true)}
+            className="px-3.5 py-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-md transition active:scale-95 cursor-pointer flex items-center gap-2"
           >
             <span>🎨</span>
-            <span>{t("next_artwork", "Next Art")}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={openGalleryModal}
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-primary/10 hover:bg-primary/20 text-primary transition cursor-pointer active:scale-95 border border-primary/20"
-            title={t("ai_gallery_slots", "AI Gallery & Wallpaper Slots")}
-          >
-            <span>🖼️</span>
-            <span>{t("ai_gallery", "AI Gallery")}</span>
+            <span>{t("gallery", "Art Gallery")}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPostcardOpen(true)}
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-muted/70 hover:bg-muted text-foreground transition cursor-pointer active:scale-95"
-            title={t("share_weather_postcard", "Create and share watercolor weather postcard")}
+            className="px-3.5 py-2 rounded-full bg-primary/80 hover:bg-primary backdrop-blur-md border border-white/30 text-primary-foreground text-xs font-bold shadow-md transition active:scale-95 cursor-pointer flex items-center gap-2"
           >
             <span>💌</span>
-            <span>{t("postcard", "Postcard")}</span>
+            <span>{t("postcard_btn", "Share Postcard")}</span>
           </button>
         </div>
-
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="p-2 text-xs font-medium rounded-xl hover:bg-muted text-foreground transition cursor-pointer active:scale-95 border border-border/40"
-            title={t("refresh_forecast", "Refresh forecast")}
-          >
-            <span className={loading ? "animate-spin inline-block" : ""}>🔄</span>
-          </button>
-
-          {onToggleFavorite && (
-            <button
-              type="button"
-              onClick={onToggleFavorite}
-              className={`p-2 text-xs font-medium rounded-xl transition cursor-pointer active:scale-95 border ${
-                isFav
-                  ? "bg-amber-500/20 text-amber-500 border-amber-500/40"
-                  : "hover:bg-muted text-muted-foreground border-border/40"
-              }`}
-              title={isFav ? t("remove_fav", "Saved in favorites") : t("add_fav", "Add to favorites")}
-            >
-              <span>{isFav ? "⭐" : "☆"}</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 3. PURE WATERCOLOR WALLPAPER HERO (COMPLETELY UNOBSTRUCTED) */}
-      <section className="relative overflow-hidden rounded-3xl border border-border/80 shadow-md min-h-[260px] sm:min-h-[320px] transition-all bg-card flex items-end">
-        {/* Background Watercolor Art */}
-        {displayBg ? (
-          <img
-            src={displayBg}
-            alt={w.place.name}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 pointer-events-none brightness-[1.04] contrast-[1.06] saturate-[1.1] ${
-              artLoaded ? "opacity-100" : "opacity-0"
-            }`}
-            onLoad={() => setArtLoaded(true)}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-400 to-purple-500" />
-        )}
       </section>
 
-      {/* 4. CURRENT WEATHER CONDITIONS & METRICS DASHBOARD */}
-      <section className="p-4 sm:p-5 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-4">
-        {/* Location, Status, and Mascot Companion Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-border/50 pb-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-base">📍</span>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground truncate">
+      {/* 3. CURRENT WEATHER CONDITIONS & METRICS */}
+      <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-4">
+        {/* City Title and Status */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
                 {w.place.name}
               </h2>
               {w.place.country && (
@@ -578,13 +451,26 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </p>
           </div>
 
-          {/* Interactive Weather Mascot Companion */}
-          <div className="shrink-0 p-1 rounded-2xl bg-muted/40 border border-border/50 shadow-xs">
-            <WeatherMascot weather={w} />
+          <div className="flex items-center gap-2">
+            {/* Simple Weather Guide Button */}
+            <button
+              type="button"
+              onClick={() => openGuide("all")}
+              className="px-2.5 py-1.5 rounded-xl border border-border/70 bg-muted/60 hover:bg-muted text-xs font-bold text-foreground transition cursor-pointer flex items-center gap-1 shadow-xs"
+              title={t("guide_tooltip", "Explain weather numbers & terms in simple words")}
+            >
+              <span>ℹ️</span>
+              <span className="hidden sm:inline">{t("guide", "Guide")}</span>
+            </button>
+
+            {/* Weather Mascot */}
+            <div className="shrink-0 p-1 rounded-2xl bg-muted/40 border border-border/50 shadow-xs">
+              <WeatherMascot weather={w} />
+            </div>
           </div>
         </div>
 
-        {/* Hero Weather Banner: Large Temperature, Feels-like, High/Low, and Condition Icon */}
+        {/* Hero Weather Banner */}
         <div className="p-3.5 sm:p-4 rounded-2xl bg-muted/30 border border-border/50 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-3.5">
             <span className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
@@ -620,198 +506,145 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
         </div>
 
-        {/* Detailed Metrics Grid */}
+        {/* Interactive Metrics Grid — Tapping any card opens the simple guide */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-          {/* Wind Speed & Direction */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              💨 {t("wind", "Wind")}
+          {/* Wind Speed */}
+          <button
+            type="button"
+            onClick={() => openGuide("wind")}
+            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+          >
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+              <span>💨 {t("wind", "Wind")}</span>
+              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
               {Math.round(w.current.wind_speed ?? 0)} {speedUnitStr}{" "}
               {windCompass && <span className="text-xs font-normal text-muted-foreground">({windCompass})</span>}
             </span>
-          </div>
+          </button>
 
           {/* Humidity */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              💧 {t("humidity", "Humidity")}
+          <button
+            type="button"
+            onClick={() => openGuide("humidity")}
+            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+          >
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+              <span>💧 {t("humidity", "Humidity")}</span>
+              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
               {Math.round(w.current.humidity ?? 0)}%
             </span>
-          </div>
+          </button>
 
           {/* Air Pressure */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              🧭 {t("pressure", "Pressure")}
+          <button
+            type="button"
+            onClick={() => openGuide("pressure")}
+            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+          >
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+              <span>🧭 {t("pressure", "Pressure")}</span>
+              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
               {unit === "imperial" ? ((w.current.pressure ?? 1013) * 0.02953).toFixed(2) : Math.round(w.current.pressure ?? 1013)} {pressureUnitStr}
             </span>
-          </div>
+          </button>
 
           {/* Visibility */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              👁️ {t("visibility", "Visibility")}
+          <button
+            type="button"
+            onClick={() => openGuide("conditions")}
+            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+          >
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+              <span>👁️ {t("visibility", "Visibility")}</span>
+              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
               {typeof w.current.vis === "number" ? Math.round(unit === "imperial" ? w.current.vis * 0.621371 : w.current.vis) : "--"} {visUnitStr}
             </span>
-          </div>
+          </button>
 
           {/* UV Index */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              ☀️ {t("uv_index", "UV Index")}
+          <button
+            type="button"
+            onClick={() => openGuide("uv")}
+            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+          >
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+              <span>☀️ {t("uv_index", "UV Index")}</span>
+              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
             </span>
             <span className={`text-sm font-bold mt-1 ${uvInfo.color}`}>
               {uvNum} <span className="text-[11px] font-medium text-muted-foreground">({uvInfo.label})</span>
             </span>
-          </div>
+          </button>
 
           {/* Rain Chance */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              🌧️ {t("rain_chance", "Rain Chance")}
+          <button
+            type="button"
+            onClick={() => openGuide("conditions")}
+            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+          >
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+              <span>🌧️ {t("rain_chance", "Rain Chance")}</span>
+              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
             </span>
             <span className="text-sm font-bold text-foreground mt-1">
               {rainChanceVal}%
             </span>
-          </div>
-
-          {/* Sunrise / Sunset */}
-          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 flex flex-col justify-between sm:col-span-3">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              🌅 {t("sun_times", "Sun Times")}
-            </span>
-            <span className="text-xs font-bold text-foreground mt-1">
-              ↑{sunriseStr} ↓{sunsetStr}
-            </span>
-          </div>
+          </button>
         </div>
 
-        {/* Live Air Quality & PM2.5 Health Impact Banner */}
-        {(aqiVal !== undefined || pm25Val !== undefined) && (
-          <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition mt-1.5 ${aqiCategoryInfo.bg}`}>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl shrink-0 mt-0.5">🍃</span>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    {t("air_quality", "Air Quality (AQI)")}
-                  </span>
-                  <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full border ${aqiCategoryInfo.color} ${aqiCategoryInfo.bg}`}>
-                    {aqiVal !== undefined ? aqiVal : (pm25Val ? Math.round(pm25Val * 3) : "--")} • {aqiAdvisoryInfo.label}
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-                  {aqiAdvisoryInfo.advice}
-                </p>
+        {/* Air Quality Banner */}
+        {aqiAdvisoryInfo && (
+          <button
+            type="button"
+            onClick={() => openGuide("aqi")}
+            className={`w-full p-3 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between gap-3 ${aqiAdvisoryInfo.bg}`}
+          >
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  🍃 {t("air_quality", "Air Quality")}:
+                </span>
+                <span className={`text-xs font-black ${aqiAdvisoryInfo.color}`}>
+                  {aqiAdvisoryInfo.label} {aqiVal !== undefined ? `(AQI ${aqiVal})` : ""}
+                </span>
               </div>
+              <p className="text-xs text-foreground/80 font-medium">
+                {aqiAdvisoryInfo.advice}
+              </p>
             </div>
-
-            <div className="flex items-center gap-3 text-xs shrink-0 self-end sm:self-center border-t sm:border-t-0 sm:border-l border-border/40 pt-2 sm:pt-0 sm:pl-3">
-              {pm25Val !== undefined && (
-                <div className="text-right">
-                  <span className="text-[10px] text-muted-foreground block font-medium">PM2.5</span>
-                  <span className="font-bold text-foreground">
-                    {pm25Val} <span className="text-[10px] font-normal text-muted-foreground">µg/m³</span>
-                  </span>
-                </div>
-              )}
-              {pm10Val !== undefined && (
-                <div className="text-right">
-                  <span className="text-[10px] text-muted-foreground block font-medium">PM10</span>
-                  <span className="font-bold text-foreground">
-                    {pm10Val} <span className="text-[10px] font-normal text-muted-foreground">µg/m³</span>
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+            <span className="text-xs font-bold text-muted-foreground px-2 py-1 rounded-lg bg-card/60 shrink-0">
+              {t("learn_more", "Guide ℹ️")}
+            </span>
+          </button>
         )}
       </section>
 
-      {/* Sun Arc & Moon Phase Astronomy Tracker */}
+      {/* 4. ASTRONOMY & SUN/MOON TRACKER */}
       <AstronomyTracker weather={w} />
 
-      {/* 5. WHAT TO WEAR TODAY */}
-      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-base">👔</span>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("what_to_wear", "What to Wear Today")}
-            </h3>
-          </div>
-
-          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-xl self-start sm:self-auto">
-            {(["casual", "business", "sports"] as WearCategory[]).map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setActiveWearCategory(cat)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                  activeWearCategory === cat
-                    ? "bg-card text-foreground shadow-xs font-bold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span>{wearRecommendations[cat].icon}</span>
-                <span>{wearRecommendations[cat].title}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-muted/30 border border-border/40 flex items-start gap-3">
-          <span className="text-2xl shrink-0 mt-0.5">
-            {wearRecommendations[activeWearCategory].icon}
-          </span>
-          <div className="flex-1 min-w-0">
-            <span className="text-xs font-bold text-primary block">
-              {wearRecommendations[activeWearCategory].title}
-            </span>
-            <p className="text-xs text-foreground/90 mt-1 leading-relaxed">
-              {wearRecommendations[activeWearCategory].outfit}
-            </p>
-          </div>
-        </div>
-
-        {accessories.length > 0 && (
-          <div className="pt-2 border-t border-border/40">
-            <span className="text-[11px] font-semibold text-muted-foreground block mb-2">
-              🎒 {t("recommended_accessories", "Recommended Daily Accessories")}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {accessories.map((acc, i) => (
-                <span
-                  key={i}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-medium inline-flex items-center gap-1"
-                >
-                  <span>✨</span>
-                  <span>{acc}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Smart Outdoor Activity & Lifestyle Planner */}
+      {/* 5. OUTDOOR ACTIVITY PLANNER */}
       <OutdoorActivityPlanner weather={w} unit={unit} />
 
-      {/* 6. 24-HOUR HOURLY FORECAST WITH PRINTED CONDITIONS */}
+      {/* 6. 24-HOUR HOURLY FORECAST — TAP ANY CARD TO OPEN FULL DETAILS POPUP */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-base">🕒</span>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("hourly_forecast", "24-Hour Forecast")}
-          </h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🕒</span>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("hourly_forecast", "24-Hour Forecast")}
+            </h3>
+          </div>
+          <span className="text-[11px] text-muted-foreground font-medium">
+            {t("tap_to_view_details", "Tap any hour for full words 🔍")}
+          </span>
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-none snap-x">
@@ -821,9 +654,11 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             const hTemp = Math.round(h.temp);
 
             return (
-              <div
+              <button
                 key={`hourly-${idx}`}
-                className="flex flex-col items-center justify-between p-2.5 rounded-2xl bg-muted/30 border border-border/40 min-w-[76px] sm:min-w-[82px] text-center shrink-0 snap-start space-y-1.5 transition hover:bg-muted/50"
+                type="button"
+                onClick={() => openHourlyDetail(idx)}
+                className="flex flex-col items-center justify-between p-2.5 rounded-2xl bg-muted/30 border border-border/40 min-w-[76px] sm:min-w-[82px] text-center shrink-0 snap-start space-y-1.5 transition hover:bg-muted/60 hover:border-primary/50 hover:scale-102 cursor-pointer"
               >
                 <span className="text-[11px] font-medium text-muted-foreground">
                   {idx === 0 ? t("hour_now", "Now") : timeLabel}
@@ -848,7 +683,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                     💧{h.pop}%
                   </span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -857,13 +692,18 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* Interactive Live Rain Radar & Precipitation Map */}
       <WeatherRadar weather={w} />
 
-      {/* 7. 7-DAY EXTENDED FORECAST WITH TRANSLATED LABELS */}
+      {/* 7. 7-DAY EXTENDED FORECAST — TAP ANY ROW TO OPEN FULL DETAILS POPUP */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-base">📅</span>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("seven_day_forecast", "7-Day Forecast")}
-          </h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📅</span>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("seven_day_forecast", "7-Day Forecast")}
+            </h3>
+          </div>
+          <span className="text-[11px] text-muted-foreground font-medium">
+            {t("tap_to_view_details", "Tap any day for full words 🔍")}
+          </span>
         </div>
 
         <div className="divide-y divide-border/40">
@@ -874,11 +714,13 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             const dMin = Math.round(d.min);
 
             return (
-              <div
+              <button
                 key={`daily-${idx}`}
-                className="py-2.5 flex items-center justify-between gap-3 text-xs"
+                type="button"
+                onClick={() => openDailyDetail(idx)}
+                className="w-full py-2.5 px-2 rounded-xl flex items-center justify-between gap-3 text-xs text-left hover:bg-muted/40 transition cursor-pointer"
               >
-                <span className="w-16 font-semibold text-foreground">
+                <span className="w-16 font-semibold text-foreground shrink-0">
                   {dayLabel}
                 </span>
 
@@ -899,11 +741,87 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                   <span className="text-foreground">{dMax}{tempUnitStr}</span>
                   <span className="text-muted-foreground font-normal">/ {dMin}{tempUnitStr}</span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       </section>
+
+      {/* 8. WHAT TO WEAR RECOMMENDATIONS */}
+      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-base">👔</span>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("what_to_wear", "What to Wear")}
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-muted/40 border border-border/50">
+          {(["casual", "business", "workout", "evening"] as WearCategory[]).map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setActiveWearTab(cat)}
+              className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1 ${
+                activeWearTab === cat
+                  ? "bg-card text-foreground shadow-xs border border-border/60"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span>{wearRecommendations[cat].icon}</span>
+              <span className="hidden sm:inline">{wearRecommendations[cat].title}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-muted/20 border border-border/40 text-xs space-y-1.5">
+          <p className="font-bold text-foreground">
+            {wearRecommendations[activeWearTab].title}
+          </p>
+          <p className="text-muted-foreground leading-relaxed">
+            {wearRecommendations[activeWearTab].outfit}
+          </p>
+        </div>
+      </section>
+
+      {/* Simple Weather Guide Modal */}
+      <WeatherGuideModal
+        isOpen={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        initialTopic={guideTopic}
+      />
+
+      {/* Hourly & 7-Day Untruncated Forecast Detail Modal */}
+      <ForecastDetailModal
+        isOpen={forecastModalOpen}
+        onClose={() => setForecastModalOpen(false)}
+        type={forecastModalType}
+        selectedIndex={forecastModalIndex}
+        onSelectIndex={setForecastModalIndex}
+        hourlyList={w.hourly.map((h) => ({
+          time: h.time,
+          temp: h.temp,
+          feels: h.feels,
+          code: h.code,
+          pop: h.pop,
+          is_day: h.is_day,
+          windSpeed: h.wind_speed,
+          humidity: h.humidity,
+          uv: h.uv,
+        }))}
+        dailyList={w.daily.map((d) => ({
+          date: d.date,
+          max: d.max,
+          min: d.min,
+          code: d.code,
+          pop: d.pop,
+          sunrise: d.sunrise,
+          sunset: d.sunset,
+        }))}
+        unit={unit}
+        getConditionLabel={(code) => getConditionLabel(code, t)}
+        getDayLabel={(dateStr, idx) => getDailyDayLabel(dateStr, idx, t)}
+      />
 
       {/* Embedded AI Gallery Modal */}
       {galleryOpen && (
@@ -911,8 +829,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           isOpen={galleryOpen}
           onClose={() => setGalleryOpen(false)}
           city={w.place.name}
-          onSelectBackground={handleSelectBackground}
-          onSelectBg={handleSelectBackground}
+          onSelectBackground={onSelectBackground}
+          onSelectBg={onSelectBackground}
         />
       )}
 
