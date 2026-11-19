@@ -18,14 +18,12 @@ import koJson from "@/locales/ko.json";
 import idJson from "@/locales/id.json";
 import viJson from "@/locales/vi.json";
 
-// Import supplemental dictionaries to ensure full localization coverage
 import { extraResources } from "./i18nExtra";
 import { extraResourcesPart2 } from "./i18nExtraPart2";
 import { extraResourcesPart3 } from "./i18nExtraPart3";
 
 export const baseKeys = enJson;
 
-// Helper to assemble resources with enJson fallback and supplemental overrides
 function buildResourceBundle(langJson: Record<string, string>, langCode: string) {
   return {
     translation: {
@@ -76,7 +74,7 @@ function detectInitialLanguage(): string {
       }
       const navLang = (navigator.language || "en").toLowerCase();
       const code = navLang.split("-")[0];
-      if (resources[code]) {
+      if (code && resources[code]) {
         return code;
       }
     }
@@ -93,14 +91,13 @@ i18n.use(initReactI18next).init({
   lng: initialLang,
   fallbackLng: "en",
   interpolation: {
-    escapeValue: false, // React already escapes values
+    escapeValue: false,
   },
   react: {
     useSuspense: false,
   },
 });
 
-// Sync document dir and lang attribute
 if (typeof document !== "undefined") {
   document.documentElement.lang = initialLang;
   document.documentElement.dir = initialLang === "ar" ? "rtl" : "ltr";
