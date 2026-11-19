@@ -263,7 +263,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       title: t("wear_business", "Smart / Office"),
       outfit: tempVal > 28
         ? t("wear_biz_hot", "Breathable linen shirt, tailored lightweight trousers.")
-        : t("wear_biz_mild", "Pressed button-down, blazer, and comfortable dress shoes."),
+        : tempVal > 20
+        ? t("wear_biz_mild", "Pressed button-down, blazer, and comfortable dress shoes."),
       icon: "💼",
     },
     workout: {
@@ -291,18 +292,18 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         activeAlerts={activeAlerts}
       />
 
-      {/* 2. LOCKED ACTION TOOLBAR (ABOVE HERO CARD) */}
-      <div className="flex items-center justify-between gap-2 px-0.5">
-        {/* Left Side: Artwork, Refresh, and Favorite */}
-        <div className="flex items-center gap-1.5">
+      {/* 2. LOCKED ACTION TOOLBAR (OUTSIDE & ABOVE HERO CARD) */}
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-2xl bg-card/90 dark:bg-card/95 border border-border/80 shadow-md backdrop-blur-md">
+        {/* Left Actions: Artwork, Refresh, and Favorite */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={handleNextArtwork}
-            className="px-3 py-1.5 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-foreground text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+            className="h-9 px-2.5 sm:px-3 rounded-xl bg-muted/80 hover:bg-muted text-foreground text-xs font-bold border border-border/60 shadow-2xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
             title={t("next_art", "Next Artwork")}
           >
-            <span>🖼️</span>
-            <span className="hidden sm:inline">{t("next_art", "Next Artwork")}</span>
+            <span className="text-sm">🖼️</span>
+            <span className="text-xs font-semibold">{t("next_art", "Next")}</span>
           </button>
 
           {onRefresh && (
@@ -310,7 +311,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               type="button"
               onClick={onRefresh}
               disabled={loading}
-              className={`p-2 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-foreground text-xs shadow-xs transition active:scale-95 cursor-pointer ${
+              className={`h-9 w-9 rounded-xl bg-muted/80 hover:bg-muted text-foreground text-xs font-bold border border-border/60 shadow-2xs transition active:scale-95 cursor-pointer flex items-center justify-center ${
                 loading ? "animate-spin" : ""
               }`}
               title={t("refresh", "Refresh Weather")}
@@ -322,8 +323,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           <button
             type="button"
             onClick={onToggleFavorite}
-            className={`p-2 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-xs shadow-xs transition active:scale-95 cursor-pointer ${
-              isFavorited ? "text-amber-500" : "text-foreground"
+            className={`h-9 w-9 rounded-xl bg-muted/80 hover:bg-muted text-base font-bold border border-border/60 shadow-2xs transition active:scale-95 cursor-pointer flex items-center justify-center ${
+              isFavorited ? "text-amber-500" : "text-muted-foreground hover:text-foreground"
             }`}
             title={isFavorited ? t("fav_saved", "Favorited") : t("fav_add", "Add Favorite")}
           >
@@ -331,30 +332,30 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </button>
         </div>
 
-        {/* Right Side: Gallery & Share Postcard */}
-        <div className="flex items-center gap-1.5">
+        {/* Right Actions: Gallery & Postcard */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => setGalleryOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-foreground text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+            className="h-9 px-2.5 sm:px-3 rounded-xl bg-muted/80 hover:bg-muted text-foreground text-xs font-bold border border-border/60 shadow-2xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
-            <span>🎨</span>
-            <span className="hidden sm:inline">{t("gallery", "Art Gallery")}</span>
+            <span className="text-sm">🎨</span>
+            <span className="text-xs font-semibold">{t("gallery", "Gallery")}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPostcardOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+            className="h-9 px-2.5 sm:px-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
-            <span>💌</span>
-            <span className="hidden sm:inline">{t("postcard_btn", "Postcard")}</span>
+            <span className="text-sm">💌</span>
+            <span className="text-xs font-bold">{t("postcard_btn", "Postcard")}</span>
           </button>
         </div>
       </div>
 
-      {/* 3. ARTWORK HERO CARD (CLEAR OF ALL BUTTONS) */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-slate-900/40 min-h-[260px] sm:min-h-[320px]">
+      {/* 3. ARTWORK HERO CARD (100% CLEAR OF ALL BUTTONS) */}
+      <section className="relative overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-slate-900/40 aspect-[16/10] sm:aspect-[16/9] min-h-[220px] sm:min-h-[300px] w-full">
         {displayBg ? (
           <div
             className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
