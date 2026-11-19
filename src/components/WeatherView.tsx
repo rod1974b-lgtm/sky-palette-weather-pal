@@ -102,7 +102,7 @@ function getDailyDayLabel(dateStr: string, idx: number, t: TFunction): string {
     const d = new Date(dateStr);
     const day = d.getDay();
     const dayKeys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
-    const dayFallbacks = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayFallbacks = ["Sun", "Mon", "Tue", "Wed", "Fri", "Sat"];
     const key = dayKeys[day];
     const fallback = dayFallbacks[day] ?? dateStr;
     return key ? t(key, fallback) : fallback;
@@ -264,7 +264,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       outfit: tempVal > 28
         ? t("wear_biz_hot", "Breathable linen shirt, tailored lightweight trousers.")
         : tempVal > 20
-        ? t("wear_biz_mild", "Pressed button-down, blazer, and comfortable dress shoes."),
+        ? t("wear_biz_mild", "Pressed button-down, blazer, and comfortable dress shoes.")
+        : t("wear_biz_cool", "Tailored suit jacket, warm knit or dress shirt, and wool trousers."),
       icon: "💼",
     },
     workout: {
