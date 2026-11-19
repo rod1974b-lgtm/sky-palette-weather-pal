@@ -4,8 +4,6 @@ import type { TFunction } from "i18next";
 import {
   type Weather,
   type WeatherUnit,
-  type Place,
-  aqiCategory,
   describe,
 } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
@@ -50,9 +48,10 @@ export interface WeatherViewProps {
   weather: Weather;
   activeAlerts?: TickerAlertItem[];
   unit: WeatherUnit;
-  loading: boolean;
-  onRefresh: () => void;
-  isFav: boolean;
+  loading?: boolean;
+  onRefresh?: () => void;
+  isFav?: boolean;
+  isFavorite?: boolean;
   onToggleFavorite: () => void;
   onSelectBackground: (url: string | null) => void;
   onOpenAiGallery?: () => void;
@@ -93,7 +92,7 @@ function getConditionLabel(code: number | undefined, t: TFunction): string {
   if (entry) {
     return t(entry.key, entry.fallback);
   }
-  return describe(code) || t("fair", "Fair");
+  return describe(code)?.label || t("fair", "Fair");
 }
 
 function getDailyDayLabel(dateStr: string, idx: number, t: TFunction): string {
@@ -118,40 +117,48 @@ function getAqiAdvice(val: number, t: TFunction, lang: string): {
   color: string;
   bg: string;
 } {
+  const isThai = lang?.startsWith("th");
   if (val <= 50) {
     return {
-      label: t("aqi_good", "Good"),
-      advice: t("aqi_good_advice", lang === "th" ? "อากาศบริสุทธิ์ เหมาะกับการทำกิจกรรมกลางแจ้ง" : "Clean air. Perfect for outdoor sports and activities."),
+      label: t("aqi_good", isThai ? "ดีมาก" : "Good"),
+      advice: isThai
+        ? "คุณภาพอากาศดีมาก เหมาะสำหรับทำกิจกรรมกลางแจ้งทุกประเภท"
+        : "Air quality is satisfactory. Enjoy all outdoor activities freely.",
       color: "text-emerald-500",
-      bg: "bg-emerald-500/10 border-emerald-500/20",
+      bg: "bg-emerald-500/10 border-emerald-500/30",
     };
   }
   if (val <= 100) {
     return {
-      label: t("aqi_moderate", "Moderate"),
-      advice: t("aqi_mod_advice", lang === "th" ? "คุณภาพอากาศปานกลาง กลุ่มเสี่ยงควรระวัง" : "Acceptable. Sensitive individuals should consider limiting long exertion."),
+      label: t("aqi_moderate", isThai ? "ปานกลาง" : "Moderate"),
+      advice: isThai
+        ? "คุณภาพอากาศปานกลาง ผู้ที่มีภาวะภูมิแพ้ควรสังเกตอาการ"
+        : "Air quality is acceptable. Sensitive individuals should consider limiting prolonged outdoor exertion.",
       color: "text-amber-500",
-      bg: "bg-amber-500/10 border-amber-500/20",
+      bg: "bg-amber-500/10 border-amber-500/30",
     };
   }
   if (val <= 150) {
     return {
-      label: t("aqi_unhealthy_sensitive", "Unhealthy for Sensitive"),
-      advice: t("aqi_sens_advice", lang === "th" ? "กลุ่มเสี่ยงควรสวมหน้ากาก N95 เมื่ออยู่กลางแจ้ง" : "Sensitive groups should wear an N95 mask outside."),
+      label: t("aqi_unhealthy_sensitive", isThai ? "เริ่มมีผลต่อสุขภาพ" : "Unhealthy for Sensitive Groups"),
+      advice: isThai
+        ? "เริ่มมีผลกระทบต่อสุขภาพ กลุ่มเสี่ยงควรสวมหน้ากากอนามัย"
+        : "Sensitive groups may experience health effects. General public less likely affected.",
       color: "text-orange-500",
-      bg: "bg-orange-500/10 border-orange-500/20",
+      bg: "bg-orange-500/10 border-orange-500/30",
     };
   }
   return {
-    label: t("aqi_unhealthy", "Unhealthy"),
-    advice: t("aqi_unhealthy_advice", lang === "th" ? "ฝุ่นละอองสูง ควรหลีกเลี่ยงกิจกรรมกลางแจ้งและสวมหน้ากาก" : "High pollution. Avoid outdoor exercise and wear an N95 mask."),
-    color: "text-rose-500",
-    bg: "bg-rose-500/10 border-rose-500/20",
+    label: t("aqi_unhealthy", isThai ? "มีผลต่อสุขภาพ" : "Unhealthy"),
+    advice: isThai
+      ? "มีผลต่อสุขภาพ ควรหลีกเลี่ยงกิจกรรมกลางแจ้งและสวมหน้ากาก N95"
+      : "Everyone may begin to experience health effects. Avoid prolonged outdoor exertion.",
+    color: "text-destructive",
+    bg: "bg-destructive/10 border-destructive/30",
   };
 }
 
-function degreesToCompass(deg: number | undefined, t: TFunction): string {
-  if (deg === undefined || deg === null) return "";
+function degreesToCompass(deg: number, t: TFunction): string {
   const directions = [
     { key: "wind_n", fb: "N" },
     { key: "wind_ne", fb: "NE" },
@@ -171,27 +178,27 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   weather: w,
   activeAlerts = [],
   unit,
-  loading,
+  loading = false,
   onRefresh,
   isFav,
+  isFavorite,
   onToggleFavorite,
   onSelectBackground,
-  onOpenAiGallery,
   customBgUrl,
 }) => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language || "en";
+
+  const isFavorited = isFav ?? isFavorite ?? false;
 
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
   const [currentBgUrl, setCurrentBgUrl] = useState<string | null>(null);
   const [activeWearTab, setActiveWearTab] = useState<WearCategory>("casual");
 
-  // Simple Weather Guide popup state
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTopic, setGuideTopic] = useState<GuideTopic>("all");
 
-  // Forecast Full Details popup state
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
   const [forecastModalType, setForecastModalType] = useState<"hourly" | "daily">("hourly");
   const [forecastModalIndex, setForecastModalIndex] = useState(0);
@@ -207,7 +214,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     }
     const saved = await getWallpaperItem(w.place.name);
     if (saved) {
-      setCurrentBgUrl(saved.url);
+      setCurrentBgUrl(saved);
       return;
     }
     const artworks = getAllAvailableArtworks(w.place.name, w.current.code);
@@ -264,38 +271,34 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     casual: {
       title: t("wear_casual", "Casual Everyday"),
       outfit: tempVal > 28
-        ? t("wear_hot_casual", "Breathable linen shirt, cotton shorts, UV sunglasses.")
-        : tempVal > 18
-        ? t("wear_mild_casual", "Light cotton t-shirt with denim jeans or chinos.")
-        : t("wear_cold_casual", "Warm knit sweater, thermal undershirt, fleece jacket."),
+        ? t("wear_casual_hot", "Light cotton t-shirt, shorts, and breathable sneakers. UV sunglasses recommended.")
+        : tempVal > 20
+        ? t("wear_casual_warm", "Comfortable t-shirt or polo with chinos or jeans.")
+        : t("wear_casual_cool", "Sweater or long sleeve with denim and light jacket."),
       icon: "👕",
     },
     business: {
       title: t("wear_business", "Smart / Office"),
       outfit: tempVal > 28
-        ? t("wear_hot_business", "Lightweight short-sleeve button-down or summer blouse.")
-        : tempVal > 18
-        ? t("wear_mild_business", "Tailored blazer over a classic collared shirt.")
-        : t("wear_cold_business", "Wool overcoat, collared shirt with suit jacket, dress boots."),
+        ? t("wear_biz_hot", "Breathable linen shirt, tailored lightweight trousers.")
+        : t("wear_biz_mild", "Pressed button-down, blazer, and comfortable dress shoes."),
       icon: "💼",
     },
     workout: {
-      title: t("wear_workout", "Fitness / Run"),
-      outfit: tempVal > 24
-        ? t("wear_hot_workout", "Moisture-wicking athletic tank, running shorts, sweatband.")
-        : t("wear_cold_workout", "Windbreaker shell, compression tights, breathable athletic tee."),
+      title: t("wear_workout", "Active / Workout"),
+      outfit: tempVal > 28
+        ? t("wear_active_hot", "Moisture-wicking singlet, running shorts, and bring plenty of water.")
+        : t("wear_active_cool", "Running tights, light windbreaker, and thermal socks."),
       icon: "🏃",
     },
     evening: {
       title: t("wear_evening", "Evening Out"),
-      outfit: tempVal > 24
-        ? t("wear_hot_evening", "Breezy evening dress or lightweight Cuban collar shirt.")
-        : t("wear_cold_evening", "Leather or bomber jacket, dark fitted jeans, boots."),
+      outfit: tempVal < 22
+        ? t("wear_eve_cool", "Layered outfit with light trench coat or wool sweater.")
+        : t("wear_eve_warm", "Relaxed evening shirt, light dress, or comfortable casual layers."),
       icon: "✨",
     },
   };
-
-  const alertsToDisplay = activeAlerts;
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto w-full pb-8">
@@ -303,27 +306,31 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       <WeatherAlertWatcher
         weather={w}
         unit={unit}
-        activeAlerts={alertsToDisplay}
+        activeAlerts={activeAlerts}
       />
 
-      {/* 2. HERO CARD: UNOBSTRUCTED WALLPAPER WITH INTEGRATED CONTROLS */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/25 shadow-xl min-h-[360px] sm:min-h-[420px] flex flex-col justify-between transition-all duration-500">
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
-          style={{ backgroundImage: `url(${displayBg})` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+      {/* 2. ARTWORK HERO CARD */}
+      <section className="relative overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-slate-900/40 text-white min-h-[260px] sm:min-h-[300px] flex flex-col justify-between">
+        {displayBg ? (
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-all duration-700 hover:scale-105"
+            style={{ backgroundImage: `url(${displayBg})` }}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-500 to-purple-600" />
+        )}
 
-        {/* Top Floating Control Bar */}
-        <div className="relative z-10 flex items-center justify-between p-3.5 sm:p-4">
-          <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm">
-            <span>🎨</span>
-            <span className="truncate max-w-[140px] sm:max-w-[200px]">
-              {w.place.name} Art
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" />
+
+        {/* Top Controls */}
+        <div className="relative z-10 p-3.5 sm:p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-xs">
+              📍 {w.place.name}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={handleNextArtwork}
@@ -334,27 +341,29 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               <span className="hidden sm:inline">{t("next_art", "Next")}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={loading}
-              className={`p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs shadow-sm transition active:scale-95 cursor-pointer ${
-                loading ? "animate-spin" : ""
-              }`}
-              title={t("refresh", "Refresh Weather")}
-            >
-              🔄
-            </button>
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={loading}
+                className={`p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs shadow-sm transition active:scale-95 cursor-pointer ${
+                  loading ? "animate-spin" : ""
+                }`}
+                title={t("refresh", "Refresh Weather")}
+              >
+                🔄
+              </button>
+            )}
 
             <button
               type="button"
               onClick={onToggleFavorite}
               className={`p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-xs shadow-sm transition active:scale-95 cursor-pointer ${
-                isFav ? "text-amber-400" : "text-white"
+                isFavorited ? "text-amber-400" : "text-white"
               }`}
-              title={isFav ? t("fav_saved", "Favorited") : t("fav_add", "Add Favorite")}
+              title={isFavorited ? t("fav_saved", "Favorited") : t("fav_add", "Add Favorite")}
             >
-              {isFav ? "★" : "☆"}
+              {isFavorited ? "★" : "☆"}
             </button>
           </div>
         </div>
@@ -414,7 +423,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Simple Weather Guide Button */}
             <button
               type="button"
               onClick={() => openGuide("all")}
@@ -425,7 +433,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               <span className="hidden sm:inline">{t("guide", "Guide")}</span>
             </button>
 
-            {/* Weather Mascot */}
             <div className="shrink-0 p-1 rounded-2xl bg-muted/40 border border-border/50 shadow-xs">
               <WeatherMascot weather={w} />
             </div>
@@ -468,9 +475,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
         </div>
 
-        {/* Interactive Metrics Grid — Tap any card to open simple guide */}
+        {/* Interactive Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-          {/* Wind Speed */}
           <button
             type="button"
             onClick={() => openGuide("wind")}
@@ -488,7 +494,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </span>
           </button>
 
-          {/* Humidity */}
           <button
             type="button"
             onClick={() => openGuide("humidity")}
@@ -503,7 +508,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </span>
           </button>
 
-          {/* Air Pressure */}
           <button
             type="button"
             onClick={() => openGuide("pressure")}
@@ -518,7 +522,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </span>
           </button>
 
-          {/* Visibility */}
           <button
             type="button"
             onClick={() => openGuide("conditions")}
@@ -533,7 +536,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </span>
           </button>
 
-          {/* UV Index */}
           <button
             type="button"
             onClick={() => openGuide("uv")}
@@ -551,7 +553,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </span>
           </button>
 
-          {/* Rain Chance */}
           <button
             type="button"
             onClick={() => openGuide("conditions")}
@@ -600,7 +601,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* 5. OUTDOOR ACTIVITY PLANNER */}
       <OutdoorActivityPlanner weather={w} unit={unit} />
 
-      {/* 6. 24-HOUR HOURLY FORECAST — TAP ANY CARD TO OPEN FULL DETAILS POPUP */}
+      {/* 6. 24-HOUR HOURLY FORECAST */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -652,10 +653,10 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* Interactive Live Rain Radar & Precipitation Map */}
+      {/* Interactive Live Rain Radar */}
       <WeatherRadar weather={w} />
 
-      {/* 7. 7-DAY EXTENDED FORECAST — TAP ANY ROW TO OPEN FULL DETAILS POPUP */}
+      {/* 7. 7-DAY EXTENDED FORECAST */}
       <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -744,14 +745,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </section>
 
-      {/* Simple Weather Guide Modal */}
+      {/* Weather Guide Modal */}
       <WeatherGuideModal
         isOpen={guideOpen}
         onClose={() => setGuideOpen(false)}
         initialTopic={guideTopic}
       />
 
-      {/* Full Forecast Details Modal (Hourly & Daily) */}
+      {/* Forecast Details Modal */}
       <ForecastDetailModal
         isOpen={forecastModalOpen}
         onClose={() => setForecastModalOpen(false)}
@@ -783,7 +784,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         getDayLabel={(dateStr, idx) => getDailyDayLabel(dateStr, idx, t)}
       />
 
-      {/* Embedded AI Gallery Modal */}
+      {/* AI Gallery Modal */}
       {galleryOpen && (
         <AiGalleryModal
           isOpen={galleryOpen}
