@@ -353,7 +353,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         </div>
       </div>
 
-      {/* 3. ARTWORK HERO CARD (100% CLEAR OF BUTTONS) */}
+      {/* 3. ARTWORK HERO CARD (CLEAR OF ALL BUTTONS) */}
       <section className="relative overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-slate-900/40 min-h-[260px] sm:min-h-[320px]">
         {displayBg ? (
           <div
@@ -691,7 +691,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         />
       )}
 
-      {forecastModalOpen && (
+      {forecastModalOpen && w && (
         <ForecastDetailModal
           isOpen={forecastModalOpen}
           onClose={() => setForecastModalOpen(false)}
@@ -699,6 +699,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           unit={unit}
           type={forecastModalType}
           initialIndex={forecastModalIndex}
+          getConditionLabel={(code) => getConditionLabel(code, t)}
+          getDayLabel={(dateStr, idx) => getDailyDayLabel(dateStr, idx, t)}
         />
       )}
     </div>
