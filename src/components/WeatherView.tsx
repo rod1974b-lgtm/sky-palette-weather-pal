@@ -118,65 +118,50 @@ function getAqiAdvice(val: number, t: TFunction, lang: string): {
   bg: string;
 } {
   const isThai = lang?.startsWith("th");
+
   if (val <= 50) {
     return {
-      label: t("aqi_good", isThai ? "ดีมาก" : "Good"),
+      label: isThai ? "คุณภาพอากาศดีมาก" : t("aqi_good", "Good Air Quality"),
       advice: isThai
-        ? "คุณภาพอากาศดีมาก เหมาะสำหรับทำกิจกรรมกลางแจ้งทุกประเภท"
-        : "Air quality is satisfactory. Enjoy all outdoor activities freely.",
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10 border-emerald-500/30",
+        ? "เหมาะสำหรับกิจกรรมกลางแจ้งทุกชนิด อากาศบริสุทธิ์สดชื่น"
+        : t("aqi_good_adv", "Ideal for all outdoor activities. Air quality is healthy."),
+      color: "text-emerald-700 dark:text-emerald-400",
+      bg: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800",
     };
   }
   if (val <= 100) {
     return {
-      label: t("aqi_moderate", isThai ? "ปานกลาง" : "Moderate"),
+      label: isThai ? "ปานกลาง" : t("aqi_mod", "Moderate Air"),
       advice: isThai
-        ? "คุณภาพอากาศปานกลาง ผู้ที่มีภาวะภูมิแพ้ควรสังเกตอาการ"
-        : "Air quality is acceptable. Sensitive individuals should consider limiting prolonged outdoor exertion.",
-      color: "text-amber-500",
-      bg: "bg-amber-500/10 border-amber-500/30",
+        ? "บุคคลที่ไวต่อมลพิษควรระวังหากทำกิจกรรมกลางแจ้งนานๆ"
+        : t("aqi_mod_adv", "Acceptable air quality; sensitive groups should take care."),
+      color: "text-amber-700 dark:text-amber-400",
+      bg: "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800",
     };
   }
   if (val <= 150) {
     return {
-      label: t("aqi_unhealthy_sensitive", isThai ? "เริ่มมีผลต่อสุขภาพ" : "Unhealthy for Sensitive Groups"),
+      label: isThai ? "เริ่มมีผลต่อสุขภาพ" : t("aqi_unhealthy_sens", "Unhealthy for Sensitive"),
       advice: isThai
-        ? "เริ่มมีผลกระทบต่อสุขภาพ กลุ่มเสี่ยงควรสวมหน้ากากอนามัย"
-        : "Sensitive groups may experience health effects. General public less likely affected.",
-      color: "text-orange-500",
-      bg: "bg-orange-500/10 border-orange-500/30",
+        ? "กลุ่มเสี่ยงควรลดเวลาทำกิจกรรมกลางแจ้ง และสวมหน้ากากอนามัย"
+        : t("aqi_sens_adv", "Sensitive groups should reduce prolonged outdoor exertion."),
+      color: "text-orange-700 dark:text-orange-400",
+      bg: "bg-orange-50 dark:bg-orange-950/40 border-orange-300 dark:border-orange-800",
     };
   }
   return {
-    label: t("aqi_unhealthy", isThai ? "มีผลต่อสุขภาพ" : "Unhealthy"),
+    label: isThai ? "มีผลต่อสุขภาพ" : t("aqi_unhealthy", "Unhealthy Air"),
     advice: isThai
-      ? "มีผลต่อสุขภาพ ควรหลีกเลี่ยงกิจกรรมกลางแจ้งและสวมหน้ากาก N95"
-      : "Everyone may begin to experience health effects. Avoid prolonged outdoor exertion.",
-    color: "text-destructive",
-    bg: "bg-destructive/10 border-destructive/30",
+      ? "ทุกคนควรหลีกเลี่ยงกิจกรรมกลางแจ้งที่ใช้แรงมาก สวมหน้ากาก N95"
+      : t("aqi_unhealthy_adv", "Everyone should wear masks and avoid outdoor exertion."),
+    color: "text-rose-700 dark:text-rose-400",
+    bg: "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800",
   };
-}
-
-function degreesToCompass(deg: number, t: TFunction): string {
-  const directions = [
-    { key: "wind_n", fb: "N" },
-    { key: "wind_ne", fb: "NE" },
-    { key: "wind_e", fb: "E" },
-    { key: "wind_se", fb: "SE" },
-    { key: "wind_s", fb: "S" },
-    { key: "wind_sw", fb: "SW" },
-    { key: "wind_w", fb: "W" },
-    { key: "wind_nw", fb: "NW" },
-  ];
-  const idx = Math.round(deg / 45) % 8;
-  const target = directions[idx] || directions[0]!;
-  return t(target.key, target.fb);
 }
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
   weather: w,
-  activeAlerts = [],
+  activeAlerts,
   unit,
   loading = false,
   onRefresh,
@@ -188,20 +173,17 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language || "en";
+  const isFavorited = isFavorite ?? isFav ?? false;
 
-  const isFavorited = isFav ?? isFavorite ?? false;
-
+  const [currentBgUrl, setCurrentBgUrl] = useState<string>("");
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
-  const [currentBgUrl, setCurrentBgUrl] = useState<string | null>(null);
-  const [activeWearTab, setActiveWearTab] = useState<WearCategory>("casual");
-
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTopic, setGuideTopic] = useState<GuideTopic>("all");
-
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
   const [forecastModalType, setForecastModalType] = useState<"hourly" | "daily">("hourly");
   const [forecastModalIndex, setForecastModalIndex] = useState(0);
+  const [activeWearTab, setActiveWearTab] = useState<WearCategory>("casual");
 
   useEffect(() => {
     migrateLegacyLocalStorage();
@@ -309,88 +291,81 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         activeAlerts={activeAlerts}
       />
 
-      {/* 2. ARTWORK HERO CARD */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-slate-900/40 text-white min-h-[260px] sm:min-h-[300px] flex flex-col justify-between">
-        {displayBg ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-all duration-700 hover:scale-105"
-            style={{ backgroundImage: `url(${displayBg})` }}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-500 to-purple-600" />
-        )}
+      {/* 2. LOCKED ACTION TOOLBAR (ABOVE HERO CARD) */}
+      <div className="flex items-center justify-between gap-2 px-0.5">
+        {/* Left Side: Artwork, Refresh, and Favorite */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleNextArtwork}
+            className="px-3 py-1.5 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-foreground text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+            title={t("next_art", "Next Artwork")}
+          >
+            <span>🖼️</span>
+            <span className="hidden sm:inline">{t("next_art", "Next Artwork")}</span>
+          </button>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" />
-
-        {/* Top Controls */}
-        <div className="relative z-10 p-3.5 sm:p-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/40 backdrop-blur-md border border-white/20 text-white shadow-xs">
-              📍 {w.place.name}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
+          {onRefresh && (
             <button
               type="button"
-              onClick={handleNextArtwork}
-              className="px-3 py-1.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5"
-              title={t("next_art", "Next Artwork")}
-            >
-              <span>🖼️</span>
-              <span className="hidden sm:inline">{t("next_art", "Next")}</span>
-            </button>
-
-            {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={loading}
-                className={`p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs shadow-sm transition active:scale-95 cursor-pointer ${
-                  loading ? "animate-spin" : ""
-                }`}
-                title={t("refresh", "Refresh Weather")}
-              >
-                🔄
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={onToggleFavorite}
-              className={`p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-xs shadow-sm transition active:scale-95 cursor-pointer ${
-                isFavorited ? "text-amber-400" : "text-white"
+              onClick={onRefresh}
+              disabled={loading}
+              className={`p-2 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-foreground text-xs shadow-xs transition active:scale-95 cursor-pointer ${
+                loading ? "animate-spin" : ""
               }`}
-              title={isFavorited ? t("fav_saved", "Favorited") : t("fav_add", "Add Favorite")}
+              title={t("refresh", "Refresh Weather")}
             >
-              {isFavorited ? "★" : "☆"}
+              🔄
             </button>
-          </div>
+          )}
+
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            className={`p-2 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-xs shadow-xs transition active:scale-95 cursor-pointer ${
+              isFavorited ? "text-amber-500" : "text-foreground"
+            }`}
+            title={isFavorited ? t("fav_saved", "Favorited") : t("fav_add", "Add Favorite")}
+          >
+            {isFavorited ? "★" : "☆"}
+          </button>
         </div>
 
-        {/* Bottom Floating Bar */}
-        <div className="relative z-10 p-3.5 sm:p-4 flex items-center justify-between gap-2">
+        {/* Right Side: Gallery & Share Postcard */}
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setGalleryOpen(true)}
-            className="px-3.5 py-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-md transition active:scale-95 cursor-pointer flex items-center gap-2"
+            className="px-3 py-1.5 rounded-xl bg-background/80 hover:bg-background/95 backdrop-blur-md border border-white/20 text-foreground text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
             <span>🎨</span>
-            <span>{t("gallery", "Art Gallery")}</span>
+            <span className="hidden sm:inline">{t("gallery", "Art Gallery")}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPostcardOpen(true)}
-            className="px-3.5 py-2 rounded-full bg-primary/80 hover:bg-primary backdrop-blur-md border border-white/30 text-primary-foreground text-xs font-bold shadow-md transition active:scale-95 cursor-pointer flex items-center gap-2"
+            className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
             <span>💌</span>
-            <span>{t("postcard_btn", "Share Postcard")}</span>
+            <span className="hidden sm:inline">{t("postcard_btn", "Postcard")}</span>
           </button>
         </div>
+      </div>
+
+      {/* 3. ARTWORK HERO CARD (100% CLEAR OF BUTTONS) */}
+      <section className="relative overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-slate-900/40 min-h-[260px] sm:min-h-[320px]">
+        {displayBg ? (
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
+            style={{ backgroundImage: `url(${displayBg})` }}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-500 to-purple-600" />
+        )}
       </section>
 
-      {/* 3. CURRENT WEATHER CONDITIONS & METRICS */}
+      {/* 4. CURRENT WEATHER CONDITIONS & METRICS */}
       <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-4">
         {/* City Title and Status */}
         <div className="flex items-start justify-between gap-3">
@@ -413,389 +388,289 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               </p>
               <button
                 type="button"
-                onClick={() => openGuide("conditions")}
-                className="text-[11px] text-primary hover:underline ml-1 cursor-pointer"
-                title={t("explain_conditions", "Explain weather condition")}
+                onClick={() => openGuide("icons")}
+                className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
               >
-                ({t("what_means", "what does this mean?")})
+                ({t("glossary", "Glossary")})
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => openGuide("all")}
-              className="px-2.5 py-1.5 rounded-xl border border-border/70 bg-muted/60 hover:bg-muted text-xs font-bold text-foreground transition cursor-pointer flex items-center gap-1 shadow-xs"
-              title={t("guide_tooltip", "Explain weather numbers & terms in simple words")}
-            >
-              <span>ℹ️</span>
-              <span className="hidden sm:inline">{t("guide", "Guide")}</span>
-            </button>
-
-            <div className="shrink-0 p-1 rounded-2xl bg-muted/40 border border-border/50 shadow-xs">
-              <WeatherMascot weather={w} />
-            </div>
-          </div>
-        </div>
-
-        {/* Hero Weather Banner */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-muted/30 border border-border/50 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
-          <div className="flex items-center gap-3.5">
-            <span className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
-              {tempVal}
-              <span className="text-2xl sm:text-3xl font-light text-muted-foreground ml-0.5">
-                {tempUnitStr}
-              </span>
-            </span>
-
-            <div className="space-y-0.5 text-xs">
-              <p className="text-muted-foreground">
-                {t("feels_like", "Feels like")}{" "}
-                <span className="font-bold text-foreground">
-                  {feelsLikeVal}{tempUnitStr}
-                </span>
-              </p>
-              <p className="font-semibold">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">↑{highTemp}°</span>{" "}
-                <span className="text-sky-600 dark:text-sky-400 font-extrabold">↓{lowTemp}°</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center shrink-0 ml-auto sm:ml-0 p-2 rounded-xl bg-card border border-border/60 shadow-xs">
-            <WeatherIcon
-              code={w.current.code}
-              isDay={w.current.is_day ?? 1}
-              className="w-12 h-12 sm:w-14 sm:h-14"
-            />
-            <span className="text-[10px] text-muted-foreground font-medium mt-1">
-              {w.current.is_day === 0 ? t("night", "Night") : t("day", "Day")}
-            </span>
-          </div>
-        </div>
-
-        {/* Interactive Metrics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
           <button
             type="button"
-            onClick={() => openGuide("wind")}
-            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+            onClick={() => openGuide("all")}
+            className="px-3 py-1.5 rounded-xl border border-border/70 bg-secondary/80 hover:bg-secondary text-secondary-foreground text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
           >
-            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
-              <span>💨 {t("wind", "Wind")}</span>
-              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
-            </span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {Math.round(w.current.wind)} {speedUnitStr}{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                {degreesToCompass(w.current.wind_dir, t)}
-              </span>
-            </span>
+            <span>📖</span>
+            <span className="hidden sm:inline">{t("weather_guide", "Weather Guide")}</span>
           </button>
+        </div>
 
+        {/* Big Temperature Display */}
+        <div className="flex items-baseline gap-4 pt-1">
+          <div className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
+            {tempVal}
+            <span className="text-2xl sm:text-3xl font-bold text-muted-foreground ml-1">
+              {tempUnitStr}
+            </span>
+          </div>
+
+          <div className="space-y-0.5 text-xs sm:text-sm font-semibold text-muted-foreground">
+            <p>
+              {t("feels_like", "Feels like")}: <span className="text-foreground font-bold">{feelsLikeVal}{tempUnitStr}</span>
+            </p>
+            <p>
+              {t("high_low", "High / Low")}:{" "}
+              <span className="text-foreground font-bold">
+                {highTemp}° / {lowTemp}°
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* Primary Weather Metrics Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+          {/* Humidity */}
           <button
             type="button"
             onClick={() => openGuide("humidity")}
-            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+            className="p-3 rounded-2xl bg-muted/50 hover:bg-muted/80 border border-border/50 text-left transition cursor-pointer"
           >
-            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+            <div className="flex items-center justify-between text-xs text-muted-foreground font-medium mb-1">
               <span>💧 {t("humidity", "Humidity")}</span>
-              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
-            </span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {w.current.humidity}%
-            </span>
+              <span className="text-[10px] text-primary">ℹ️</span>
+            </div>
+            <div className="text-lg font-bold text-foreground">
+              {w.current.humidity !== undefined ? `${w.current.humidity}%` : "--"}
+            </div>
           </button>
 
+          {/* Wind */}
           <button
             type="button"
-            onClick={() => openGuide("pressure")}
-            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+            onClick={() => openGuide("wind")}
+            className="p-3 rounded-2xl bg-muted/50 hover:bg-muted/80 border border-border/50 text-left transition cursor-pointer"
           >
-            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
-              <span>🧭 {t("pressure", "Pressure")}</span>
-              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
-            </span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {Math.round(w.current.pressure)} hPa
-            </span>
+            <div className="flex items-center justify-between text-xs text-muted-foreground font-medium mb-1">
+              <span>💨 {t("wind", "Wind")}</span>
+              <span className="text-[10px] text-primary">ℹ️</span>
+            </div>
+            <div className="text-lg font-bold text-foreground">
+              {w.current.wind !== undefined ? `${Math.round(w.current.wind)} ${speedUnitStr}` : "--"}
+            </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => openGuide("conditions")}
-            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
-          >
-            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
-              <span>👁️ {t("visibility", "Visibility")}</span>
-              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
-            </span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {(w.current.vis / 1000).toFixed(1)} km
-            </span>
-          </button>
-
+          {/* UV Index */}
           <button
             type="button"
             onClick={() => openGuide("uv")}
-            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
+            className="p-3 rounded-2xl bg-muted/50 hover:bg-muted/80 border border-border/50 text-left transition cursor-pointer"
           >
-            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+            <div className="flex items-center justify-between text-xs text-muted-foreground font-medium mb-1">
               <span>☀️ {t("uv_index", "UV Index")}</span>
-              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
-            </span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {w.current.uv.toFixed(1)}{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                ({w.current.uv > 7 ? t("uv_very_high", "Very High") : w.current.uv > 4 ? t("uv_moderate", "Moderate") : t("uv_low", "Low")})
-              </span>
-            </span>
+              <span className="text-[10px] text-primary">ℹ️</span>
+            </div>
+            <div className="text-lg font-bold text-foreground">
+              {w.current.uv !== undefined ? Math.round(w.current.uv) : "--"}
+            </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => openGuide("conditions")}
-            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-primary/50 text-left flex flex-col justify-between transition cursor-pointer"
-          >
-            <span className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
-              <span>🌧️ {t("rain_chance", "Rain Chance")}</span>
-              <span className="text-[10px] text-muted-foreground/70">ℹ️</span>
-            </span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {w.hourly[0]?.pop ?? 0}%
-            </span>
-          </button>
-        </div>
-
-        {/* Air Quality (AQI / PM2.5) Card */}
-        {aqiAdvisoryInfo && (
+          {/* Air Quality (AQI) */}
           <button
             type="button"
             onClick={() => openGuide("aqi")}
-            className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between gap-3 transition cursor-pointer ${aqiAdvisoryInfo.bg}`}
+            className="p-3 rounded-2xl bg-muted/50 hover:bg-muted/80 border border-border/50 text-left transition cursor-pointer"
           >
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-foreground">
-                  🍃 {t("air_quality", "Air Quality")}:
-                </span>
-                <span className={`text-xs font-black uppercase ${aqiAdvisoryInfo.color}`}>
-                  {aqiAdvisoryInfo.label} (AQI {aqiVal})
-                </span>
-              </div>
-              <p className="text-xs text-foreground/80 font-medium">
+            <div className="flex items-center justify-between text-xs text-muted-foreground font-medium mb-1">
+              <span>🍃 {t("aqi", "Air Quality")}</span>
+              <span className="text-[10px] text-primary">ℹ️</span>
+            </div>
+            <div className="text-lg font-bold text-foreground">
+              {aqiVal !== null ? `${aqiVal} AQI` : "--"}
+            </div>
+          </button>
+        </div>
+
+        {/* Air Quality Health Advisory Banner */}
+        {aqiAdvisoryInfo && (
+          <div className={`p-3.5 rounded-2xl border ${aqiAdvisoryInfo.bg} flex items-start gap-3`}>
+            <span className="text-xl shrink-0 mt-0.5">😷</span>
+            <div className="space-y-0.5">
+              <p className={`text-xs font-bold ${aqiAdvisoryInfo.color}`}>
+                {aqiAdvisoryInfo.label}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 {aqiAdvisoryInfo.advice}
               </p>
             </div>
-            <span className="text-xs font-bold text-muted-foreground px-2 py-1 rounded-lg bg-card/60 shrink-0">
-              {t("learn_more", "Guide ℹ️")}
-            </span>
-          </button>
+          </div>
         )}
       </section>
 
-      {/* 4. ASTRONOMY SUN & MOON TRACKER */}
-      <AstronomyTracker weather={w} />
+      {/* 5. WEATHER PAL MASCOT COMPANION */}
+      <WeatherMascot weather={w} />
 
-      {/* 5. OUTDOOR ACTIVITY PLANNER */}
-      <OutdoorActivityPlanner weather={w} unit={unit} />
-
-      {/* 6. 24-HOUR HOURLY FORECAST */}
-      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-base">🕒</span>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("hourly_forecast", "24-Hour Forecast")}
+      {/* 6. HOURLY FORECAST SCROLLER */}
+      {w.hourly && w.hourly.length > 0 && (
+        <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm sm:text-base font-black tracking-tight text-foreground flex items-center gap-2">
+              <span>⏱️</span>
+              <span>{t("hourly_forecast", "Hourly Forecast")}</span>
             </h3>
+            <span className="text-xs text-muted-foreground">
+              {t("tap_for_details", "Tap for details")}
+            </span>
           </div>
-          <span className="text-[11px] text-primary font-medium">
-            {t("tap_for_details", "Tap for full details →")}
-          </span>
-        </div>
 
-        <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-none snap-x">
-          {w.hourly.slice(0, 24).map((h, idx) => {
-            const timeLabel = h.time.includes("T")
-              ? h.time.split("T")[1]?.slice(0, 5) ?? h.time
-              : h.time.slice(11, 16);
-
-            return (
+          <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-none snap-x">
+            {w.hourly.slice(0, 24).map((h, idx) => (
               <button
-                key={`hourly-${idx}`}
+                key={`${h.time}-${idx}`}
                 type="button"
                 onClick={() => openHourlyDetail(idx)}
-                className="flex flex-col items-center justify-between p-2.5 rounded-2xl bg-muted/30 border border-border/40 min-w-[76px] sm:min-w-[82px] text-center shrink-0 snap-start space-y-1.5 transition hover:bg-muted/60 hover:border-primary/50 hover:scale-102 cursor-pointer"
+                className="flex-shrink-0 w-20 p-2.5 rounded-2xl bg-muted/40 hover:bg-muted/80 border border-border/50 text-center transition cursor-pointer snap-start flex flex-col items-center gap-1.5"
               >
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {idx === 0 ? t("hour_now", "Now") : timeLabel}
+                <span className="text-[11px] font-semibold text-muted-foreground">
+                  {idx === 0 ? t("now", "Now") : h.time.slice(11, 16)}
                 </span>
-
-                <WeatherIcon
-                  code={h.code}
-                  isDay={h.is_day ?? 1}
-                  className="w-7 h-7 sm:w-8 sm:h-8"
-                />
-
-                <span className="text-xs font-bold text-foreground">
+                <div className="w-8 h-8 flex items-center justify-center my-0.5">
+                  <WeatherIcon code={h.code} isDay={h.is_day ?? 1} className="w-7 h-7 object-contain" />
+                </div>
+                <span className="text-sm font-black text-foreground">
                   {Math.round(h.temp)}°
                 </span>
-
-                {h.pop > 0 && (
-                  <span className="text-[10px] text-sky-500 font-semibold">
+                {h.pop !== undefined && h.pop > 10 && (
+                  <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">
                     💧{h.pop}%
                   </span>
                 )}
               </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Interactive Live Rain Radar */}
-      <WeatherRadar weather={w} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 7. 7-DAY EXTENDED FORECAST */}
-      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-base">📅</span>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("seven_day_forecast", "7-Day Forecast")}
+      {w.daily && w.daily.length > 0 && (
+        <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm sm:text-base font-black tracking-tight text-foreground flex items-center gap-2">
+              <span>📅</span>
+              <span>{t("extended_forecast", "7-Day Forecast")}</span>
             </h3>
+            <span className="text-xs text-muted-foreground">
+              {t("tap_for_details", "Tap for details")}
+            </span>
           </div>
-          <span className="text-[11px] text-primary font-medium">
-            {t("tap_for_details", "Tap for full details →")}
-          </span>
-        </div>
 
-        <div className="divide-y divide-border/40">
-          {w.daily.map((d, idx) => {
-            const dayLabel = getDailyDayLabel(d.date, idx, t);
-
-            return (
+          <div className="divide-y divide-border/40">
+            {w.daily.slice(0, 7).map((d, idx) => (
               <button
-                key={`daily-${idx}`}
+                key={`${d.date}-${idx}`}
                 type="button"
                 onClick={() => openDailyDetail(idx)}
-                className="w-full py-2.5 px-2 rounded-xl flex items-center justify-between gap-3 text-xs text-left hover:bg-muted/40 transition cursor-pointer"
+                className="w-full py-3 px-2 flex items-center justify-between gap-3 text-left hover:bg-muted/40 rounded-xl transition cursor-pointer"
               >
-                <span className="w-16 font-semibold text-foreground shrink-0">
-                  {dayLabel}
-                </span>
+                <div className="w-24 text-xs font-bold text-foreground">
+                  {getDailyDayLabel(d.date, idx, t)}
+                </div>
 
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <WeatherIcon
-                    code={d.code}
-                    isDay={1}
-                    className="w-5 h-5 shrink-0"
-                  />
-                  <span className="text-muted-foreground truncate font-medium">
+                  <div className="w-6 h-6 shrink-0 flex items-center justify-center">
+                    <WeatherIcon code={d.code} isDay={1} className="w-6 h-6 object-contain" />
+                  </div>
+                  <span className="text-xs text-muted-foreground truncate">
                     {getConditionLabel(d.code, t)}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 font-bold">
+                <div className="flex items-center gap-3 text-xs font-bold shrink-0">
+                  {d.pop !== undefined && d.pop > 15 && (
+                    <span className="text-[11px] font-semibold text-sky-600 dark:text-sky-400">
+                      💧{d.pop}%
+                    </span>
+                  )}
                   <span className="text-foreground">{Math.round(d.max)}°</span>
-                  <span className="text-muted-foreground font-medium">
-                    {Math.round(d.min)}°
-                  </span>
+                  <span className="text-muted-foreground font-normal">{Math.round(d.min)}°</span>
                 </div>
               </button>
-            );
-          })}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {/* 8. WHAT TO WEAR RECOMMENDATIONS */}
-      <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-base">👔</span>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("what_to_wear", "What to Wear")}
-          </h3>
-        </div>
+      {/* 8. WHAT TO WEAR ADVICE */}
+      <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-3">
+        <h3 className="text-sm sm:text-base font-black tracking-tight text-foreground flex items-center gap-2">
+          <span>👔</span>
+          <span>{t("what_to_wear", "What to Wear")}</span>
+        </h3>
 
-        <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-muted/40 border border-border/50">
+        {/* Category Tabs */}
+        <div className="flex gap-1.5 p-1 rounded-2xl bg-muted/60">
           {(["casual", "business", "workout", "evening"] as WearCategory[]).map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setActiveWearTab(cat)}
-              className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1 ${
+              className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer capitalize ${
                 activeWearTab === cat
-                  ? "bg-card text-foreground shadow-xs border border-border/60"
+                  ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <span>{wearRecommendations[cat].icon}</span>
-              <span className="hidden sm:inline">{wearRecommendations[cat].title}</span>
+              {wearRecommendations[cat].icon} {wearRecommendations[cat].title.split(" ")[0]}
             </button>
           ))}
         </div>
 
-        <div className="p-3.5 rounded-xl bg-muted/20 border border-border/40 text-xs space-y-1.5">
-          <p className="font-bold text-foreground">
-            {wearRecommendations[activeWearTab].title}
+        {/* Selected Outfit Card */}
+        <div className="p-3.5 rounded-2xl bg-muted/40 border border-border/50 space-y-1">
+          <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <span>{wearRecommendations[activeWearTab].icon}</span>
+            <span>{wearRecommendations[activeWearTab].title}</span>
           </p>
-          <p className="text-muted-foreground leading-relaxed">
+          <p className="text-xs text-muted-foreground leading-relaxed">
             {wearRecommendations[activeWearTab].outfit}
           </p>
         </div>
       </section>
 
-      {/* Weather Guide Modal */}
-      <WeatherGuideModal
-        isOpen={guideOpen}
-        onClose={() => setGuideOpen(false)}
-        initialTopic={guideTopic}
-      />
-
-      {/* Forecast Details Modal */}
-      <ForecastDetailModal
-        isOpen={forecastModalOpen}
-        onClose={() => setForecastModalOpen(false)}
-        type={forecastModalType}
-        selectedIndex={forecastModalIndex}
-        onSelectIndex={setForecastModalIndex}
-        hourlyList={w.hourly.map((h) => ({
-          time: h.time,
-          temp: h.temp,
-          feels: (h as any).feels ?? h.temp,
-          code: h.code,
-          pop: h.pop,
-          is_day: h.is_day ?? 1,
-          windSpeed: (h as any).wind_speed ?? (h as any).windSpeed,
-          humidity: (h as any).humidity,
-          uv: (h as any).uv,
-        }))}
-        dailyList={w.daily.map((d) => ({
-          date: d.date,
-          max: d.max,
-          min: d.min,
-          code: d.code,
-          pop: d.pop,
-          ...(d.sunrise ? { sunrise: d.sunrise } : {}),
-          ...(d.sunset ? { sunset: d.sunset } : {}),
-        }))}
+      {/* 9. OUTDOOR ACTIVITY PLANNER */}
+      <OutdoorActivityPlanner
+        weather={w}
         unit={unit}
-        getConditionLabel={(code) => getConditionLabel(code, t)}
-        getDayLabel={(dateStr, idx) => getDailyDayLabel(dateStr, idx, t)}
       />
 
-      {/* AI Gallery Modal */}
+      {/* 10. RAINVIEWER LIVE RADAR */}
+      <WeatherRadar
+        lat={w.place.lat}
+        lon={w.place.lon}
+        cityName={w.place.name}
+      />
+
+      {/* 11. SUN & MOON ASTRONOMY TRACKER */}
+      <AstronomyTracker
+        lat={w.place.lat}
+        lon={w.place.lon}
+      />
+
+      {/* MODALS */}
       {galleryOpen && (
         <AiGalleryModal
           isOpen={galleryOpen}
           onClose={() => setGalleryOpen(false)}
-          city={w.place.name}
-          onSelectBackground={onSelectBackground}
-          onSelectBg={onSelectBackground}
+          currentCity={w.place.name}
+          currentWeatherCode={w.current.code}
+          onApplyBackground={(url) => {
+            setCurrentBgUrl(url);
+            onSelectBackground(url);
+            setWallpaperItem(w.place.name, url);
+          }}
         />
       )}
 
-      {/* Weather Postcard Sharing Modal */}
       {postcardOpen && (
         <WeatherPostcardModal
           isOpen={postcardOpen}
@@ -805,6 +680,29 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           backgroundUrl={displayBg}
         />
       )}
+
+      {guideOpen && (
+        <WeatherGuideModal
+          isOpen={guideOpen}
+          onClose={() => setGuideOpen(false)}
+          initialTopic={guideTopic}
+          lat={w.place.lat}
+          lon={w.place.lon}
+        />
+      )}
+
+      {forecastModalOpen && (
+        <ForecastDetailModal
+          isOpen={forecastModalOpen}
+          onClose={() => setForecastModalOpen(false)}
+          weather={w}
+          unit={unit}
+          type={forecastModalType}
+          initialIndex={forecastModalIndex}
+        />
+      )}
     </div>
   );
 };
+
+export default WeatherView;
