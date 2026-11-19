@@ -658,8 +658,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         unit={unit}
       />
 
-      {/* 10. RAINVIEWER LIVE RADAR */}
+           {/* 10. RAINVIEWER LIVE RADAR */}
       <WeatherRadar
+        weather={w}
         lat={w.place.lat}
         lon={w.place.lon}
         cityName={w.place.name}
