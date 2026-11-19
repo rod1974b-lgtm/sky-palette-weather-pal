@@ -342,23 +342,33 @@ export function WeatherHomePage() {
 
       <main className="relative z-10 mx-auto max-w-4xl px-3 py-3.5 sm:px-6 sm:py-6 space-y-3.5 sm:space-y-4">
         {/* Navigation / Header Bar */}
-        <header className="space-y-2">
-          <div className="flex items-center justify-between gap-2 sm:gap-3">
-            {/* Title & App Icon */}
-            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-              <img
-                src="/icons/weather_pal_1_512.png"
-                alt="My Weather Pal"
-                className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-xl drop-shadow-sm shrink-0"
-                loading="eager"
-              />
-              <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground drop-shadow-md whitespace-nowrap">
-                My Weather Pal
-              </h1>
+        <header className="space-y-2.5">
+          {/* Level 1: App Icon and Title Alone */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <img
+              src="/icons/weather_pal_1_512.png"
+              alt="My Weather Pal"
+              className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-xl drop-shadow-sm shrink-0"
+              loading="eager"
+            />
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground drop-shadow-md whitespace-nowrap">
+              My Weather Pal
+            </h1>
+          </div>
+
+          {/* Level 2: Moved Down - Current City Pin Badge (Left) & Quick Actions (Right) */}
+          <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+            {/* Current City Pin Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-xs font-bold text-foreground shadow-xs max-w-full">
+              <span className="text-xs shrink-0">📍</span>
+              <span className="font-semibold break-words">
+                {getLocalizedCity(place.name, i18n.language)}
+                {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
+              </span>
             </div>
 
             {/* Quick Actions Bar */}
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
               <LanguageSelector variant="dropdown" />
 
               <button
@@ -392,17 +402,6 @@ export function WeatherHomePage() {
                 onToggleUnit={handleToggleUnit}
                 onSelectBackground={handleSelectCustomBg}
               />
-            </div>
-          </div>
-
-          {/* Current City Pin Badge - Dedicated line, never cut off */}
-          <div className="flex items-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-xs font-bold text-foreground shadow-xs max-w-full">
-              <span className="text-xs shrink-0">📍</span>
-              <span className="font-semibold break-words">
-                {getLocalizedCity(place.name, i18n.language)}
-                {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
-              </span>
             </div>
           </div>
         </header>
