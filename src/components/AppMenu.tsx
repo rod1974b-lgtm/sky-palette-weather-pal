@@ -129,13 +129,21 @@ export function AppMenu({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-label={t("settings", "Settings")}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-background/60 text-foreground shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer"
+        className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-background/60 text-foreground shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer shrink-0"
       >
         <span className="text-base select-none">⚙️</span>
       </button>
 
+      {/* Mobile Backdrop for Clean Outside-Tap Dismissal */}
       {open && (
-        <div className="absolute right-0 top-11 z-50 w-[300px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur-md space-y-4">
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {open && (
+        <div className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 z-50 w-[calc(100vw-24px)] sm:w-[320px] max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-xl space-y-4 animate-in fade-in zoom-in-95">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border pb-2.5">
             <span className="text-sm font-bold text-foreground">
@@ -144,7 +152,8 @@ export function AppMenu({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-muted-foreground hover:text-foreground text-sm cursor-pointer p-1"
+              className="text-muted-foreground hover:text-foreground text-sm cursor-pointer p-1 rounded-lg hover:bg-muted"
+              aria-label={t("close", "Close")}
             >
               ✕
             </button>
@@ -199,7 +208,7 @@ export function AppMenu({
             )}
           </div>
 
-          {/* Units Selection - Fixed & Synchronized */}
+          {/* Units Selection */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
               {t("units", "Units")}
@@ -208,7 +217,7 @@ export function AppMenu({
               <button
                 type="button"
                 onClick={() => handleUnitSelect("metric")}
-                className={`py-1.5 text-xs font-medium rounded-lg transition cursor-pointer ${
+                className={`py-2 text-xs font-medium rounded-lg transition cursor-pointer ${
                   unit === "metric"
                     ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                     : "bg-muted hover:bg-muted/80 text-foreground"
@@ -219,7 +228,7 @@ export function AppMenu({
               <button
                 type="button"
                 onClick={() => handleUnitSelect("imperial")}
-                className={`py-1.5 text-xs font-medium rounded-lg transition cursor-pointer ${
+                className={`py-2 text-xs font-medium rounded-lg transition cursor-pointer ${
                   unit === "imperial"
                     ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                     : "bg-muted hover:bg-muted/80 text-foreground"
@@ -230,7 +239,7 @@ export function AppMenu({
             </div>
           </div>
 
-          {/* Sky background */}
+          {/* Sky Background Selection */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
               {t("sky_background", "Sky Background")}
@@ -238,7 +247,7 @@ export function AppMenu({
             <select
               value={skyPref}
               onChange={(e) => handleSkyChange(e.target.value)}
-              className="w-full rounded-lg border border-border bg-muted px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
             >
               {skyOptions.map((s) => (
                 <option key={s.value} value={s.value} className="bg-card text-foreground">
@@ -248,7 +257,7 @@ export function AppMenu({
             </select>
           </div>
 
-          {/* Font size */}
+          {/* Text Size */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
               {t("font_size", "Text Size")}
@@ -259,7 +268,7 @@ export function AppMenu({
                   key={f.value}
                   type="button"
                   onClick={() => handleFontChange(f.value)}
-                  className={`py-1.5 text-xs rounded-lg transition cursor-pointer ${
+                  className={`py-2 text-xs rounded-lg transition cursor-pointer ${
                     fontSize === f.value
                       ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                       : "bg-muted hover:bg-muted/80 text-foreground"
@@ -271,7 +280,7 @@ export function AppMenu({
             </div>
           </div>
 
-          {/* Footer actions: Unified Art Gallery & Privacy links */}
+          {/* Footer Actions */}
           <div className="border-t border-border pt-3 flex items-center justify-between text-xs text-muted-foreground">
             <div className="flex items-center gap-3">
               <Link
