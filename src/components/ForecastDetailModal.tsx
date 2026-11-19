@@ -1,8 +1,8 @@
 // src/components/ForecastDetailModal.tsx
-import React, { useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { WeatherIcon } from "@/lib/weatherIcons";
-import type { WeatherUnit } from "@/lib/weather";
+import { type Weather, type WeatherUnit, describe } from "@/lib/weather";
 
 export interface HourlyDetailItem {
   time: string;
@@ -30,49 +30,131 @@ export interface DailyDetailItem {
   windMax?: number;
 }
 
-interface ForecastDetailModalProps {
+export interface ForecastDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: "hourly" | "daily";
-  selectedIndex: number;
-  onSelectIndex: (idx: number) => void;
+  weather?: Weather | null;
+  initialIndex?: number;
+  selectedIndex?: number;
+  onSelectIndex?: (idx: number) => void;
   hourlyList?: HourlyDetailItem[];
   dailyList?: DailyDetailItem[];
   unit: WeatherUnit;
-  getConditionLabel: (code: number) => string;
+  getConditionLabel?: (code: number) => string;
   getDayLabel?: (dateStr: string, idx: number) => string;
 }
+
+const WMO_KEY_MAP: Record<number, { key: string; fallback: string }> = {
+  0: { key: "wmo_0", fallback: "Clear sky" },
+  1: { key: "wmo_1", fallback: "Mainly clear" },
+  2: { key: "wmo_2", fallback: "Partly cloudy" },
+  3: { key: "wmo_3", fallback: "Overcast" },
+  45: { key: "wmo_45", fallback: "Fog" },
+  48: { key: "wmo_48", fallback: "Depositing rime fog" },
+  51: { key: "wmo_51", fallback: "Light drizzle" },
+  53: { key: "wmo_53", fallback: "Moderate drizzle" },
+  55: { key: "wmo_55", fallback: "Dense drizzle" },
+  61: { key: "wmo_61", fallback: "Slight rain" },
+  63: { key: "wmo_63", fallback: "Moderate rain" },
+  65: { key: "wmo_65", fallback: "Heavy rain" },
+  71: { key: "wmo_71", fallback: "Slight snowfall" },
+  73: { key: "wmo_73", fallback: "Moderate snowfall" },
+  75: { key: "wmo_75", fallback: "Heavy snowfall" },
+  80: { key: "wmo_80", fallback: "Slight rain showers" },
+  81: { key: "wmo_81", fallback: "Moderate rain showers" },
+  82: { key: "wmo_82", fallback: "Violent rain showers" },
+  85: { key: "wmo_85", fallback: "Slight snow showers" },
+  86: { key: "wmo_86", fallback: "Heavy snow showers" },
+  95: { key: "wmo_95", fallback: "Thunderstorm" },
+  96: { key: "wmo_96", fallback: "Thunderstorm with slight hail" },
+  99: { key: "wmo_99", fallback: "Thunderstorm with heavy hail" },
+};
 
 export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   isOpen,
   onClose,
   type,
+  weather,
+  initialIndex,
   selectedIndex,
   onSelectIndex,
-  hourlyList = [],
-  dailyList = [],
+  hourlyList: propHourlyList,
+  dailyList: propDailyList,
   unit,
   getConditionLabel,
   getDayLabel,
 }) => {
   const { t } = useTranslation();
 
+  // Normalize hourly items from either props or weather object
+  const resolvedHourlyList = useMemo<HourlyDetailItem[]>(() => {
+    if (propHourlyList && propHourlyList.length > 0) return propHourlyList;
+    if (weather?.hourly && weather.hourly.length > 0) {
+      return weather.hourly.slice(0, 24).map((h) => ({
+        time: h.time,
+        temp: h.temp,
+        feels: h.temp,
+        code: h.code,
+        pop: h.pop ?? h.precipProb ?? 0,
+        is_day: h.is_day ?? 1,
+      }));
+    }
+    return [];
+  }, [propHourlyList, weather]);
+
+  // Normalize daily items from either props or weather object
+  const resolvedDailyList = useMemo<DailyDetailItem[]>(() => {
+    if (propDailyList && propDailyList.length > 0) return propDailyList;
+    if (weather?.daily && weather.daily.length > 0) {
+      return weather.daily.slice(0, 7).map((d) => ({
+        date: d.date,
+        max: d.max,
+        min: d.min,
+        code: d.code,
+        pop: d.pop ?? d.precipProbMax ?? 0,
+        sunrise: d.sunrise || weather.sun?.sunrise,
+        sunset: d.sunset || weather.sun?.sunset,
+      }));
+    }
+    return [];
+  }, [propDailyList, weather]);
+
   const isHourly = type === "hourly";
-  const totalItems = isHourly ? hourlyList.length : dailyList.length;
+  const totalItems = isHourly ? resolvedHourlyList.length : resolvedDailyList.length;
+
+  const [internalIndex, setInternalIndex] = useState(
+    initialIndex ?? selectedIndex ?? 0
+  );
+
+  useEffect(() => {
+    const idx = initialIndex ?? selectedIndex ?? 0;
+    if (idx >= 0 && idx < totalItems) {
+      setInternalIndex(idx);
+    } else {
+      setInternalIndex(0);
+    }
+  }, [initialIndex, selectedIndex, totalItems, isOpen]);
+
+  const currentIndex = Math.min(Math.max(0, internalIndex), Math.max(0, totalItems - 1));
 
   const handlePrev = useCallback(() => {
-    if (selectedIndex > 0) {
-      onSelectIndex(selectedIndex - 1);
+    if (currentIndex > 0) {
+      const nextIdx = currentIndex - 1;
+      setInternalIndex(nextIdx);
+      onSelectIndex?.(nextIdx);
     }
-  }, [selectedIndex, onSelectIndex]);
+  }, [currentIndex, onSelectIndex]);
 
   const handleNext = useCallback(() => {
-    if (selectedIndex < totalItems - 1) {
-      onSelectIndex(selectedIndex + 1);
+    if (currentIndex < totalItems - 1) {
+      const nextIdx = currentIndex + 1;
+      setInternalIndex(nextIdx);
+      onSelectIndex?.(nextIdx);
     }
-  }, [selectedIndex, totalItems, onSelectIndex]);
+  }, [currentIndex, totalItems, onSelectIndex]);
 
-  // Keyboard navigation (Escape to close, Left/Right arrows to browse)
+  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -87,29 +169,63 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   if (!isOpen || totalItems === 0) return null;
 
   const tempUnitStr = unit === "imperial" ? "°F" : "°C";
-  const speedUnitStr = unit === "imperial" ? "mph" : "km/h";
 
-  const hourlyItem = isHourly ? hourlyList[selectedIndex] : null;
-  const dailyItem = !isHourly ? dailyList[selectedIndex] : null;
+  const hourlyItem = isHourly ? resolvedHourlyList[currentIndex] : null;
+  const dailyItem = !isHourly ? resolvedDailyList[currentIndex] : null;
 
   const currentCode = (isHourly ? hourlyItem?.code : dailyItem?.code) ?? 0;
-  const conditionFullText = getConditionLabel(currentCode);
 
+  // Resolve condition label with multilingual fallback
+  let conditionFullText = "";
+  if (getConditionLabel) {
+    conditionFullText = getConditionLabel(currentCode);
+  } else {
+    const entry = WMO_KEY_MAP[currentCode];
+    if (entry) {
+      conditionFullText = t(entry.key, entry.fallback);
+    } else {
+      conditionFullText = describe(currentCode)?.label || t("fair", "Fair");
+    }
+  }
+
+  // Format header time/date safely
   let titleTime = "";
   if (isHourly && hourlyItem) {
-    try {
-      const d = new Date(hourlyItem.time);
-      titleTime = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-    } catch {
-      titleTime = hourlyItem.time;
+    if (currentIndex === 0) {
+      titleTime = `${t("now", "Now")} (${hourlyItem.time.slice(11, 16) || hourlyItem.time})`;
+    } else {
+      try {
+        const d = new Date(hourlyItem.time);
+        if (!isNaN(d.getTime())) {
+          titleTime = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+        } else {
+          titleTime = hourlyItem.time.slice(11, 16) || hourlyItem.time;
+        }
+      } catch {
+        titleTime = hourlyItem.time;
+      }
     }
   } else if (!isHourly && dailyItem) {
     if (getDayLabel) {
-      titleTime = getDayLabel(dailyItem.date, selectedIndex);
+      titleTime = getDayLabel(dailyItem.date, currentIndex);
     } else {
-      titleTime = dailyItem.date;
+      if (currentIndex === 0) titleTime = t("today", "Today");
+      else if (currentIndex === 1) titleTime = t("tomorrow", "Tomorrow");
+      else {
+        try {
+          const d = new Date(dailyItem.date);
+          const day = d.getDay();
+          const dayKeys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
+          const dayFallbacks = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          titleTime = t(dayKeys[day] || "", dayFallbacks[day] || dailyItem.date);
+        } catch {
+          titleTime = dailyItem.date;
+        }
+      }
     }
   }
+
+  const cityName = weather?.place?.name;
 
   return (
     <div
@@ -120,16 +236,21 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
         className="relative w-full max-w-md max-h-[92dvh] flex flex-col rounded-3xl border border-white/20 bg-card text-card-foreground shadow-2xl overflow-hidden p-4 sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Bar with Badge & Close Button */}
+        {/* Top Header */}
         <div className="flex items-center justify-between border-b border-border/50 pb-3 shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/15 text-primary border border-primary/25">
               {isHourly
                 ? t("hourly_forecast", "Hourly Forecast")
                 : t("daily_forecast", "7-Day Extended")}
             </span>
+            {cityName && (
+              <span className="text-xs font-bold text-foreground truncate max-w-[140px]">
+                📍 {cityName}
+              </span>
+            )}
             <span className="text-xs text-muted-foreground font-medium">
-              {selectedIndex + 1} / {totalItems}
+              {currentIndex + 1} / {totalItems}
             </span>
           </div>
 
@@ -143,16 +264,16 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Middle Content Pane */}
+        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto overscroll-contain space-y-3.5 pr-0.5 pt-1">
-          {/* Date / Time Heading */}
+          {/* Time / Day Heading */}
           <div className="text-center pt-1">
             <h3 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
               {titleTime}
             </h3>
           </div>
 
-          {/* Weather Icon and Full Untruncated Condition Title */}
+          {/* Icon & Detailed Condition */}
           <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-muted/30 border border-border/50 text-center space-y-2">
             <WeatherIcon
               code={currentCode}
@@ -183,9 +304,9 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Metric Details Grid */}
+          {/* Metrics Grid */}
           <div className="grid grid-cols-2 gap-2 text-xs">
-            {/* Rain Probability */}
+            {/* Precipitation / Rain Probability */}
             <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
               <span className="text-muted-foreground font-medium">💧 {t("rain_chance", "Rain Chance")}</span>
               <span className="font-extrabold text-blue-500">
@@ -193,7 +314,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
               </span>
             </div>
 
-            {/* Feels Like (Hourly) or Sunrise (Daily) */}
+            {/* Hourly: Feels Like | Daily: Sunrise */}
             {isHourly && hourlyItem && (
               <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
                 <span className="text-muted-foreground font-medium">🌡️ {t("feels_like", "Feels Like")}</span>
@@ -212,24 +333,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
               </div>
             )}
 
-            {/* Wind Speed */}
-            {isHourly && hourlyItem?.windSpeed != null && (
-              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-                <span className="text-muted-foreground font-medium">💨 {t("wind", "Wind")}</span>
-                <span className="font-bold text-foreground">
-                  {Math.round(hourlyItem.windSpeed)} {speedUnitStr}
-                </span>
-              </div>
-            )}
-
-            {/* Humidity (Hourly) or Sunset (Daily) */}
-            {isHourly && hourlyItem?.humidity != null && (
-              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-                <span className="text-muted-foreground font-medium">💧 {t("humidity", "Humidity")}</span>
-                <span className="font-bold text-foreground">{hourlyItem.humidity}%</span>
-              </div>
-            )}
-
+            {/* Daily: Sunset */}
             {!isHourly && dailyItem && (
               <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
                 <span className="text-muted-foreground font-medium">🌇 {t("sunset", "Sunset")}</span>
@@ -238,17 +342,27 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
                 </span>
               </div>
             )}
+
+            {/* Daily: Daily Range */}
+            {!isHourly && dailyItem && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">📊 {t("range", "Range")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(dailyItem.max - dailyItem.min)}° {t("spread", "spread")}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Anchored Navigation Arrows for Phone Browsing */}
+        {/* Anchored Navigation Arrows */}
         <div className="flex items-center justify-between pt-3 border-t border-border/50 shrink-0">
           <button
             type="button"
-            disabled={selectedIndex === 0}
+            disabled={currentIndex === 0}
             onClick={handlePrev}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              selectedIndex === 0
+              currentIndex === 0
                 ? "opacity-30 cursor-not-allowed bg-muted/40 text-muted-foreground"
                 : "bg-muted hover:bg-muted/80 text-foreground"
             }`}
@@ -258,15 +372,15 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
           </button>
 
           <span className="text-[11px] text-muted-foreground font-medium">
-            {isHourly ? t("swipe_tip_hours", "Tap arrows to browse hours") : t("swipe_tip_days", "Tap arrows to browse days")}
+            {isHourly ? t("swipe_tip_hours", "Browse hours") : t("swipe_tip_days", "Browse days")}
           </span>
 
           <button
             type="button"
-            disabled={selectedIndex >= totalItems - 1}
+            disabled={currentIndex >= totalItems - 1}
             onClick={handleNext}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              selectedIndex >= totalItems - 1
+              currentIndex >= totalItems - 1
                 ? "opacity-30 cursor-not-allowed bg-muted/40 text-muted-foreground"
                 : "bg-muted hover:bg-muted/80 text-foreground"
             }`}
