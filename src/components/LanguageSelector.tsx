@@ -96,16 +96,15 @@ export function LanguageSelector({
     LANGUAGES.find((l) => l.code === currentLang || currentLang.startsWith(l.code + "-")) ||
     LANGUAGES[0]!;
 
-  // Dropdown pull-down variant for top header
   return (
-    <div className="relative inline-block text-left" ref={ref}>
+    <div className="relative inline-block text-left shrink-0" ref={ref}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-label={`Language: ${current.native}`}
         title={`${current.native} (${current.name})`}
-        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-white/20 bg-background/60 text-xs font-semibold shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer text-foreground"
+        className="flex h-9 items-center gap-1 px-2.5 rounded-xl border border-white/20 bg-background/60 text-xs font-semibold shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer text-foreground shrink-0"
       >
         <span className="text-base leading-none select-none">{current.flag}</span>
         <span className="hidden sm:inline font-medium text-xs truncate max-w-[65px]">
@@ -117,23 +116,23 @@ export function LanguageSelector({
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs sm:hidden"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu — Centered with safe margins on mobile */}
       {isOpen && (
         <div
           role="menu"
-          className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 z-50 w-[calc(100vw-24px)] sm:w-64 max-h-[70vh] overflow-y-auto rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95"
+          className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-11 z-50 w-auto sm:w-64 max-h-[75dvh] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card/95 p-2 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95"
         >
-          <div className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/60 mb-1 flex items-center justify-between">
+          <div className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/60 mb-1.5 flex items-center justify-between">
             <span>🌐 Languages</span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="text-muted-foreground hover:text-foreground text-xs p-1"
+              className="text-muted-foreground hover:text-foreground text-xs p-1 rounded-md hover:bg-muted"
             >
               ✕
             </button>
@@ -152,7 +151,7 @@ export function LanguageSelector({
                       : "text-card-foreground hover:bg-muted"
                   }`}
                 >
-                  <span className="text-base leading-none select-none">{lang.flag}</span>
+                  <span className="text-base leading-none select-none shrink-0">{lang.flag}</span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{lang.native}</div>
                     <div
@@ -163,7 +162,7 @@ export function LanguageSelector({
                       {lang.name}
                     </div>
                   </div>
-                  {active && <span className="text-xs font-bold">✓</span>}
+                  {active && <span className="text-xs font-bold shrink-0">✓</span>}
                 </button>
               );
             })}
