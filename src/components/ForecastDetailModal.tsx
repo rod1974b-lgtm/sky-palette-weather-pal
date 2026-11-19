@@ -55,7 +55,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   getConditionLabel,
   getDayLabel,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   const isHourly = type === "hourly";
   const totalItems = isHourly ? hourlyList.length : dailyList.length;
@@ -89,9 +89,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   const tempUnitStr = unit === "imperial" ? "°F" : "°C";
   const speedUnitStr = unit === "imperial" ? "mph" : "km/h";
 
-  // Hourly Item
   const hourlyItem = isHourly ? hourlyList[selectedIndex] : null;
-  // Daily Item
   const dailyItem = !isHourly ? dailyList[selectedIndex] : null;
 
   const currentCode = (isHourly ? hourlyItem?.code : dailyItem?.code) ?? 0;
@@ -114,11 +112,16 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl border border-white/20 bg-card text-card-foreground shadow-2xl overflow-hidden p-5 space-y-4">
-        
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-md max-h-[92dvh] flex flex-col rounded-3xl border border-white/20 bg-card text-card-foreground shadow-2xl overflow-hidden p-4 sm:p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Top Bar with Badge & Close Button */}
-        <div className="flex items-center justify-between border-b border-border/50 pb-3">
+        <div className="flex items-center justify-between border-b border-border/50 pb-3 shrink-0">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/15 text-primary border border-primary/25">
               {isHourly
@@ -140,109 +143,111 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
           </button>
         </div>
 
-        {/* Date / Time Heading */}
-        <div className="text-center pt-1">
-          <h3 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-            {titleTime}
-          </h3>
-        </div>
+        {/* Scrollable Middle Content Pane */}
+        <div className="flex-1 overflow-y-auto overscroll-contain space-y-3.5 pr-0.5 pt-1">
+          {/* Date / Time Heading */}
+          <div className="text-center pt-1">
+            <h3 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+              {titleTime}
+            </h3>
+          </div>
 
-        {/* Weather Icon and FULL UNTRUNCATED Condition Title */}
-        <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-muted/30 border border-border/50 text-center space-y-2">
-          <WeatherIcon
-            code={currentCode}
-            isDay={isHourly ? (hourlyItem?.is_day ?? 1) : 1}
-            className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-md"
-          />
+          {/* Weather Icon and Full Untruncated Condition Title */}
+          <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-muted/30 border border-border/50 text-center space-y-2">
+            <WeatherIcon
+              code={currentCode}
+              isDay={isHourly ? (hourlyItem?.is_day ?? 1) : 1}
+              className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-md"
+            />
 
-          {/* This is never truncated or clamped */}
-          <h4 className="text-base sm:text-lg font-extrabold text-foreground leading-snug px-2">
-            {conditionFullText}
-          </h4>
+            <h4 className="text-base sm:text-lg font-extrabold text-foreground leading-snug px-2">
+              {conditionFullText}
+            </h4>
 
-          {/* Temperature Highlight */}
-          <div className="flex items-baseline gap-2 pt-1">
-            {isHourly && hourlyItem && (
-              <span className="text-3xl sm:text-4xl font-black text-foreground">
-                {Math.round(hourlyItem.temp)}{tempUnitStr}
+            {/* Temperature Highlight */}
+            <div className="flex items-baseline gap-2 pt-1">
+              {isHourly && hourlyItem && (
+                <span className="text-3xl sm:text-4xl font-black text-foreground">
+                  {Math.round(hourlyItem.temp)}{tempUnitStr}
+                </span>
+              )}
+
+              {!isHourly && dailyItem && (
+                <div className="flex items-center gap-3 text-2xl sm:text-3xl font-black">
+                  <span className="text-foreground">{Math.round(dailyItem.max)}{tempUnitStr}</span>
+                  <span className="text-muted-foreground font-normal text-lg">
+                    / {Math.round(dailyItem.min)}{tempUnitStr}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Metric Details Grid */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {/* Rain Probability */}
+            <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+              <span className="text-muted-foreground font-medium">💧 {t("rain_chance", "Rain Chance")}</span>
+              <span className="font-extrabold text-blue-500">
+                {(isHourly ? hourlyItem?.pop : dailyItem?.pop) ?? 0}%
               </span>
+            </div>
+
+            {/* Feels Like (Hourly) or Sunrise (Daily) */}
+            {isHourly && hourlyItem && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">🌡️ {t("feels_like", "Feels Like")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(hourlyItem.feels ?? hourlyItem.temp)}{tempUnitStr}
+                </span>
+              </div>
             )}
 
             {!isHourly && dailyItem && (
-              <div className="flex items-center gap-3 text-2xl sm:text-3xl font-black">
-                <span className="text-foreground">{Math.round(dailyItem.max)}{tempUnitStr}</span>
-                <span className="text-muted-foreground font-normal text-lg">
-                  / {Math.round(dailyItem.min)}{tempUnitStr}
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">🌅 {t("sun", "Sunrise")}</span>
+                <span className="font-bold text-foreground">
+                  {dailyItem.sunrise ? dailyItem.sunrise.split("T")[1]?.slice(0, 5) || dailyItem.sunrise : "--:--"}
+                </span>
+              </div>
+            )}
+
+            {/* Wind Speed */}
+            {isHourly && hourlyItem?.windSpeed != null && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">💨 {t("wind", "Wind")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(hourlyItem.windSpeed)} {speedUnitStr}
+                </span>
+              </div>
+            )}
+
+            {/* Humidity (Hourly) or Sunset (Daily) */}
+            {isHourly && hourlyItem?.humidity != null && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">💧 {t("humidity", "Humidity")}</span>
+                <span className="font-bold text-foreground">{hourlyItem.humidity}%</span>
+              </div>
+            )}
+
+            {!isHourly && dailyItem && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">🌇 {t("sunset", "Sunset")}</span>
+                <span className="font-bold text-foreground">
+                  {dailyItem.sunset ? dailyItem.sunset.split("T")[1]?.slice(0, 5) || dailyItem.sunset : "--:--"}
                 </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Metric Details Grid */}
-        <div className="grid grid-cols-2 gap-2.5 text-xs">
-          {/* Rain Probability */}
-          <div className="p-3 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-            <span className="text-muted-foreground font-medium">💧 {t("rain_chance", "Rain Chance")}</span>
-            <span className="font-extrabold text-blue-500">
-              {(isHourly ? hourlyItem?.pop : dailyItem?.pop) ?? 0}%
-            </span>
-          </div>
-
-          {/* Feels Like (Hourly) or Sunrise/Sunset (Daily) */}
-          {isHourly && hourlyItem && (
-            <div className="p-3 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-              <span className="text-muted-foreground font-medium">🌡️ {t("feels_like", "Feels Like")}</span>
-              <span className="font-bold text-foreground">
-                {Math.round(hourlyItem.feels ?? hourlyItem.temp)}{tempUnitStr}
-              </span>
-            </div>
-          )}
-
-          {!isHourly && dailyItem && (
-            <div className="p-3 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-              <span className="text-muted-foreground font-medium">🌅 {t("sun", "Sunrise")}</span>
-              <span className="font-bold text-foreground">
-                {dailyItem.sunrise ? dailyItem.sunrise.split("T")[1]?.slice(0, 5) || dailyItem.sunrise : "--:--"}
-              </span>
-            </div>
-          )}
-
-          {/* Wind Speed */}
-          {isHourly && hourlyItem?.windSpeed != null && (
-            <div className="p-3 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-              <span className="text-muted-foreground font-medium">💨 {t("wind", "Wind")}</span>
-              <span className="font-bold text-foreground">
-                {Math.round(hourlyItem.windSpeed)} {speedUnitStr}
-              </span>
-            </div>
-          )}
-
-          {/* Humidity (Hourly) or Sunset (Daily) */}
-          {isHourly && hourlyItem?.humidity != null && (
-            <div className="p-3 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-              <span className="text-muted-foreground font-medium">💧 {t("humidity", "Humidity")}</span>
-              <span className="font-bold text-foreground">{hourlyItem.humidity}%</span>
-            </div>
-          )}
-
-          {!isHourly && dailyItem && (
-            <div className="p-3 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-              <span className="text-muted-foreground font-medium">🌇 {t("sunset", "Sunset")}</span>
-              <span className="font-bold text-foreground">
-                {dailyItem.sunset ? dailyItem.sunset.split("T")[1]?.slice(0, 5) || dailyItem.sunset : "--:--"}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation Arrows for Phone Browsing */}
-        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+        {/* Anchored Navigation Arrows for Phone Browsing */}
+        <div className="flex items-center justify-between pt-3 border-t border-border/50 shrink-0">
           <button
             type="button"
             disabled={selectedIndex === 0}
             onClick={handlePrev}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               selectedIndex === 0
                 ? "opacity-30 cursor-not-allowed bg-muted/40 text-muted-foreground"
                 : "bg-muted hover:bg-muted/80 text-foreground"
@@ -260,7 +265,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
             type="button"
             disabled={selectedIndex >= totalItems - 1}
             onClick={handleNext}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               selectedIndex >= totalItems - 1
                 ? "opacity-30 cursor-not-allowed bg-muted/40 text-muted-foreground"
                 : "bg-muted hover:bg-muted/80 text-foreground"
