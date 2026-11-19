@@ -16,19 +16,27 @@ import {
   type RadarKey,
 } from "@/lib/rainViewer";
 
-interface WeatherRadarProps {
+export interface WeatherRadarProps {
   weather?: Weather | null;
+  lat?: number;
+  lon?: number;
+  cityName?: string;
 }
 
-export const WeatherRadar: React.FC<WeatherRadarProps> = ({ weather }) => {
+export const WeatherRadar: React.FC<WeatherRadarProps> = ({
+  weather,
+  lat: propLat,
+  lon: propLon,
+  cityName: propCityName,
+}) => {
   const { i18n } = useTranslation();
   const lang = i18n.language || "en";
   const texts: Record<RadarKey, string> = { ...RADAR_EN, ...(RADAR_I18N[lang] ?? {}) };
 
-  // Center coordinates (fallback to Bangkok if missing)
-  const cityLat = weather?.place?.lat ?? 13.7563;
-  const cityLon = weather?.place?.lon ?? 100.5018;
-  const cityName = weather?.place?.name ?? "City";
+  // Center coordinates (read from explicit props or weather object, fallback to Bangkok)
+  const cityLat = propLat ?? weather?.place?.lat ?? 13.7563;
+  const cityLon = propLon ?? weather?.place?.lon ?? 100.5018;
+  const cityName = propCityName ?? weather?.place?.name ?? "City";
 
   // Map viewport state
   const [zoom, setZoom] = useState<number>(7);
@@ -47,6 +55,11 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({ weather }) => {
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const startOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Reset pan offset whenever city or coordinates change
+  useEffect(() => {
+    setCenterOffset({ x: 0, y: 0 });
+  }, [cityLat, cityLon, cityName]);
 
   // Load RainViewer metadata
   useEffect(() => {
@@ -116,7 +129,7 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({ weather }) => {
     } catch {}
   };
 
-  // Slippy Map Math: compute which 256x256 tiles cover the 420x280 container
+  // Slippy Map Math: compute which 256x256 tiles cover the container
   const containerW = 460;
   const containerH = 300;
   const tileSize = 256;
@@ -146,7 +159,6 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({ weather }) => {
     const list: { x: number; y: number; posX: number; posY: number; key: string }[] = [];
     for (let tx = minTileX; tx <= maxTileX; tx++) {
       for (let ty = minTileY; ty <= maxTileY; ty++) {
-        // Tile wraps around horizontally
         const wrappedX = ((tx % numTiles) + numTiles) % numTiles;
         if (ty >= 0 && ty < numTiles) {
           const posX = tx * tileSize - viewLeft;
