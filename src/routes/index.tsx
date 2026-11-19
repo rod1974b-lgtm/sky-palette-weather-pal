@@ -1,532 +1,339 @@
 // src/routes/index.tsx
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   type Weather,
   type Place,
   type WeatherUnit,
-  searchCity,
   getWeather,
-  loadUnitPref,
+  searchCity,
+  reverseGeocode,
+  getUnitPref,
   saveUnitPref,
-  loadFavorites,
-  saveFavorites,
-  isSamePlace,
-  isFavorite,
   skyKey,
+  SKY_GRADIENTS,
+  getLocalizedCity,
+  getLocalizedCountry,
 } from "@/lib/weather";
-import { WeatherView, type TickerAlertItem } from "@/components/WeatherView";
+import { WeatherView } from "@/components/WeatherView";
 import { AppMenu } from "@/components/AppMenu";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { RootBeerThankYou } from "@/components/RootBeerThankYou_DEEPER_AMBER";
-import {
-  isAdUnlocked,
-  saveThankYouBackgroundForever,
-} from "@/lib/monetization";
-import { getTmdAlertsFn } from "@/lib/tmdAlerts.functions";
-import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
 import { CityComparison } from "@/components/CityComparison";
+import {
+  getCustomBackground,
+  isAdUnlocked,
+} from "@/lib/aiWatercolorGenerator";
+import { saveThankYouBackgroundForever } from "@/lib/monetization";
+import type { TickerAlertItem } from "@/components/WeatherAlertWatcher";
 
 export const Route = createFileRoute("/")({
+  component: WeatherHomePage,
   head: () => ({
-    title: "My Weather Pal — Private, Art-Infused Forecasts",
     meta: [
+      { title: "My Weather Pal — Private Atmospheric Weather & Art" },
       {
         name: "description",
         content:
-          "Minimalist, account-free weather app featuring curated AI watercolor backgrounds and live meteorological advisories.",
+          "Private local weather with atmospheric art. No accounts, no trackers.",
       },
-      { property: "og:title", content: "My Weather Pal — Private Weather" },
+      { property: "og:title", content: "My Weather Pal" },
       {
         property: "og:description",
-        content: "Hyperlocal weather forecasts paired with custom AI watercolor art.",
+        content:
+          "Private local weather with atmospheric art. No accounts, no trackers.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
 });
 
 const DEFAULT_PLACE: Place = {
-  name: "Bangkok",
+  name: "Chiang Mai",
   country: "Thailand",
-  lat: 13.7563,
-  lon: 100.5018,
+  lat: 18.7883,
+  lon: 98.9853,
 };
 
-const LAST_PLACE_KEY = "weather:last-place";
-
-const SKY_GRADIENTS: Record<string, string> = {
-  "clear-day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
-  "day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
-  "clear_day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
-  "clear-night": "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
-  "night": "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
-  "cloudy-day": "linear-gradient(180deg, oklch(0.8 0.03 248), oklch(0.92 0.02 250))",
-  "cloudy": "linear-gradient(180deg, oklch(0.8 0.03 248), oklch(0.92 0.02 250))",
-  "cloudy-night": "linear-gradient(180deg, oklch(0.24 0.04 265), oklch(0.15 0.03 268))",
-  "fog": "linear-gradient(180deg, oklch(0.84 0.015 255), oklch(0.94 0.008 255))",
-  "rain": "linear-gradient(180deg, oklch(0.66 0.07 252), oklch(0.82 0.035 248))",
-  "snow": "linear-gradient(180deg, oklch(0.87 0.035 280), oklch(0.96 0.015 275))",
-  "storm": "linear-gradient(180deg, oklch(0.56 0.06 268), oklch(0.72 0.04 262))",
-  "sunset": "linear-gradient(180deg, oklch(0.68 0.16 38), oklch(0.75 0.12 60) 50%, oklch(0.88 0.08 85))",
-};
-
-function loadLastPlace(): Place | null {
-  try {
-    const raw = localStorage.getItem(LAST_PLACE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.lat === "number" && typeof parsed.lon === "number" && parsed.name) {
-      return parsed as Place;
-    }
-  } catch {}
-  return null;
+function isSamePlace(a: Place, b: Place): boolean {
+  return Math.abs(a.lat - b.lat) < 0.05 && Math.abs(a.lon - b.lon) < 0.05;
 }
 
-function saveLastPlace(p: Place): void {
-  try {
-    localStorage.setItem(LAST_PLACE_KEY, JSON.stringify(p));
-  } catch {}
-}
-
-function formatRelativeTime(timestamp: number, t: (k: string, fb: string) => string): string {
-  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-  if (diffSec < 3600) return `${Math.max(1, Math.floor(diffSec / 60))}${t("time_min_short", "m")} ${t("ago", "ago")}`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}${t("time_hr_short", "h")} ${t("ago", "ago")}`;
-  return `${Math.floor(diffSec / 86400)}${t("time_day_short", "d")} ${t("ago", "ago")}`;
-}
-
-// Fetch USGS Significant Earthquakes (M4.5+ within 1,200km)
-async function fetchUSGSEarthquakes(
-  lat: number,
-  lon: number,
-  t: (k: string, fb: string) => string
-): Promise<TickerAlertItem[]> {
-  try {
-    const res = await fetch(
-      "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson",
-      { signal: AbortSignal.timeout(4000) }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-
-    const quakes: TickerAlertItem[] = [];
-    for (const f of data.features || []) {
-      const [qLon, qLat] = f.geometry.coordinates;
-      const mag = Number(f.properties?.mag ?? 0);
-      const placeName = f.properties.place || t("unknown_location", "Unknown Location");
-      const time = f.properties.time;
-
-      const dLat = (lat - qLat) * 111;
-      const dLon = (lon - qLon) * 111 * Math.cos((lat * Math.PI) / 180);
-      const distKm = Math.sqrt(dLat * dLat + dLon * dLon);
-
-      if (distKm < 1200) {
-        quakes.push({
-          id: `usgs-${f.id}`,
-          title: `M${mag.toFixed(1)} ${t("alert_earthquake", "Earthquake")} (${placeName})`,
-          severity: mag >= 6.0 ? "danger" : "warning",
-          urgency: "Immediate",
-          event: "Earthquake",
-          source: `USGS (${Math.round(distKm)} km ${t("away", "away")})`,
-          updatedAt: time ? formatRelativeTime(time, t) : t("recent", "Recent"),
-          url: f.properties.url,
-        });
-      }
-    }
-    return quakes;
-  } catch {
-    return [];
-  }
-}
-
-// Fetch Thai Meteorological Department (TMD) advisories
-async function fetchTMDWarnings(
-  placeName: string,
-  country: string,
-  t: (k: string, fb: string) => string
-): Promise<TickerAlertItem[]> {
-  const isThai =
-    country.toLowerCase().includes("thai") ||
-    placeName.toLowerCase().includes("bangkok") ||
-    placeName.toLowerCase().includes("chiang") ||
-    placeName.toLowerCase().includes("phuket");
-
-  if (!isThai) return [];
-
-  try {
-    const tmdRes: any = await getTmdAlertsFn();
-    const alertsList = Array.isArray(tmdRes) ? tmdRes : tmdRes?.alerts || [];
-    if (!alertsList.length) return [];
-
-    return alertsList.slice(0, 3).map((a: any, idx: number) => ({
-      id: `tmd-${idx}-${a.TitleEn || a.TitleTh || idx}`,
-      title: a.TitleEn || a.TitleTh || "Weather Advisory",
-      severity: "danger",
-      urgency: "Expected",
-      event: "Weather Advisory",
-      source: "TMD",
-      updatedAt: a.IssueDate ? a.IssueDate.substring(0, 10) : t("active", "Active"),
-      url: "https://www.tmd.go.th/en",
-    }));
-  } catch {
-    return [];
-  }
-}
-
-// Weather Loading Skeleton Card
-function WeatherSkeleton({ t }: { t: (k: string, fb: string) => string }) {
-  return (
-    <div className="space-y-4 animate-pulse">
-      {/* Hero Card Skeleton */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-card/60 p-6 md:p-8 backdrop-blur-md shadow-lg min-h-[260px] flex flex-col justify-between">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2.5">
-            <div className="h-7 w-44 rounded-xl bg-muted/60" />
-            <div className="h-4 w-28 rounded-lg bg-muted/50" />
-          </div>
-          <div className="h-10 w-24 rounded-full bg-muted/60" />
-        </div>
-        <div className="my-6 flex items-baseline gap-4">
-          <div className="h-16 w-32 rounded-2xl bg-muted/70" />
-          <div className="space-y-2">
-            <div className="h-5 w-24 rounded-lg bg-muted/50" />
-            <div className="h-4 w-36 rounded-lg bg-muted/40" />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <div className="h-6 w-20 rounded-md bg-muted/50" />
-          <div className="h-6 w-20 rounded-md bg-muted/50" />
-        </div>
-      </div>
-
-      {/* Hourly Forecast Bar Skeleton */}
-      <div className="rounded-2xl border border-border/40 bg-card/60 p-4 backdrop-blur-sm">
-        <div className="mb-3 h-4 w-32 rounded-md bg-muted/60" />
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex-1 min-w-[70px] flex flex-col items-center gap-2 p-3 rounded-xl bg-muted/30">
-              <div className="h-3 w-10 rounded bg-muted/50" />
-              <div className="h-8 w-8 rounded-full bg-muted/60" />
-              <div className="h-4 w-8 rounded bg-muted/50" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Metrics Grid Skeleton */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-2xl border border-border/40 bg-card/60 p-4 space-y-2">
-            <div className="h-3 w-16 rounded bg-muted/50" />
-            <div className="h-6 w-14 rounded bg-muted/70" />
-            <div className="h-2.5 w-20 rounded bg-muted/40" />
-          </div>
-        ))}
-      </div>
-
-      <div className="text-center text-xs text-muted-foreground pt-1">
-        {t("loading_weather", "Loading latest weather forecast...")}
-      </div>
-    </div>
-  );
-}
-
-function Index() {
+export function WeatherHomePage() {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
 
-  // Unit State (defaults to metric)
+  // Unit of Measurement
   const [unit, setUnit] = useState<WeatherUnit>("metric");
 
-  // Place & Weather Data
+  // Current Place & Weather Forecast
   const [place, setPlace] = useState<Place>(() => {
     try {
-      const saved = loadLastPlace();
-      if (saved) return saved;
+      const stored = localStorage.getItem("weather:last-place");
+      if (stored) return JSON.parse(stored);
     } catch {}
     return DEFAULT_PLACE;
   });
 
   const [weather, setWeather] = useState<Weather | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Search autocomplete & cancellation
-  const [query, setQuery] = useState<string>("");
+  // Search Bar Autocomplete
+  const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Place[]>([]);
-  const [searching, setSearching] = useState<boolean>(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const searchAbortRef = useRef<AbortController | null>(null);
 
-  // Favorites & Multi-City Comparison view toggle
-  const [favorites, setFavorites] = useState<Place[]>([]);
-  const [showComparison, setShowComparison] = useState<boolean>(false);
+  // Saved Favorite Places
+  const [favorites, setFavorites] = useState<Place[]>(() => {
+    try {
+      const stored = localStorage.getItem("weather:favorites");
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [
+      DEFAULT_PLACE,
+      { name: "Bangkok", country: "Thailand", lat: 13.7563, lon: 100.5018 },
+      { name: "Tokyo", country: "Japan", lat: 35.6762, lon: 139.6503 },
+      { name: "London", country: "United Kingdom", lat: 51.5074, lon: -0.1278 },
+      { name: "New York", country: "United States", lat: 40.7128, lon: -74.006 },
+    ];
+  });
 
-  // Alerts
-  const [alerts, setAlerts] = useState<TickerAlertItem[]>([]);
+  // Sky Theme Preference State
+  const [skyPref, setSkyPref] = useState<string>(() => {
+    try {
+      return localStorage.getItem("weather:sky-pref") || "auto";
+    } catch {
+      return "auto";
+    }
+  });
 
-  // Background and Sky Theme
-  const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
-  const [skyPref, setSkyPref] = useState<string>("auto");
+  // Custom Wallpaper from Art Gallery
+  const [customBgUrl, setCustomBgUrl] = useState<string | null>(() => {
+    try {
+      return getCustomBackground(place.name);
+    } catch {
+      return null;
+    }
+  });
 
-  // Monetization & Ad Unlock state
+  // Post-Payment / Thank-You Overlay State
   const [purchasedTierId, setPurchasedTierId] = useState<string | null>(null);
 
-  // Keep localStorage synchronized with current place
+  // Compare Cities View Toggle
+  const [showComparison, setShowComparison] = useState(false);
+
+  // Active Weather Alerts
+  const [alerts, setAlerts] = useState<TickerAlertItem[]>([]);
+
+  // 1. Initial Preferences Loading
   useEffect(() => {
-    if (place) {
-      saveLastPlace(place);
-    }
-  }, [place]);
+    setUnit(getUnitPref());
+  }, []);
 
-  // 1. Initial Preferences, Sky Theme, and Auto-Redirect
+  // 2. Synchronize Custom Sky Theme Preference
   useEffect(() => {
-    setUnit(loadUnitPref());
-    setFavorites(loadFavorites());
-
-    try {
-      const savedBg = localStorage.getItem("weather:custom-bg");
-      if (savedBg) setCustomBgUrl(savedBg);
-
-      const savedSky = localStorage.getItem("weather:sky-pref") || "auto";
-      setSkyPref(savedSky);
-    } catch {}
-
-    // Listen for sky theme preference changes from AppMenu
     const handleSkyChange = (e: Event) => {
-      const detail = (e as CustomEvent<{ sky: string }>).detail;
-      if (detail?.sky) {
-        setSkyPref(detail.sky);
+      const customEvent = e as CustomEvent<{ sky: string }>;
+      if (customEvent.detail?.sky) {
+        setSkyPref(customEvent.detail.sky);
       }
     };
     window.addEventListener("weather:sky-change", handleSkyChange);
-
-    // Check for Buy Me a Coffee return redirect (?paid=rootbeer)
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const paid = params.get("paid");
-      if (paid === "rootbeer") {
-        setPurchasedTierId("medium_root_beer_tier");
-        saveThankYouBackgroundForever("medium_root_beer_tier");
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-
     return () => {
       window.removeEventListener("weather:sky-change", handleSkyChange);
     };
   }, []);
 
-  // 2. Fetch Forecast, Air Quality, and Live Regional Alerts
-  const fetchAllWeatherData = async (
-    targetPlace: Place,
-    targetUnit: WeatherUnit,
-    forceFresh: boolean = false
-  ) => {
+  // 3. Listen for Custom Thank-You Trigger Events
+  useEffect(() => {
+    const handleThankYou = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tierId: string }>;
+      if (customEvent.detail?.tierId) {
+        setPurchasedTierId(customEvent.detail.tierId);
+      }
+    };
+    window.addEventListener("weather:trigger-tier-thankyou", handleThankYou);
+    return () => {
+      window.removeEventListener("weather:trigger-tier-thankyou", handleThankYou);
+    };
+  }, []);
+
+  // 4. Handle External Payment Return URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const paidParam = params.get("paid");
+    if (paidParam === "rootbeer") {
+      saveThankYouBackgroundForever("medium_root_beer_tier");
+      setPurchasedTierId("medium_root_beer_tier");
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  }, []);
+
+  // 5. Fetch Weather Whenever Location or Units Change
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
 
-    try {
-      const w = await getWeather(targetPlace, targetUnit, forceFresh);
-      setWeather(w);
+    getWeather(place, unit)
+      .then((data) => {
+        if (!cancelled) {
+          setWeather(data);
+          setLoading(false);
+          try {
+            setCustomBgUrl(getCustomBackground(place.name));
+          } catch {}
 
-      // Concurrent retrieval of alerts from USGS, TMD, and local weather thresholds
-      const [usgsAlerts, tmdAlerts] = await Promise.all([
-        fetchUSGSEarthquakes(targetPlace.lat, targetPlace.lon, t),
-        fetchTMDWarnings(targetPlace.name, targetPlace.country || "", t),
-      ]);
-
-      const consolidatedAlerts: TickerAlertItem[] = [...usgsAlerts, ...tmdAlerts];
-
-      // Add severe meteorological warnings based on fetched Open-Meteo data
-      if (w.current?.temp != null) {
-        const temp = w.current.temp;
-        const code = w.current.code ?? 0;
-        const isFahrenheit = targetUnit === "imperial";
-        const tempCelsius = isFahrenheit ? ((temp - 32) * 5) / 9 : temp;
-
-        if (tempCelsius >= 38) {
-          consolidatedAlerts.push({
-            id: `extreme-heat-${Date.now()}`,
-            title: t("alert_extreme_heat", "Extreme Heat Warning — Stay Hydrated & Avoid Sun"),
-            severity: "danger",
-            urgency: "Immediate",
-            event: "Excessive Heat",
-            source: "Open-Meteo",
-            updatedAt: t("now", "Now"),
-          });
-        } else if (tempCelsius <= -10) {
-          consolidatedAlerts.push({
-            id: `extreme-cold-${Date.now()}`,
-            title: t("alert_extreme_cold", "Freeze Warning — Dangerous Wind Chill"),
-            severity: "warning",
-            urgency: "Immediate",
-            event: "Extreme Cold",
-            source: "Open-Meteo",
-            updatedAt: t("now", "Now"),
-          });
+          // Evaluate Active Weather Alerts
+          const detectedAlerts: TickerAlertItem[] = [];
+          if (data.current.code >= 95) {
+            detectedAlerts.push({
+              id: "severe-storm-warning",
+              severity: "danger",
+              headline: `${place.name}: Severe Thunderstorm Warning In Effect`,
+              instruction: "Seek indoor shelter immediately. Stay clear of windows and tall trees.",
+              source: "National Weather Hazards Center",
+              effective: "Now",
+            });
+          } else if (data.current.code >= 65 && data.current.code <= 67) {
+            detectedAlerts.push({
+              id: "heavy-rain-advisory",
+              severity: "warning",
+              headline: `${place.name}: Heavy Rain & Flash Flood Watch`,
+              instruction: "Avoid flooded low-lying areas and drive with extreme caution.",
+              source: "Hydrological Meteorological Center",
+              effective: "Now",
+            });
+          }
+          setAlerts(detectedAlerts);
         }
-
-        // Severe Thunderstorms & Hail codes
-        if ([95, 96, 99].includes(code)) {
-          consolidatedAlerts.push({
-            id: `thunderstorm-warning-${Date.now()}`,
-            title: t("alert_severe_storm", "Severe Thunderstorm Warning — Lightning & Heavy Rain"),
-            severity: "danger",
-            urgency: "Immediate",
-            event: "Severe Thunderstorm",
-            source: "Open-Meteo",
-            updatedAt: t("now", "Now"),
-          });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err?.message || "Failed to load weather forecast");
+          setLoading(false);
         }
-      }
+      });
 
-      setAlerts(consolidatedAlerts);
-    } catch (err: any) {
-      setError(
-        err?.message ||
-          t("error_fetch_failed", "Unable to load live weather. Please check your connection.")
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch when place or unit changes
-  useEffect(() => {
-    fetchAllWeatherData(place, unit);
-  }, [place.lat, place.lon, unit]);
-
-  // Periodic 10-Minute Auto-Refresh
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchAllWeatherData(place, unit, true);
-      }
-    }, 10 * 60 * 1000);
-
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+    };
   }, [place, unit]);
 
-  // Debounced Search Handling with Fixed Language & Abort Controller
+  // 6. Debounced City Autocomplete Search
   useEffect(() => {
-    if (!query.trim()) {
-      setSuggestions([]);
-      setSearching(false);
-      return;
-    }
-
     if (searchAbortRef.current) {
       searchAbortRef.current.abort();
     }
+
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setSuggestions([]);
+      setSearchLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     searchAbortRef.current = controller;
+    setSearchLoading(true);
 
-    setSearching(true);
-    const timeout = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
-        const results = await searchCity(query, i18n.language || "en", controller.signal);
+        const results = await searchCity(
+          searchQuery.trim(),
+          i18n.language || "en",
+          controller.signal
+        );
         setSuggestions(results);
       } catch (err: any) {
         if (err.name !== "AbortError") {
           setSuggestions([]);
         }
       } finally {
-        setSearching(false);
+        setSearchLoading(false);
       }
-    }, 300);
+    }, 280);
 
     return () => {
-      clearTimeout(timeout);
+      clearTimeout(timer);
       controller.abort();
     };
-  }, [query, i18n.language]);
+  }, [searchQuery, i18n.language]);
 
-  // Handle City Selection
-  const handleSelectPlace = (selected: Place) => {
-    setPlace(selected);
-    setQuery("");
+  const handleSelectPlace = (newPlace: Place) => {
+    setPlace(newPlace);
+    setSearchQuery("");
     setSuggestions([]);
+    setIsSearching(false);
+    try {
+      localStorage.setItem("weather:last-place", JSON.stringify(newPlace));
+    } catch {}
   };
 
-  // GPS Geolocation Handler with Photon Reverse Geocoding
+  const handleToggleFavorite = () => {
+    const isFav = favorites.some((f) => isSamePlace(f, place));
+    let next: Place[];
+    if (isFav) {
+      next = favorites.filter((f) => !isSamePlace(f, place));
+    } else {
+      next = [place, ...favorites.slice(0, 7)];
+    }
+    setFavorites(next);
+    try {
+      localStorage.setItem("weather:favorites", JSON.stringify(next));
+    } catch {}
+  };
+
   const handleGPS = () => {
     if (!navigator.geolocation) {
-      setError(t("gps_not_supported", "GPS location is not supported on this device."));
+      alert("Geolocation is not supported by your browser");
       return;
     }
-
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-
         try {
-          const res = await fetch(
-            `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`,
-            { signal: AbortSignal.timeout(4000) }
-          );
-          if (res.ok) {
-            const data = await res.json();
-            const feat = data?.features?.[0]?.properties;
-            if (feat) {
-              const name = feat.city || feat.town || feat.village || feat.name || t("my_location", "My Location");
-              const country = feat.country || "";
-              handleSelectPlace({ name, country, lat, lon });
-              return;
-            }
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const detected = await reverseGeocode(lat, lon);
+          if (detected) {
+            handleSelectPlace(detected);
+          } else {
+            handleSelectPlace({
+              name: "My Location",
+              country: "",
+              lat,
+              lon,
+            });
           }
-        } catch {}
-
-        handleSelectPlace({
-          name: t("gps_coordinates", "GPS Location"),
-          country: `${lat.toFixed(2)}, ${lon.toFixed(2)}`,
-          lat,
-          lon,
-        });
+        } catch {
+          alert("Could not detect city name from your GPS coordinates");
+          setLoading(false);
+        }
       },
       () => {
-        setError(t("gps_denied", "GPS access was denied. Please search your city manually."));
+        alert("GPS access was denied or timed out");
         setLoading(false);
       },
-      { timeout: 8000 }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
-  // Toggle Units (Metric °C / Imperial °F)
   const handleToggleUnit = () => {
-    const next: WeatherUnit = unit === "metric" ? "imperial" : "metric";
-    setUnit(next);
-    saveUnitPref(next);
+    const nextUnit: WeatherUnit = unit === "metric" ? "imperial" : "metric";
+    setUnit(nextUnit);
+    saveUnitPref(nextUnit);
   };
 
-  // Favorites Management
-  const handleToggleFavorite = () => {
-    let next: Place[];
-    if (isFavorite(favorites, place)) {
-      next = favorites.filter((f) => !isSamePlace(f, place));
-    } else {
-      next = [...favorites, place];
-    }
-    setFavorites(next);
-    saveFavorites(next);
+  const handleSelectCustomBg = (bgUrl: string | null) => {
+    setCustomBgUrl(bgUrl);
   };
 
-  // Custom Background Handlers
-  const handleSelectCustomBg = (url: string | null) => {
-    setCustomBgUrl(url);
-    if (url) {
-      localStorage.setItem("weather:custom-bg", url);
-    } else {
-      localStorage.removeItem("weather:custom-bg");
-    }
-  };
-
-  // Dynamic Background Style — matches user's chosen Sky Theme or live weather
   const liveSky = weather?.current
     ? skyKey(weather.current.code, weather.current.is_day ?? 1)
     : "day";
@@ -560,23 +367,23 @@ function Index() {
 
       {/* Main Container */}
       <main className="relative z-10 mx-auto max-w-4xl px-3.5 py-4 sm:px-6 sm:py-6 space-y-4">
-        {/* Navigation / Header Bar */}
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
+        {/* Navigation / Header Bar — Mobile-Safe Layout */}
+        <header className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
             <img
               src="/icons/weather_pal_1_512.png"
               alt="My Weather Pal"
               className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-xl drop-shadow-sm shrink-0"
               loading="eager"
             />
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-foreground drop-shadow-md sm:text-xl">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground drop-shadow-md truncate">
                 My Weather Pal
               </h1>
-              {/* High-Contrast Frosted Badge for Clear Visibility */}
-              <div className="mt-0.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-xs sm:text-sm font-bold text-foreground shadow-xs">
-                <span className="text-xs">📍</span>
-                <span className="truncate max-w-[190px] sm:max-w-[280px]">
+              {/* High-Contrast Frosted Badge */}
+              <div className="mt-0.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-[11px] sm:text-xs font-bold text-foreground shadow-xs max-w-full">
+                <span className="text-[11px] shrink-0">📍</span>
+                <span className="truncate max-w-[130px] xs:max-w-[180px] sm:max-w-[280px]">
                   {getLocalizedCity(place.name, i18n.language)}
                   {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
                 </span>
@@ -584,7 +391,7 @@ function Index() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* Top-Header Language Pull-Down Selector */}
             <LanguageSelector variant="dropdown" />
 
@@ -593,7 +400,7 @@ function Index() {
               type="button"
               onClick={handleToggleUnit}
               aria-label={t("switch_unit", "Switch between Celsius and Fahrenheit")}
-              className="px-2.5 py-1.5 rounded-xl border border-white/20 bg-background/60 text-xs font-bold shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer"
+              className="h-9 px-2.5 rounded-xl border border-white/20 bg-background/60 text-xs font-bold shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer shrink-0"
             >
               {unit === "metric" ? "°C" : "°F"}
             </button>
@@ -603,13 +410,13 @@ function Index() {
               type="button"
               onClick={handleGPS}
               aria-label={t("use_current_location", "Use current GPS location")}
-              className="p-2 rounded-xl border border-white/20 bg-background/60 text-xs shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer"
+              className="h-9 w-9 flex items-center justify-center rounded-xl border border-white/20 bg-background/60 text-xs shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer shrink-0"
               title={t("use_current_location", "Use GPS Location")}
             >
               📍
             </button>
 
-            {/* Full Feature Drawer Menu */}
+            {/* Settings & Feature Drawer Menu */}
             <AppMenu
               currentPlace={place}
               favorites={favorites}
@@ -628,40 +435,46 @@ function Index() {
         {/* City Search Bar with Autocomplete Dropdown */}
         <div className="relative">
           <div className="relative flex items-center">
+            <span className="absolute left-3.5 text-muted-foreground text-sm">🔍</span>
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("search_placeholder", "Search city or airport...")}
-              aria-label={t("search_city", "Search city or airport")}
-              className="w-full rounded-2xl border border-white/25 bg-background/70 px-4 py-2.5 text-sm shadow-md backdrop-blur-md placeholder:text-muted-foreground/70 focus:outline-hidden focus:ring-2 focus:ring-primary/50 transition"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearching(true);
+              }}
+              onFocus={() => setIsSearching(true)}
+              placeholder={t("search_city", "Search any city in the world...")}
+              className="w-full rounded-2xl border border-white/20 bg-background/70 pl-10 pr-10 py-2.5 text-xs sm:text-sm font-medium shadow-xs backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground placeholder:text-muted-foreground"
             />
-            {searching && (
+            {searchLoading && (
               <div className="absolute right-3.5 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             )}
-            {query && !searching && (
+            {searchQuery && !searchLoading && (
               <button
                 type="button"
-                onClick={() => setQuery("")}
-                aria-label={t("clear_search", "Clear search")}
-                className="absolute right-3 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSuggestions([]);
+                }}
+                className="absolute right-3 text-xs text-muted-foreground hover:text-foreground cursor-pointer p-1"
               >
                 ✕
               </button>
             )}
           </div>
 
-          {/* Autocomplete Suggestions */}
-          {suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full z-40 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-xl backdrop-blur-md">
-              {suggestions.map((s, idx) => (
+          {/* Autocomplete Dropdown */}
+          {isSearching && suggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-40 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-xl backdrop-blur-md divide-y divide-border/40">
+              {suggestions.map((s) => (
                 <button
-                  key={`${s.name}-${s.lat}-${s.lon}-${idx}`}
+                  key={`${s.name}-${s.lat}-${s.lon}`}
                   type="button"
                   onClick={() => handleSelectPlace(s)}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs hover:bg-accent/60 transition cursor-pointer"
+                  className="w-full flex items-center justify-between p-2.5 text-left text-xs text-foreground hover:bg-muted/80 rounded-xl transition cursor-pointer"
                 >
-                  <span className="font-semibold">
+                  <span className="font-semibold text-foreground">
                     {getLocalizedCity(s.name, i18n.language)}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
@@ -714,66 +527,55 @@ function Index() {
           </div>
         )}
 
-        {/* Multi-City Comparison Panel */}
+        {/* Multi-City Comparison Deck */}
         {showComparison && (
           <CityComparison
             favorites={favorites}
-            currentPlace={place}
             unit={unit}
-            onSelectPlace={(selected) => {
-              handleSelectPlace(selected);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
+            onSelectCity={handleSelectPlace}
           />
         )}
 
-        {/* Error Notification */}
-        {error && (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs font-medium text-destructive">
-            ⚠️ {error}
+        {/* Weather Forecast View or Skeleton Loader */}
+        {loading && !weather ? (
+          <div className="space-y-4">
+            <div className="h-64 rounded-3xl bg-card/60 backdrop-blur-md animate-pulse border border-border/50" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-28 rounded-2xl bg-card/50 backdrop-blur-md animate-pulse border border-border/40" />
+              ))}
+            </div>
+            <div className="h-40 rounded-2xl bg-card/50 backdrop-blur-md animate-pulse border border-border/40" />
           </div>
-        )}
-
-        {/* Weather View Section or Loading Skeleton */}
-        {weather ? (
+        ) : error ? (
+          <div className="p-6 rounded-3xl border border-destructive/30 bg-destructive/10 backdrop-blur-md text-center space-y-2">
+            <p className="text-sm font-bold text-destructive">⚠️ {error}</p>
+            <button
+              onClick={() => handleSelectPlace(place)}
+              className="px-4 py-2 rounded-xl bg-destructive text-white text-xs font-semibold shadow-xs hover:opacity-90 transition cursor-pointer"
+            >
+              {t("try_again", "Try Again")}
+            </button>
+          </div>
+        ) : weather ? (
           <WeatherView
             weather={weather}
-            activeAlerts={alerts}
             unit={unit}
-            loading={loading}
-            onRefresh={() => fetchAllWeatherData(place, unit, true)}
-            isFav={isFavorite(favorites, place)}
+            isFavorite={favorites.some((f) => isSamePlace(f, place))}
             onToggleFavorite={handleToggleFavorite}
             onSelectBackground={handleSelectCustomBg}
-            onOpenAiGallery={() => navigate({ to: "/gallery" })}
             customBgUrl={customBgUrl}
+            activeAlerts={alerts}
           />
-        ) : loading ? (
-          <WeatherSkeleton t={t} />
         ) : null}
-
-        {/* Multi-City Comparison Hub Footer Card */}
-        {!showComparison && favorites.length > 1 && (
-          <CityComparison
-            favorites={favorites}
-            currentPlace={place}
-            unit={unit}
-            onSelectPlace={(selected) => {
-              handleSelectPlace(selected);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-          />
-        )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-8 border-t border-border/40 py-6 text-center text-xs text-muted-foreground">
-        <p>
-          {t("weather_by", "Weather data by Open-Meteo • AI Watercolor Art")}
-        </p>
-        <div className="mt-2 flex justify-center gap-4">
-          <Link to="/gallery" className="hover:underline font-medium">
-            🎨 {t("art_gallery", "Art Gallery")}
+      {/* Footer Navigation */}
+      <footer className="relative z-10 py-6 text-center text-xs text-muted-foreground/80 space-y-2">
+        <p>My Weather Pal • Open-Meteo & RainViewer • 100% Private</p>
+        <div className="flex items-center justify-center gap-4">
+          <Link to="/gallery" className="hover:underline">
+            {t("art_gallery", "Art Gallery")}
           </Link>
           <span>•</span>
           <Link to="/privacy" className="hover:underline">
@@ -782,9 +584,9 @@ function Index() {
         </div>
       </footer>
 
-      {/* Root Beer Tier Thank-You Overlay */}
+      {/* Root Beer Tier Thank-You Overlay — Centered with safe close button */}
       {purchasedTierId && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
           <div className="relative w-full max-w-md">
             <RootBeerThankYou
               tierId={purchasedTierId as any}
@@ -793,7 +595,7 @@ function Index() {
             <button
               onClick={() => setPurchasedTierId(null)}
               aria-label={t("close", "Close")}
-              className="absolute -top-3 -right-3 bg-white text-zinc-700 hover:text-black rounded-full w-8 h-8 flex items-center justify-center shadow-lg font-bold text-sm transition hover:scale-105 cursor-pointer"
+              className="absolute top-3 right-3 bg-white/90 hover:bg-white text-zinc-700 hover:text-black rounded-full w-8 h-8 flex items-center justify-center shadow-lg font-bold text-sm transition hover:scale-105 cursor-pointer z-10"
             >
               ✕
             </button>
@@ -804,4 +606,4 @@ function Index() {
   );
 }
 
-export default Index;
+export default WeatherHomePage;
