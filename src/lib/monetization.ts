@@ -10,6 +10,8 @@ export const ADS_BACKGROUNDS = ["rainy", "snowy"] as const;
 export const ADS_AI_SLOTS = 3;
 export const ADS_AI_GENERATIONS = 3;
 export const ADS_DURATION_HOURS = 24;
+
+// GOOGLE ADMOB REWARDED VIDEO AD UNIT ID (Configured in Google AdMob Console)
 export const ADMOB_REWARDED_ID = "ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY";
 
 // PREMIUM: Only with Root Beer / Lifetime
@@ -475,6 +477,7 @@ export const showRewardedAdViaMedian = (
       admob?: {
         rewarded?: {
           show?: (opts?: {
+            adUnitId?: string;
             callback?: (result: { success?: boolean; reward?: boolean; errorMessage?: string }) => void;
           }) => void;
         };
@@ -484,6 +487,7 @@ export const showRewardedAdViaMedian = (
       admob?: {
         rewarded?: {
           show?: (opts?: {
+            adUnitId?: string;
             callback?: (result: { success?: boolean; reward?: boolean; errorMessage?: string }) => void;
           }) => void;
         };
@@ -496,6 +500,7 @@ export const showRewardedAdViaMedian = (
   if (admobRewarded && typeof admobRewarded.show === "function") {
     try {
       admobRewarded.show({
+        adUnitId: ADMOB_REWARDED_ID,
         callback: (result) => {
           if (result && (result.success || result.reward)) {
             onSuccess();
@@ -508,9 +513,11 @@ export const showRewardedAdViaMedian = (
       onError({ message: err?.message || "Failed to show native rewarded ad." });
     }
   } else {
-    // Graceful fallback for web/desktop browser preview: simulate a 2s video ad
+    // Graceful fallback for browser testing & preview: simulate a 2s video ad
     setTimeout(() => {
       onSuccess();
     }, 2000);
   }
 };
+
+export default ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE;
