@@ -342,62 +342,68 @@ export function WeatherHomePage() {
 
       <main className="relative z-10 mx-auto max-w-4xl px-3.5 py-4 sm:px-6 sm:py-6 space-y-4">
         {/* Navigation / Header Bar */}
-        <header className="flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-            <img
-              src="/icons/weather_pal_1_512.png"
-              alt="My Weather Pal"
-              className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-xl drop-shadow-sm shrink-0"
-              loading="eager"
-            />
-            <div className="min-w-0 flex-1">
-              <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground drop-shadow-md truncate">
+        <header className="space-y-2">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            {/* Title & App Icon */}
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+              <img
+                src="/icons/weather_pal_1_512.png"
+                alt="My Weather Pal"
+                className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-xl drop-shadow-sm shrink-0"
+                loading="eager"
+              />
+              <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground drop-shadow-md whitespace-nowrap">
                 My Weather Pal
               </h1>
-              <div className="mt-0.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-[11px] sm:text-xs font-bold text-foreground shadow-xs max-w-full">
-                <span className="text-[11px] shrink-0">📍</span>
-                <span className="truncate max-w-[130px] sm:max-w-[280px]">
-                  {getLocalizedCity(place.name, i18n.language)}
-                  {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
-                </span>
-              </div>
+            </div>
+
+            {/* Quick Actions Bar */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              <LanguageSelector variant="dropdown" />
+
+              <button
+                type="button"
+                onClick={handleToggleUnit}
+                aria-label={t("switch_unit", "Switch between Celsius and Fahrenheit")}
+                className="h-9 px-2.5 rounded-xl border border-white/20 bg-background/60 text-xs font-bold shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer shrink-0"
+              >
+                {unit === "metric" ? "°C" : "°F"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGPS}
+                aria-label={t("use_current_location", "Use current GPS location")}
+                className="h-9 w-9 flex items-center justify-center rounded-xl border border-white/20 bg-background/60 text-xs shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer shrink-0"
+                title={t("use_current_location", "Use GPS Location")}
+              >
+                📍
+              </button>
+
+              <AppMenu
+                currentPlace={place}
+                favorites={favorites}
+                onSelectPlace={handleSelectPlace}
+                unit={unit}
+                onUnitChange={(newUnit) => {
+                  setUnit(newUnit);
+                  saveUnitPref(newUnit);
+                }}
+                onToggleUnit={handleToggleUnit}
+                onSelectBackground={handleSelectCustomBg}
+              />
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            <LanguageSelector variant="dropdown" />
-
-            <button
-              type="button"
-              onClick={handleToggleUnit}
-              aria-label={t("switch_unit", "Switch between Celsius and Fahrenheit")}
-              className="h-9 px-2.5 rounded-xl border border-white/20 bg-background/60 text-xs font-bold shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer shrink-0"
-            >
-              {unit === "metric" ? "°C" : "°F"}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleGPS}
-              aria-label={t("use_current_location", "Use current GPS location")}
-              className="h-9 w-9 flex items-center justify-center rounded-xl border border-white/20 bg-background/60 text-xs shadow-xs backdrop-blur-md hover:bg-background/80 transition cursor-pointer shrink-0"
-              title={t("use_current_location", "Use GPS Location")}
-            >
-              📍
-            </button>
-
-            <AppMenu
-              currentPlace={place}
-              favorites={favorites}
-              onSelectPlace={handleSelectPlace}
-              unit={unit}
-              onUnitChange={(newUnit) => {
-                setUnit(newUnit);
-                saveUnitPref(newUnit);
-              }}
-              onToggleUnit={handleToggleUnit}
-              onSelectBackground={handleSelectCustomBg}
-            />
+          {/* Current City Pin Badge - Dedicated line, never cut off */}
+          <div className="flex items-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-xs font-bold text-foreground shadow-xs max-w-full">
+              <span className="text-xs shrink-0">📍</span>
+              <span className="font-semibold break-words">
+                {getLocalizedCity(place.name, i18n.language)}
+                {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
+              </span>
+            </div>
           </div>
         </header>
 
