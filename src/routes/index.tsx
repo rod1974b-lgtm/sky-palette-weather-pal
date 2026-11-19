@@ -8,25 +8,19 @@ import {
   type WeatherUnit,
   getWeather,
   searchCity,
-  reverseGeocode,
-  getUnitPref,
+  loadUnitPref,
   saveUnitPref,
   skyKey,
-  SKY_GRADIENTS,
-  getLocalizedCity,
-  getLocalizedCountry,
+  isSamePlace,
 } from "@/lib/weather";
-import { WeatherView } from "@/components/WeatherView";
+import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
+import { WeatherView, type TickerAlertItem } from "@/components/WeatherView";
 import { AppMenu } from "@/components/AppMenu";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { RootBeerThankYou } from "@/components/RootBeerThankYou_DEEPER_AMBER";
 import { CityComparison } from "@/components/CityComparison";
-import {
-  getCustomBackground,
-  isAdUnlocked,
-} from "@/lib/aiWatercolorGenerator";
-import { saveThankYouBackgroundForever } from "@/lib/monetization";
-import type { TickerAlertItem } from "@/components/WeatherAlertWatcher";
+import { isAdUnlocked, saveThankYouBackgroundForever } from "@/lib/monetization";
+import { getWallpaperItem } from "@/lib/wallpaperStorage";
 
 export const Route = createFileRoute("/")({
   component: WeatherHomePage,
@@ -57,17 +51,26 @@ const DEFAULT_PLACE: Place = {
   lon: 98.9853,
 };
 
-function isSamePlace(a: Place, b: Place): boolean {
-  return Math.abs(a.lat - b.lat) < 0.05 && Math.abs(a.lon - b.lon) < 0.05;
-}
+const SKY_GRADIENTS: Record<string, string> = {
+  "clear-day": "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
+  day: "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
+  clear_day: "linear-gradient(180deg, oklch(0.78 0.1 248), oklch(0.9 0.055 232) 60%, oklch(0.97 0.025 205))",
+  "clear-night": "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
+  night: "linear-gradient(180deg, oklch(0.26 0.06 278), oklch(0.17 0.045 285))",
+  "cloudy-day": "linear-gradient(180deg, oklch(0.8 0.03 248), oklch(0.92 0.02 250))",
+  cloudy: "linear-gradient(180deg, oklch(0.8 0.03 248), oklch(0.92 0.02 250))",
+  "cloudy-night": "linear-gradient(180deg, oklch(0.24 0.04 265), oklch(0.15 0.03 268))",
+  fog: "linear-gradient(180deg, oklch(0.84 0.015 255), oklch(0.94 0.008 255))",
+  rain: "linear-gradient(180deg, oklch(0.66 0.07 252), oklch(0.82 0.035 248))",
+  snow: "linear-gradient(180deg, oklch(0.87 0.035 280), oklch(0.96 0.015 275))",
+  storm: "linear-gradient(180deg, oklch(0.56 0.06 268), oklch(0.72 0.04 262))",
+  sunset: "linear-gradient(180deg, oklch(0.68 0.16 38), oklch(0.75 0.12 60) 50%, oklch(0.88 0.08 85))",
+};
 
 export function WeatherHomePage() {
   const { t, i18n } = useTranslation();
 
-  // Unit of Measurement
   const [unit, setUnit] = useState<WeatherUnit>("metric");
-
-  // Current Place & Weather Forecast
   const [place, setPlace] = useState<Place>(() => {
     try {
       const stored = localStorage.getItem("weather:last-place");
@@ -80,14 +83,12 @@ export function WeatherHomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Search Bar Autocomplete
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const searchAbortRef = useRef<AbortController | null>(null);
 
-  // Saved Favorite Places
   const [favorites, setFavorites] = useState<Place[]>(() => {
     try {
       const stored = localStorage.getItem("weather:favorites");
@@ -102,7 +103,6 @@ export function WeatherHomePage() {
     ];
   });
 
-  // Sky Theme Preference State
   const [skyPref, setSkyPref] = useState<string>(() => {
     try {
       return localStorage.getItem("weather:sky-pref") || "auto";
@@ -111,30 +111,23 @@ export function WeatherHomePage() {
     }
   });
 
-  // Custom Wallpaper from Art Gallery
-  const [customBgUrl, setCustomBgUrl] = useState<string | null>(() => {
-    try {
-      return getCustomBackground(place.name);
-    } catch {
-      return null;
-    }
-  });
-
-  // Post-Payment / Thank-You Overlay State
+  const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
   const [purchasedTierId, setPurchasedTierId] = useState<string | null>(null);
-
-  // Compare Cities View Toggle
   const [showComparison, setShowComparison] = useState(false);
-
-  // Active Weather Alerts
   const [alerts, setAlerts] = useState<TickerAlertItem[]>([]);
 
-  // 1. Initial Preferences Loading
   useEffect(() => {
-    setUnit(getUnitPref());
+    setUnit(loadUnitPref());
   }, []);
 
-  // 2. Synchronize Custom Sky Theme Preference
+  useEffect(() => {
+    getWallpaperItem(place.name)
+      .then((saved) => {
+        if (saved) setCustomBgUrl(saved);
+      })
+      .catch(() => {});
+  }, [place.name]);
+
   useEffect(() => {
     const handleSkyChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ sky: string }>;
@@ -148,7 +141,6 @@ export function WeatherHomePage() {
     };
   }, []);
 
-  // 3. Listen for Custom Thank-You Trigger Events
   useEffect(() => {
     const handleThankYou = (e: Event) => {
       const customEvent = e as CustomEvent<{ tierId: string }>;
@@ -162,71 +154,53 @@ export function WeatherHomePage() {
     };
   }, []);
 
-  // 4. Handle External Payment Return URL
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const paidParam = params.get("paid");
-    if (paidParam === "rootbeer") {
+    if (params.get("paid") === "rootbeer") {
       saveThankYouBackgroundForever("medium_root_beer_tier");
       setPurchasedTierId("medium_root_beer_tier");
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 
-  // 5. Fetch Weather Whenever Location or Units Change
-  useEffect(() => {
-    let cancelled = false;
+  const fetchWeatherForPlace = (targetPlace: Place, targetUnit: WeatherUnit) => {
     setLoading(true);
     setError(null);
 
-    getWeather(place, unit)
+    getWeather(targetPlace, targetUnit)
       .then((data) => {
-        if (!cancelled) {
-          setWeather(data);
-          setLoading(false);
-          try {
-            setCustomBgUrl(getCustomBackground(place.name));
-          } catch {}
+        setWeather(data);
+        setLoading(false);
 
-          // Evaluate Active Weather Alerts
-          const detectedAlerts: TickerAlertItem[] = [];
-          if (data.current.code >= 95) {
-            detectedAlerts.push({
-              id: "severe-storm-warning",
-              severity: "danger",
-              headline: `${place.name}: Severe Thunderstorm Warning In Effect`,
-              instruction: "Seek indoor shelter immediately. Stay clear of windows and tall trees.",
-              source: "National Weather Hazards Center",
-              effective: "Now",
-            });
-          } else if (data.current.code >= 65 && data.current.code <= 67) {
-            detectedAlerts.push({
-              id: "heavy-rain-advisory",
-              severity: "warning",
-              headline: `${place.name}: Heavy Rain & Flash Flood Watch`,
-              instruction: "Avoid flooded low-lying areas and drive with extreme caution.",
-              source: "Hydrological Meteorological Center",
-              effective: "Now",
-            });
-          }
-          setAlerts(detectedAlerts);
+        const detectedAlerts: TickerAlertItem[] = [];
+        if (data.current.code >= 95) {
+          detectedAlerts.push({
+            id: "severe-storm-warning",
+            severity: "danger",
+            headline: `${targetPlace.name}: Severe Thunderstorm Warning In Effect`,
+            source: "National Weather Hazards Center",
+          });
+        } else if (data.current.code >= 65 && data.current.code <= 67) {
+          detectedAlerts.push({
+            id: "heavy-rain-advisory",
+            severity: "warning",
+            headline: `${targetPlace.name}: Heavy Rain & Flash Flood Watch`,
+            source: "Hydrological Meteorological Center",
+          });
         }
+        setAlerts(detectedAlerts);
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(err?.message || "Failed to load weather forecast");
-          setLoading(false);
-        }
+        setError(err?.message || "Failed to load weather forecast");
+        setLoading(false);
       });
+  };
 
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    fetchWeatherForPlace(place, unit);
   }, [place, unit]);
 
-  // 6. Debounced City Autocomplete Search
   useEffect(() => {
     if (searchAbortRef.current) {
       searchAbortRef.current.abort();
@@ -300,19 +274,21 @@ export function WeatherHomePage() {
         try {
           const lat = pos.coords.latitude;
           const lon = pos.coords.longitude;
-          const detected = await reverseGeocode(lat, lon);
-          if (detected) {
-            handleSelectPlace(detected);
+          const res = await fetch(
+            `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const feat = data?.features?.[0];
+            const name = feat?.properties?.city || feat?.properties?.name || "Current Location";
+            const country = feat?.properties?.country || "";
+            handleSelectPlace({ name, country, lat, lon });
           } else {
-            handleSelectPlace({
-              name: "My Location",
-              country: "",
-              lat,
-              lon,
-            });
+            handleSelectPlace({ name: "Current Location", lat, lon });
           }
         } catch {
-          alert("Could not detect city name from your GPS coordinates");
+          handleSelectPlace({ name: "Current Location", lat: pos.coords.latitude, lon: pos.coords.longitude });
+        } finally {
           setLoading(false);
         }
       },
@@ -362,12 +338,10 @@ export function WeatherHomePage() {
       className="min-h-screen text-foreground transition-all duration-700 ease-in-out selection:bg-primary/20"
       style={bgStyle}
     >
-      {/* Background Ambient Overlay */}
       <div className="fixed inset-0 pointer-events-none bg-black/10 backdrop-blur-[0.5px]" />
 
-      {/* Main Container */}
       <main className="relative z-10 mx-auto max-w-4xl px-3.5 py-4 sm:px-6 sm:py-6 space-y-4">
-        {/* Navigation / Header Bar — Mobile-Safe Layout */}
+        {/* Navigation / Header Bar */}
         <header className="flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
             <img
@@ -380,10 +354,9 @@ export function WeatherHomePage() {
               <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground drop-shadow-md truncate">
                 My Weather Pal
               </h1>
-              {/* High-Contrast Frosted Badge */}
               <div className="mt-0.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-[11px] sm:text-xs font-bold text-foreground shadow-xs max-w-full">
                 <span className="text-[11px] shrink-0">📍</span>
-                <span className="truncate max-w-[130px] xs:max-w-[180px] sm:max-w-[280px]">
+                <span className="truncate max-w-[130px] sm:max-w-[280px]">
                   {getLocalizedCity(place.name, i18n.language)}
                   {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
                 </span>
@@ -392,10 +365,8 @@ export function WeatherHomePage() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            {/* Top-Header Language Pull-Down Selector */}
             <LanguageSelector variant="dropdown" />
 
-            {/* Quick Unit Switcher */}
             <button
               type="button"
               onClick={handleToggleUnit}
@@ -405,7 +376,6 @@ export function WeatherHomePage() {
               {unit === "metric" ? "°C" : "°F"}
             </button>
 
-            {/* GPS Geolocation Button */}
             <button
               type="button"
               onClick={handleGPS}
@@ -416,7 +386,6 @@ export function WeatherHomePage() {
               📍
             </button>
 
-            {/* Settings & Feature Drawer Menu */}
             <AppMenu
               currentPlace={place}
               favorites={favorites}
@@ -432,7 +401,7 @@ export function WeatherHomePage() {
           </div>
         </header>
 
-        {/* City Search Bar with Autocomplete Dropdown */}
+        {/* City Search Bar */}
         <div className="relative">
           <div className="relative flex items-center">
             <span className="absolute left-3.5 text-muted-foreground text-sm">🔍</span>
@@ -464,7 +433,6 @@ export function WeatherHomePage() {
             )}
           </div>
 
-          {/* Autocomplete Dropdown */}
           {isSearching && suggestions.length > 0 && (
             <div className="absolute left-0 right-0 top-full z-40 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-xl backdrop-blur-md divide-y divide-border/40">
               {suggestions.map((s) => (
@@ -486,7 +454,7 @@ export function WeatherHomePage() {
           )}
         </div>
 
-        {/* Saved Favorites & Quick Switch Chips */}
+        {/* Saved Favorites & Compare Toggle */}
         {favorites.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
             <span className="text-[11px] font-semibold text-muted-foreground/90 uppercase tracking-wider">
@@ -510,7 +478,6 @@ export function WeatherHomePage() {
               );
             })}
 
-            {/* Compare Cities Toggle Button */}
             {favorites.length > 1 && (
               <button
                 type="button"
@@ -531,12 +498,13 @@ export function WeatherHomePage() {
         {showComparison && (
           <CityComparison
             favorites={favorites}
+            currentPlace={place}
             unit={unit}
-            onSelectCity={handleSelectPlace}
+            onSelectPlace={handleSelectPlace}
           />
         )}
 
-        {/* Weather Forecast View or Skeleton Loader */}
+        {/* Main Weather View */}
         {loading && !weather ? (
           <div className="space-y-4">
             <div className="h-64 rounded-3xl bg-card/60 backdrop-blur-md animate-pulse border border-border/50" />
@@ -551,7 +519,7 @@ export function WeatherHomePage() {
           <div className="p-6 rounded-3xl border border-destructive/30 bg-destructive/10 backdrop-blur-md text-center space-y-2">
             <p className="text-sm font-bold text-destructive">⚠️ {error}</p>
             <button
-              onClick={() => handleSelectPlace(place)}
+              onClick={() => fetchWeatherForPlace(place, unit)}
               className="px-4 py-2 rounded-xl bg-destructive text-white text-xs font-semibold shadow-xs hover:opacity-90 transition cursor-pointer"
             >
               {t("try_again", "Try Again")}
@@ -561,7 +529,9 @@ export function WeatherHomePage() {
           <WeatherView
             weather={weather}
             unit={unit}
-            isFavorite={favorites.some((f) => isSamePlace(f, place))}
+            loading={loading}
+            onRefresh={() => fetchWeatherForPlace(place, unit)}
+            isFav={favorites.some((f) => isSamePlace(f, place))}
             onToggleFavorite={handleToggleFavorite}
             onSelectBackground={handleSelectCustomBg}
             customBgUrl={customBgUrl}
@@ -570,7 +540,6 @@ export function WeatherHomePage() {
         ) : null}
       </main>
 
-      {/* Footer Navigation */}
       <footer className="relative z-10 py-6 text-center text-xs text-muted-foreground/80 space-y-2">
         <p>My Weather Pal • Open-Meteo & RainViewer • 100% Private</p>
         <div className="flex items-center justify-center gap-4">
@@ -584,7 +553,6 @@ export function WeatherHomePage() {
         </div>
       </footer>
 
-      {/* Root Beer Tier Thank-You Overlay — Centered with safe close button */}
       {purchasedTierId && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
           <div className="relative w-full max-w-md">
