@@ -340,7 +340,7 @@ export function WeatherHomePage() {
     >
       <div className="fixed inset-0 pointer-events-none bg-black/10 backdrop-blur-[0.5px]" />
 
-      <main className="relative z-10 mx-auto max-w-4xl px-3.5 py-4 sm:px-6 sm:py-6 space-y-4">
+      <main className="relative z-10 mx-auto max-w-4xl px-3 py-3.5 sm:px-6 sm:py-6 space-y-3.5 sm:space-y-4">
         {/* Navigation / Header Bar */}
         <header className="space-y-2">
           <div className="flex items-center justify-between gap-2 sm:gap-3">
