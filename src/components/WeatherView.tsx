@@ -102,7 +102,7 @@ function getDailyDayLabel(dateStr: string, idx: number, t: TFunction): string {
     const d = new Date(dateStr);
     const day = d.getDay();
     const dayKeys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
-    const dayFallbacks = ["Sun", "Mon", "Tue", "Wed", "Fri", "Sat"];
+    const dayFallbacks = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const key = dayKeys[day];
     const fallback = dayFallbacks[day] ?? dateStr;
     return key ? t(key, fallback) : fallback;
@@ -408,16 +408,29 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </button>
         </div>
 
-        {/* Big Temperature Display */}
-        <div className="flex items-baseline gap-4 pt-1">
-          <div className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
-            {tempVal}
-            <span className="text-2xl sm:text-3xl font-bold text-muted-foreground ml-1">
-              {tempUnitStr}
-            </span>
+        {/* Big Temperature & Weather Icon Display */}
+        <div className="flex items-center justify-between gap-4 pt-1">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Current Condition Watercolor Icon */}
+            <div className="w-14 h-14 sm:w-18 sm:h-18 shrink-0 flex items-center justify-center drop-shadow-md">
+              <WeatherIcon
+                code={w.current.code}
+                isDay={w.current.is_day ?? 1}
+                className="w-12 h-12 sm:w-16 sm:h-16 object-contain"
+              />
+            </div>
+
+            {/* Temperature Value */}
+            <div className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">
+              {tempVal}
+              <span className="text-2xl sm:text-3xl font-bold text-muted-foreground ml-1">
+                {tempUnitStr}
+              </span>
+            </div>
           </div>
 
-          <div className="space-y-0.5 text-xs sm:text-sm font-semibold text-muted-foreground">
+          {/* Feels Like & High/Low */}
+          <div className="space-y-0.5 text-xs sm:text-sm font-semibold text-muted-foreground text-right sm:text-left">
             <p>
               {t("feels_like", "Feels like")}: <span className="text-foreground font-bold">{feelsLikeVal}{tempUnitStr}</span>
             </p>
