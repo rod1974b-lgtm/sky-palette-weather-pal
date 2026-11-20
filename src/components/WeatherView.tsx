@@ -49,7 +49,9 @@ export interface WeatherViewProps {
   unit: WeatherUnit;
   onRefresh?: () => void;
   isRefreshing?: boolean;
-  onSelectBackground?: (url: string) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
+  onSelectBackground?: (url: string | null) => void;
   activeAlerts?: TickerAlertItem[];
   customBgUrl?: string;
 }
@@ -312,25 +314,13 @@ export function WeatherView({
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden xs:block">
-              <span className="text-xs text-muted-foreground block">{t("feels_like", "Feels like")}</span>
-              <span className="text-sm font-bold text-foreground">
-                {Math.round(w.current.apparentTemp ?? w.current.temp)}{tempUnit}
-              </span>
-            </div>
-            <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 flex items-center justify-center">
-              <WeatherIcon
-                code={w.current.code}
-                isDay={w.current.isDay === 1 || (w.current as any).isDay === true}
-                className="w-full h-full drop-shadow-sm"
-              />
-            </div>
+          <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
+            <WeatherIcon code={w.current.code} isDay={w.current.isDay} className="w-full h-full drop-shadow-md" />
           </div>
         </div>
 
-        {/* Responsive Grid of Weather Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-1">
+        {/* Essential Weather Metrics Grid (Clickable to open simple explanations) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
           {/* Humidity */}
           <div
             onClick={() => openGuide("humidity")}
@@ -343,7 +333,7 @@ export function WeatherView({
             <span className="text-lg font-bold text-foreground">{humidityVal}%</span>
           </div>
 
-          {/* Wind */}
+          {/* Wind Speed */}
           <div
             onClick={() => openGuide("wind")}
             className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer"
@@ -667,7 +657,7 @@ export function WeatherView({
           onClose={() => setForecastModalOpen(false)}
           weather={w}
           unit={unit}
-          mode={forecastModalType}
+          type={forecastModalType}
           initialIndex={forecastModalIndex}
         />
       )}
