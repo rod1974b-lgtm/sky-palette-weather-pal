@@ -7,6 +7,7 @@ import {
   Scripts,
   Link,
   useNavigate,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
@@ -47,7 +48,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
-  errorComponent: ErrorComponent,
+  errorComponent: RootErrorComponent,
 });
 
 function RootShell({ children }: { children: ReactNode }) {
@@ -102,22 +103,37 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error }: { error: Error }) {
+function RootErrorComponent({ error, reset }: ErrorComponentProps) {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
       <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
       <p className="text-sm text-muted-foreground max-w-md mb-6">
-        {error.message || "An unexpected error occurred while loading this view."}
+        {error instanceof Error
+          ? error.message
+          : typeof error === "string"
+          ? error
+          : "An unexpected error occurred while loading this view."}
       </p>
-      <button
-        type="button"
-        onClick={() => navigate({ to: "/" })}
-        className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-95 transition cursor-pointer"
-      >
-        Return Home
-      </button>
+      <div className="flex items-center gap-3">
+        {reset && (
+          <button
+            type="button"
+            onClick={() => reset()}
+            className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground font-semibold transition cursor-pointer"
+          >
+            Try Again
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/" })}
+          className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-95 transition cursor-pointer"
+        >
+          Return Home
+        </button>
+      </div>
     </div>
   );
 }
