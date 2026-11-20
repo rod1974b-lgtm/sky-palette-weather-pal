@@ -435,7 +435,7 @@ export function AiGalleryModal({
         await saveSavedArtworks(updated);
         setActiveTab("slots");
       } else {
-        throw new Error(res?.error || "AI generation failed. Please try again.");
+throw new Error((res as any)?.error || "AI generation failed. Please try again.");
       }
     } catch (err: any) {
       setErrorMessage(err?.message || "Failed to generate AI artwork.");
