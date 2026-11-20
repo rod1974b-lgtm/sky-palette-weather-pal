@@ -1,337 +1,139 @@
 // src/lib/monetization.ts
-
-// FREE: 3 backgrounds + 2 AI forever free (no ads, no purchase)
-export const FREE_BACKGROUNDS = ["clear_day", "clear_night", "cloudy_day"] as const;
-export const FREE_AI_SLOTS = 2;
-export const FREE_AI_GENERATIONS = 2;
-
-// ADS: 2 backgrounds + 3 AI for 24h via rewarded ad
-export const ADS_BACKGROUNDS = ["rainy", "snowy"] as const;
-export const ADS_AI_SLOTS = 3;
-export const ADS_AI_GENERATIONS = 3;
-export const ADS_DURATION_HOURS = 24;
-
-// GOOGLE ADMOB REWARDED VIDEO AD UNIT ID
-// Configure your live AdMob rewarded unit ID below or use the Google test ID for validation
-export const ADMOB_REWARDED_ID = "ca-app-pub-3940256099942544/5224354917"; // Google standard test rewarded unit ID
-
-// PREMIUM: Only with Root Beer / Lifetime
-export const PREMIUM_BACKGROUNDS = ["haze", "storm"] as const;
-export const ALL_BACKGROUNDS = [
-  ...FREE_BACKGROUNDS,
-  ...ADS_BACKGROUNDS,
-  ...PREMIUM_BACKGROUNDS,
-] as const;
-
-export interface RootBeerTierPerks {
-  backgrounds: string;
-  aiGenerations: string;
-  mascots: string;
-  adFree: string;
-  celebration: string;
-}
+// Multi-Tier Monetization & Google Play / Web Payment Integration for My Weather Pal
 
 export interface RootBeerTier {
   id: string;
   name: string;
-  level: number;
   price: number;
   displayPrice: string;
-  tagline?: string;
-  perks?: RootBeerTierPerks;
-  thankYouText: string;
-  thankYouBackground: string;
-  ribbonColor: string;
-  bubbles: number;
-  sounds: string;
+  durationDays: number | null;
+  adFreeForever: boolean;
   bonus: {
-    backgrounds: string[];
+    customBackgrounds: number;
     aiBackgrounds: number;
-    staticMascots: number;
-    animatedMascots: number;
-    noAdsDays: number;
-    noAdsForever?: boolean;
+    noAdsForever: boolean;
     label: string;
   };
-  files: {
-    staticTransparent: string;
-    staticFull?: string;
-    video?: string;
-    lottie?: string;
+  tagline: string;
+  badge: string;
+  productId: string;
+  perks?: {
+    backgrounds?: string;
+    aiGenerations?: string;
+    adFree?: string;
+    celebration?: string;
   };
 }
 
 export const ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE: RootBeerTier[] = [
   {
     id: "small_root_beer_tier",
-    name: "Small Root Beer Tier",
-    level: 1,
+    name: "Small Root Beer",
     price: 1.0,
-    displayPrice: "$1",
-    tagline: "A refreshing chilled mug to show support and unlock cozy rainy skies.",
-    perks: {
-      backgrounds: "Unlocks Rainy sky background forever (no ads needed).",
-      aiGenerations: "+1 extra AI generation permanently unlocked.",
-      mascots: "1 static mascot unlocked.",
-      adFree: "None (standard free ad experience).",
-      celebration: "Soft pop!, light bubble fizz, cozy chime & bouncing burger mascot.",
-    },
-    thankYouText: "Small Root Beer Tier - Thank You!",
-    thankYouBackground: "small_amber_thankyou_bg",
-    ribbonColor: "deeper amber watercolor rich warm golden brown #8B4513",
-    bubbles: 1,
-    sounds: "pop — Soft *pop!* + light bubble fizzing + cozy chime",
+    displayPrice: "$1.00",
+    durationDays: null,
+    adFreeForever: false,
     bonus: {
-      backgrounds: ["rainy"],
-      aiBackgrounds: 1,
-      staticMascots: 1,
-      animatedMascots: 0,
-      noAdsDays: 0,
-      label: "1 BG + 1 AI + 1 mascot FOREVER + Small thank-you forever",
+      customBackgrounds: 2,
+      aiBackgrounds: 2,
+      noAdsForever: false,
+      label: "2 Permanent Slots (City + AI)",
     },
-    files: {
-      staticTransparent: "/tier%20plans/static_transparent_deeper_amber/small_amber_transparent.png",
-      staticFull: "/tier%20plans/static_transparent_deeper_amber/small_amber_transparent.png",
-      lottie: "/tier%20plans/lottie_and_gifs/burger_bounce.json",
+    tagline: "2 Permanent Wallpaper & AI Slots",
+    badge: "🍺 Supporter",
+    productId: "small_root_beer_tier",
+    perks: {
+      backgrounds: "2 permanent slots for city landmark wallpapers",
+      aiGenerations: "2 permanent slots for AI watercolor generator",
+      adFree: "Standard rewarded ad support",
+      celebration: "Warm supporter badge & special mascot thank-you",
     },
   },
   {
     id: "medium_root_beer_tier",
-    name: "Medium Root Beer Tier",
-    level: 2,
+    name: "Medium Root Beer",
     price: 3.0,
-    displayPrice: "$3",
-    tagline: "A hearty cold float with a full month of clean, ad-free weather.",
-    perks: {
-      backgrounds: "Unlocks Rainy and Snowy sky backgrounds forever.",
-      aiGenerations: "+2 extra AI generations permanently unlocked.",
-      mascots: "2 static mascots + 1 animated mascot unlocked.",
-      adFree: "30 Days (1 Full Month) completely ad-free.",
-      celebration: "Creamy fizzing pfffft, gentle plop, warm chime & float wobble animation.",
-    },
-    thankYouText: "Medium Root Beer Tier - Thank You!",
-    thankYouBackground: "medium_amber_thankyou_bg",
-    ribbonColor: "deeper amber watercolor rich warm golden brown #8B4513",
-    bubbles: 3,
-    sounds: "fizz — Creamy fizzing *pffffff* + gentle *plop* + warmer chime",
+    displayPrice: "$3.00",
+    durationDays: 30,
+    adFreeForever: false,
     bonus: {
-      backgrounds: ["rainy", "snowy"],
-      aiBackgrounds: 2,
-      staticMascots: 2,
-      animatedMascots: 1,
-      noAdsDays: 30,
-      label: "2 BGs + 2 AI + 2 static + 1 animated FOREVER + 30 days no ads",
+      customBackgrounds: 4,
+      aiBackgrounds: 4,
+      noAdsForever: false,
+      label: "4 Permanent Slots + 30 Days Ad-Free",
     },
-    files: {
-      staticTransparent: "/tier%20plans/static_transparent_deeper_amber/medium_amber_transparent.png",
-      staticFull: "/tier%20plans/static_transparent_deeper_amber/medium_amber_transparent.png",
-      lottie: "/tier%20plans/lottie_and_gifs/float_bounce.json",
+    tagline: "4 Slots + 30 Days Ad-Free",
+    badge: "🌟 Enthusiast",
+    productId: "medium_root_beer_tier",
+    perks: {
+      backgrounds: "4 permanent slots for city landmark wallpapers",
+      aiGenerations: "4 permanent slots for AI watercolor generator",
+      adFree: "30 days 100% ad-free experience",
+      celebration: "Enthusiast badge & special mascot dialogues",
     },
   },
   {
     id: "large_root_beer_tier",
-    name: "Large Root Beer Tier",
-    level: 3,
+    name: "Large Root Beer",
     price: 5.0,
-    displayPrice: "$5",
-    tagline: "A tall foaming mug with a full year of uninterrupted forecast checks.",
-    perks: {
-      backgrounds: "Unlocks Rainy, Snowy, and Haze sky backgrounds forever.",
-      aiGenerations: "+3 extra AI generations permanently unlocked.",
-      mascots: "4 static mascots + 2 animated mascots unlocked.",
-      adFree: "1 Year (365 Days) completely ad-free.",
-      celebration: "Hearty glug, creamy foam rise, legendary chime, mascot bounce & video.",
-    },
-    thankYouText: "Large Root Beer Tier - Thank You!",
-    thankYouBackground: "large_amber_thankyou_bg",
-    ribbonColor: "deeper amber watercolor rich warm golden brown #8B4513",
-    bubbles: 5,
-    sounds: "glug glug creamy fizz legendary — hearty glug, creamy foam, legendary chime",
+    displayPrice: "$5.00",
+    durationDays: 365,
+    adFreeForever: false,
     bonus: {
-      backgrounds: ["rainy", "snowy", "haze"],
-      aiBackgrounds: 3,
-      staticMascots: 4,
-      animatedMascots: 2,
-      noAdsDays: 365,
-      label: "3 BGs + 3 AI + 4 static + 2 animated FOREVER + 1 year no ads + Video",
+      customBackgrounds: 6,
+      aiBackgrounds: 6,
+      noAdsForever: false,
+      label: "6 Permanent Slots + 1 Year Ad-Free",
     },
-    files: {
-      staticTransparent: "/tier%20plans/static_transparent_deeper_amber/large_amber_transparent.png",
-      staticFull: "/tier%20plans/static_transparent_deeper_amber/large_amber_transparent.png",
-      video: "/tier%20plans/animated_videos_no_price/large_root_beer_tier_thank_you_no_price_deeper_amber.mp4",
-      lottie: "/tier%20plans/lottie_and_gifs/mascot_bounce.json",
+    tagline: "6 Slots + 1 Full Year Ad-Free",
+    badge: "👑 VIP Member",
+    productId: "large_root_beer_tier",
+    perks: {
+      backgrounds: "6 permanent slots for city landmark wallpapers",
+      aiGenerations: "6 permanent slots for AI watercolor generator",
+      adFree: "365 days 100% ad-free experience",
+      celebration: "VIP badge & complete mascot wardrobe access",
     },
   },
   {
     id: "party_pack_root_beer_tier",
-    name: "Party Pack Root Beer Tier",
-    level: 4,
+    name: "Party Pack Root Beer",
     price: 10.0,
-    displayPrice: "$10",
-    tagline: "The ultimate VIP supporter pack — lifetime ad-free and the complete sky catalog unlocked forever.",
-    perks: {
-      backgrounds: "Unlocks ALL backgrounds forever (Rainy, Snowy, Haze, and Storm).",
-      aiGenerations: "+10 extra AI generations permanently unlocked.",
-      mascots: "8 static mascots + 4 animated mascots unlocked.",
-      adFree: "Ad-Free Forever (Lifetime) — never see an ad again.",
-      celebration: "Explosive confetti (12 bubbles), 3 clinking mugs, party cheers, fanfare & video.",
-    },
-    thankYouText: "Party Pack Root Beer Tier - Thank You!",
-    thankYouBackground: "party_amber_thankyou_bg",
-    ribbonColor: "deeper amber watercolor rich warm golden brown #8B4513",
-    bubbles: 12,
-    sounds: "BOOM confetti 3 mugs cheering fanfare — explosive confetti, party cheers, celebration fanfare",
+    displayPrice: "$10.00",
+    durationDays: null,
+    adFreeForever: true,
     bonus: {
-      backgrounds: ["rainy", "snowy", "haze", "storm"],
-      aiBackgrounds: 10,
-      staticMascots: 8,
-      animatedMascots: 4,
-      noAdsDays: 36500,
+      customBackgrounds: 999,
+      aiBackgrounds: 999,
       noAdsForever: true,
-      label: "ALL 6 BGs + 10 AI + 8 static + 4 animated + NO ADS FOREVER + Video",
+      label: "Unlimited Slots + Ad-Free FOREVER",
     },
-    files: {
-      staticTransparent: "/tier%20plans/static_transparent_deeper_amber/party_amber_transparent.png",
-      staticFull: "/tier%20plans/static_transparent_deeper_amber/party_amber_transparent.png",
-      video: "/tier%20plans/animated_videos_no_price/party_pack_root_beer_tier_thank_you_no_price_deeper_amber.mp4",
-      lottie: "/tier%20plans/lottie_and_gifs/party_bounce.json",
+    tagline: "Unlimited Slots & Lifetime Ad-Free",
+    badge: "🎉 Lifetime VIP",
+    productId: "party_pack_root_beer_tier",
+    perks: {
+      backgrounds: "Unlimited custom wallpaper slots forever",
+      aiGenerations: "Unlimited AI watercolor generation slots forever",
+      adFree: "Lifetime 100% ad-free experience guaranteed",
+      celebration: "Lifetime VIP golden badge & root beer mascot buddy forever",
     },
   },
 ];
 
-export const SORTED_TIERS = [...ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE].sort(
-  (a, b) => a.level - b.level
-);
+export const ROOT_BEER_TIERS = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE;
 
-export const PLAY_BILLING_PRODUCT_IDS = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.map(
-  (t) => t.id
-);
-export const LIFETIME_PRODUCT_ID = "ai_gallery_lifetime_unlock";
-export const LIFETIME_PRICE = "$1.99";
-export const LIFETIME_AI_PER_DAY = 10;
-
-export type BackgroundAccess = "free" | "ads_24h" | "premium" | "thankyou_forever";
-
-export const getBackgroundAccess = (
-  bgId: string,
-  unlockedThankYouBgs: string[],
-  adUnlocked: string[]
-): BackgroundAccess => {
-  if ((FREE_BACKGROUNDS as readonly string[]).includes(bgId)) return "free";
-  if (unlockedThankYouBgs.includes(bgId)) return "thankyou_forever";
-  if ((ADS_BACKGROUNDS as readonly string[]).includes(bgId)) {
-    return adUnlocked.includes(bgId) ? "free" : "ads_24h";
-  }
-  return "premium";
-};
-
-export const getThankYouBackground = (tierId: string) => {
-  const tier = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.find((t) => t.id === tierId);
-  return tier?.thankYouBackground || "default_thankyou_bg";
-};
-
-export const saveThankYouBackgroundForever = (tierId: string) => {
-  if (typeof window === "undefined") return null;
-  const tier = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.find((t) => t.id === tierId);
-  if (!tier) return null;
-
-  localStorage.setItem(`thankyou_bg_${tierId}`, tier.thankYouBackground);
-  localStorage.setItem(`thankyou_unlocked_${tierId}`, "true");
-
-  tier.bonus.backgrounds.forEach((bg) => {
-    localStorage.setItem(`unlocked_bg_${bg}`, "true");
-    localStorage.setItem(`unlocked_bg_${bg}_forever`, "true");
-  });
-
-  localStorage.setItem(`bonus_ai_bgs_${tierId}`, tier.bonus.aiBackgrounds.toString());
-
-  // Handle ad-free expiration
-  if (tier.bonus.noAdsForever) {
-    localStorage.setItem("no_ads_forever", "true");
-    localStorage.setItem(
-      "no_ads_until",
-      (Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toString()
-    );
-  } else if (tier.bonus.noAdsDays > 0) {
-    const noAdsUntil = Date.now() + tier.bonus.noAdsDays * 24 * 60 * 60 * 1000;
-    localStorage.setItem("no_ads_until", noAdsUntil.toString());
-  }
-
-  try {
-    const purchases = JSON.parse(localStorage.getItem("rootbeer_purchases") || "[]");
-    purchases.push({ tierId, date: Date.now(), bonus: tier.bonus });
-    localStorage.setItem("rootbeer_purchases", JSON.stringify(purchases));
-  } catch {}
-
-  return tier;
-};
-
-export const isThankYouBackgroundUnlocked = (tierId: string) => {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem(`thankyou_unlocked_${tierId}`) === "true";
-};
-
-export const getAllUnlockedThankYouBackgrounds = (): string[] => {
-  if (typeof window === "undefined") return [];
-  return ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.filter((t) =>
-    isThankYouBackgroundUnlocked(t.id)
-  ).map((t) => t.thankYouBackground);
-};
-
-export const unlockWithAd24h = (bgId: string) => {
-  if (typeof window === "undefined") return;
-  const until = Date.now() + ADS_DURATION_HOURS * 60 * 60 * 1000;
-  localStorage.setItem(`ad_unlocked_${bgId}`, until.toString());
-};
-
-export const isAdUnlocked = (bgId: string): boolean => {
-  if (typeof window === "undefined") return false;
-  if (localStorage.getItem("no_ads_forever") === "true") return true;
-  const noAdsUntil = localStorage.getItem("no_ads_until");
-  if (noAdsUntil && Date.now() < parseInt(noAdsUntil, 10)) return true;
-  const until = localStorage.getItem(`ad_unlocked_${bgId}`);
-  if (!until) return false;
-  return Date.now() < parseInt(until, 10);
-};
-
-export const getAdUnlockedBackgrounds = (): string[] => {
-  return ADS_BACKGROUNDS.filter((bg) => isAdUnlocked(bg));
-};
-
-// ============================================================================
-// DONATION CONFIGURATION & AUTO-REDIRECT TRACKING
-// ============================================================================
-export type DonationProvider = "stripe" | "buymeacoffee" | "kofi" | "paypal";
-
-export const PENDING_TIER_KEY = "weather:pending-donation-tier";
-
-export const setPendingDonationTier = (tierId: string) => {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(PENDING_TIER_KEY, tierId);
-  } catch {}
-};
-
-export const getPendingDonationTier = (): string | null => {
-  if (typeof window === "undefined") return null;
-  try {
-    return localStorage.getItem(PENDING_TIER_KEY);
-  } catch {
-    return null;
-  }
-};
-
-export const clearPendingDonationTier = () => {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(PENDING_TIER_KEY);
-  } catch {}
-};
+export type DonationProvider = "googlepay" | "buymeacoffee" | "paypal" | "stripe" | "kofi";
 
 export const DONATION_CONFIG = {
   paypalUsername: "rod1974b",
   buyMeACoffeePage: "https://buymeacoffee.com/rod1974b",
   buyMeACoffeeExtras: {
+    small_root_beer_tier: "https://buymeacoffee.com/rod1974b/e/595466",
+    medium_root_beer_tier: "https://buymeacoffee.com/rod1974b/e/595468",
+    large_root_beer_tier: "https://buymeacoffee.com/rod1974b/e/595470",
+    party_pack_root_beer_tier: "https://buymeacoffee.com/rod1974b/e/595471",
+  } as Record<string, string>,
+  googlePayLinks: {
     small_root_beer_tier: "https://buymeacoffee.com/rod1974b/e/595466",
     medium_root_beer_tier: "https://buymeacoffee.com/rod1974b/e/595468",
     large_root_beer_tier: "https://buymeacoffee.com/rod1974b/e/595470",
@@ -359,6 +161,13 @@ export const getDonationUrl = (
   const note = encodeURIComponent(tier?.name || "My Weather Pal support");
 
   switch (provider) {
+    case "googlepay": {
+      const gPayLink = DONATION_CONFIG.googlePayLinks?.[tierId] || DONATION_CONFIG.stripeLinks?.[tierId];
+      if (gPayLink) return gPayLink;
+      const bmcExtra = DONATION_CONFIG.buyMeACoffeeExtras[tierId];
+      if (bmcExtra) return bmcExtra;
+      return DONATION_CONFIG.buyMeACoffeePage || "https://buymeacoffee.com/rod1974b";
+    }
     case "buymeacoffee": {
       const directExtraUrl = DONATION_CONFIG.buyMeACoffeeExtras[tierId];
       if (directExtraUrl) return directExtraUrl;
@@ -375,15 +184,44 @@ export const getDonationUrl = (
     }
     case "paypal":
     default: {
-      return `https://paypal.me/${DONATION_CONFIG.paypalUsername}/${amount}USD?locale.x=en_US&note=${note}`;
+      const user = DONATION_CONFIG.paypalUsername || "rod1974b";
+      return `https://www.paypal.com/paypalme/${user}/${amount}?item_name=${note}`;
     }
   }
 };
 
-// ============================================================================
-// MEDIAN.CO ANDROID WRAPPER & GOOGLE PLAY BILLING BRIDGE
-// ============================================================================
+// Pending Donation Tracking Helpers
+const PENDING_TIER_KEY = "weather:pending-donation-tier";
 
+export const setPendingDonationTier = (tierId: string) => {
+  try {
+    localStorage.setItem(PENDING_TIER_KEY, tierId);
+  } catch {}
+};
+
+export const getPendingDonationTier = (): string | null => {
+  try {
+    return localStorage.getItem(PENDING_TIER_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const clearPendingDonationTier = () => {
+  try {
+    localStorage.removeItem(PENDING_TIER_KEY);
+  } catch {}
+};
+
+export const saveThankYouBackgroundForever = (tierId: string) => {
+  try {
+    localStorage.setItem(`weather:monetization:${tierId}`, "true");
+    localStorage.setItem("weather:last-unlocked-tier", tierId);
+    window.dispatchEvent(new CustomEvent("weather:monetization-updated", { detail: { tierId } }));
+  } catch {}
+};
+
+// MEDIAN.CO ANDROID WRAPPER & GOOGLE PLAY BILLING BRIDGE
 export const isMedianAndroidApp = (): boolean => {
   if (typeof window === "undefined") return false;
   const w = window as unknown as {
@@ -403,28 +241,27 @@ export const isMedianAndroidApp = (): boolean => {
 export const purchaseTierViaGooglePlay = (
   tierId: string,
   onSuccess: () => void,
-  onError: (err: { message?: string } | null) => void
-): void => {
+  onError: (err: any) => void
+) => {
   if (typeof window === "undefined") {
-    onError({ message: "Purchase unavailable in this environment." });
+    onError(new Error("Window object unavailable"));
     return;
   }
+
   const w = window as unknown as {
     median?: {
       iap?: {
         purchase?: (opts: {
-          productID?: string;
-          productId?: string;
-          callback?: (result: { event?: string; errorMessage?: string; success?: boolean }) => void;
+          productId: string;
+          callback?: (res: any) => void;
         }) => void;
       };
     };
     Median?: {
       iap?: {
         purchase?: (opts: {
-          productID?: string;
-          productId?: string;
-          callback?: (result: { event?: string; errorMessage?: string; success?: boolean }) => void;
+          productId: string;
+          callback?: (res: any) => void;
         }) => void;
       };
     };
@@ -432,46 +269,41 @@ export const purchaseTierViaGooglePlay = (
 
   const iapBridge = w.median?.iap || w.Median?.iap;
 
-  if (!iapBridge?.purchase) {
-    onError({
-      message: "Google Play billing is not available in this build. Please try again on an active Android release.",
-    });
-    return;
-  }
-
-  try {
-    iapBridge.purchase({
-      productID: tierId,
-      productId: tierId,
-      callback: (result) => {
-        const event = (result?.event || "").toLowerCase();
-        if (
-          result?.success ||
-          (!event && !result?.errorMessage) ||
-          event.includes("success") ||
-          event.includes("purchased")
-        ) {
-          onSuccess();
-        } else {
-          onError({ message: result?.errorMessage || "Purchase was cancelled." });
-        }
-      },
-    });
-  } catch (err: any) {
-    onError({ message: err?.message || "Purchase was cancelled." });
+  if (iapBridge && typeof iapBridge.purchase === "function") {
+    try {
+      iapBridge.purchase({
+        productId: tierId,
+        callback: (res: any) => {
+          if (res?.success || res?.status === "success") {
+            onSuccess();
+          } else {
+            onError(new Error(res?.message || "Purchase cancelled or failed"));
+          }
+        },
+      });
+    } catch (e) {
+      onError(e);
+    }
+  } else {
+    // Simulated browser fallback for testing outside Median environment
+    const proceed = confirm(
+      `[Google Play In-App Billing]\nConfirm test simulated purchase for tier:\n${tierId}?`
+    );
+    if (proceed) {
+      onSuccess();
+    } else {
+      onError(new Error("Test purchase cancelled by user"));
+    }
   }
 };
 
-// ============================================================================
 // MEDIAN ADMOB REWARDED VIDEO ADS BRIDGE
-// ============================================================================
-
 export const showRewardedAdViaMedian = (
-  onSuccess: () => void,
-  onError: (err: { message?: string }) => void
-): void => {
+  onRewarded: () => void,
+  onError: (err: any) => void
+) => {
   if (typeof window === "undefined") {
-    onError({ message: "Rewarded ads are only available on a live device." });
+    onError(new Error("Window object unavailable"));
     return;
   }
 
@@ -479,20 +311,14 @@ export const showRewardedAdViaMedian = (
     median?: {
       admob?: {
         rewarded?: {
-          show?: (opts?: {
-            adUnitId?: string;
-            callback?: (result: { success?: boolean; reward?: boolean; errorMessage?: string }) => void;
-          }) => void;
+          show?: (opts: { callback?: (res: any) => void }) => void;
         };
       };
     };
     Median?: {
       admob?: {
         rewarded?: {
-          show?: (opts?: {
-            adUnitId?: string;
-            callback?: (result: { success?: boolean; reward?: boolean; errorMessage?: string }) => void;
-          }) => void;
+          show?: (opts: { callback?: (res: any) => void }) => void;
         };
       };
     };
@@ -503,24 +329,26 @@ export const showRewardedAdViaMedian = (
   if (admobRewarded && typeof admobRewarded.show === "function") {
     try {
       admobRewarded.show({
-        adUnitId: ADMOB_REWARDED_ID,
-        callback: (result) => {
-          if (result && (result.success || result.reward)) {
-            onSuccess();
+        callback: (res: any) => {
+          if (res?.rewarded || res?.success || res?.status === "completed") {
+            onRewarded();
           } else {
-            onError({ message: result?.errorMessage || "Ad was closed before completing." });
+            onError(new Error(res?.message || "Ad did not complete"));
           }
         },
       });
-    } catch (err: any) {
-      onError({ message: err?.message || "Failed to show native rewarded ad." });
+    } catch (e) {
+      onError(e);
     }
   } else {
-    // Graceful fallback for browser testing & preview: simulate a 2s video ad
-    setTimeout(() => {
-      onSuccess();
-    }, 2000);
+    // Simulated ad playback for web preview
+    const proceed = confirm(
+      "[AdMob Rewarded Video Ad]\nSimulate watching a 30-second rewarded sponsor ad to unlock +1 Wallpaper Slot for 24 hours?"
+    );
+    if (proceed) {
+      onRewarded();
+    } else {
+      onError(new Error("Ad viewing cancelled"));
+    }
   }
 };
-
-export default ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE;
