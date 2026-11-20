@@ -21,6 +21,7 @@ import viJson from "@/locales/vi.json";
 import { extraResources } from "./i18nExtra";
 import { extraResourcesPart2 } from "./i18nExtraPart2";
 import { extraResourcesPart3 } from "./i18nExtraPart3";
+import { extraResourcesPart4 } from "./i18nExtraPart4";
 
 export const baseKeys = enJson;
 
@@ -31,9 +32,11 @@ function buildResourceBundle(langJson: Record<string, string>, langCode: string)
       ...(extraResources["en"] || {}),
       ...(extraResourcesPart2["en"] || {}),
       ...(extraResourcesPart3["en"] || {}),
+      ...(extraResourcesPart4["en"] || {}),
       ...(extraResources[langCode] || {}),
       ...(extraResourcesPart2[langCode] || {}),
       ...(extraResourcesPart3[langCode] || {}),
+      ...(extraResourcesPart4[langCode] || {}),
       ...langJson,
     },
   };
@@ -46,6 +49,7 @@ export const resources: Record<string, { translation: Record<string, string> }> 
       ...(extraResources["en"] || {}),
       ...(extraResourcesPart2["en"] || {}),
       ...(extraResourcesPart3["en"] || {}),
+      ...(extraResourcesPart4["en"] || {}),
     },
   },
   th: buildResourceBundle(thJson, "th"),
@@ -84,8 +88,6 @@ function detectInitialLanguage(): string {
   return "en";
 }
 
-// Server rendering always produces English markup, so the client must hydrate with
-// English too; the saved language is applied afterwards by applyPersistedLanguage().
 i18n.use(initReactI18next).init({
   resources,
   lng: "en",
@@ -111,8 +113,6 @@ if (typeof document !== "undefined") {
 }
 
 export function applyPersistedLanguage(): void {
-  // Called from each route's mount effect: the route has already hydrated with the
-  // server's English markup, so switching here cannot cause a hydration mismatch.
   const lng = detectInitialLanguage();
   if (lng && lng !== i18n.language) {
     void i18n.changeLanguage(lng);
