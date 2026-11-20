@@ -47,8 +47,8 @@ export interface WeatherViewProps {
   weather: Weather;
   activeAlerts?: TickerAlertItem[];
   unit: WeatherUnit;
-  customBgUrl?: string;
-  onSelectBackground: (url: string) => void;
+  customBgUrl?: string | undefined;
+  onSelectBackground: (url: string | null) => void;
   onRefresh: () => void;
   isRefreshing?: boolean;
   isFavorite?: boolean;

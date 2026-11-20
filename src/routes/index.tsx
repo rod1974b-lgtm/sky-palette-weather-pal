@@ -22,7 +22,7 @@ import { saveThankYouBackgroundForever } from "@/lib/monetization";
 import {
   getLocalizedCity,
   getLocalizedCountry,
-} from "@/lib/localizedPlaces";
+} from "@/lib/placeLocalization";
 
 const BANGKOK_DEFAULT: Place = {
   name: "Bangkok",
@@ -257,10 +257,11 @@ export function WeatherHomePage() {
     return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01;
   };
 
-  const handleSelectCustomBg = (url: string) => {
+  const handleSelectCustomBg = (url: string | null) => {
     setCustomBgUrl(url);
     try {
-      localStorage.setItem("weather:custom-hero-art", url);
+      if (url) localStorage.setItem("weather:custom-hero-art", url);
+      else localStorage.removeItem("weather:custom-hero-art");
     } catch {}
   };
 

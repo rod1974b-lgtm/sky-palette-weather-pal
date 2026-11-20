@@ -80,6 +80,35 @@ export function saveUnitPref(unit: WeatherUnit): void {
   } catch {}
 }
 
+const LAST_PLACE_KEY = "weather:last-place";
+
+export function loadLastPlace(): Place | null {
+  try {
+    const raw = localStorage.getItem(LAST_PLACE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Place> | null;
+    if (
+      !parsed ||
+      typeof parsed.name !== "string" ||
+      typeof parsed.lat !== "number" ||
+      typeof parsed.lon !== "number"
+    ) {
+      return null;
+    }
+    const place: Place = { name: parsed.name, lat: parsed.lat, lon: parsed.lon };
+    if (typeof parsed.country === "string") place.country = parsed.country;
+    return place;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastPlace(place: Place): void {
+  try {
+    localStorage.setItem(LAST_PLACE_KEY, JSON.stringify(place));
+  } catch {}
+}
+
 export function loadFavorites(): Place[] {
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);
