@@ -11,8 +11,9 @@ export const ADS_AI_SLOTS = 3;
 export const ADS_AI_GENERATIONS = 3;
 export const ADS_DURATION_HOURS = 24;
 
-// GOOGLE ADMOB REWARDED VIDEO AD UNIT ID (Configured in Google AdMob Console)
-export const ADMOB_REWARDED_ID = "ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY";
+// GOOGLE ADMOB REWARDED VIDEO AD UNIT ID
+// Configure your live AdMob rewarded unit ID below or use the Google test ID for validation
+export const ADMOB_REWARDED_ID = "ca-app-pub-3940256099942544/5224354917"; // Google standard test rewarded unit ID
 
 // PREMIUM: Only with Root Beer / Lifetime
 export const PREMIUM_BACKGROUNDS = ["haze", "storm"] as const;
@@ -30,7 +31,6 @@ export interface RootBeerTierPerks {
   celebration: string;
 }
 
-// ROOT BEER TIERS — Deeper amber watercolor ribbon unified
 export interface RootBeerTier {
   id: string;
   name: string;
@@ -384,7 +384,6 @@ export const getDonationUrl = (
 // MEDIAN.CO ANDROID WRAPPER & GOOGLE PLAY BILLING BRIDGE
 // ============================================================================
 
-// Detects the Median.co (GoNative) Android WebView wrapper.
 export const isMedianAndroidApp = (): boolean => {
   if (typeof window === "undefined") return false;
   const w = window as unknown as {
@@ -401,7 +400,6 @@ export const isMedianAndroidApp = (): boolean => {
   );
 };
 
-// Google Play In-App Purchase through the Median bridge.
 export const purchaseTierViaGooglePlay = (
   tierId: string,
   onSuccess: () => void,
@@ -447,7 +445,12 @@ export const purchaseTierViaGooglePlay = (
       productId: tierId,
       callback: (result) => {
         const event = (result?.event || "").toLowerCase();
-        if (result?.success || (!event && !result?.errorMessage) || event.includes("success") || event.includes("purchased")) {
+        if (
+          result?.success ||
+          (!event && !result?.errorMessage) ||
+          event.includes("success") ||
+          event.includes("purchased")
+        ) {
           onSuccess();
         } else {
           onError({ message: result?.errorMessage || "Purchase was cancelled." });
