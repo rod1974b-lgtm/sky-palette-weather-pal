@@ -1,8 +1,9 @@
 // src/lib/i18nExtraPart4.ts
-// Complete translations for the 91 previously missing keys across all 14 languages.
+// Supplies translated App Title and 91 UI keys across all 14 languages.
 
 export const extraResourcesPart4: Record<string, Record<string, string>> = {
   en: {
+    app_title: "My Weather Pal",
     upload_photo: "Upload Photo",
     delete: "Delete",
     paint_with_ai: "Paint with AI",
@@ -96,6 +97,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "UV Index is dangerous. Seek shade and use SPF 50+."
   },
   th: {
+    app_title: "เพื่อนคู่ใจสภาพอากาศ (My Weather Pal)",
     upload_photo: "อัปโหลดภาพ",
     delete: "ลบ",
     paint_with_ai: "วาดด้วย AI",
@@ -189,6 +191,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "ดัชนี UV อยู่ในระดับอันตราย ควรหลีกเลี่ยงแดดจัดและทากันแดด SPF 50+"
   },
   es: {
+    app_title: "Mi Compañero del Clima",
     upload_photo: "Subir foto",
     delete: "Eliminar",
     paint_with_ai: "Pintar con IA",
@@ -282,6 +285,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "El índice UV es peligroso. Busca sombra y usa protector SPF 50+."
   },
   ja: {
+    app_title: "お天気パル (My Weather Pal)",
     upload_photo: "写真をアップロード",
     delete: "削除",
     paint_with_ai: "AIで描画",
@@ -375,6 +379,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "紫外線指数が危険レベルです。日陰を選び、日焼け止めを使用してください。"
   },
   zh: {
+    app_title: "我的天气伙伴 (My Weather Pal)",
     upload_photo: "上传照片",
     delete: "删除",
     paint_with_ai: "AI作画",
@@ -468,6 +473,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "紫外线指数处于危险高位，请避免暴晒并涂抹防晒霜。"
   },
   fr: {
+    app_title: "Mon Compagnon Météo",
     upload_photo: "Téléverser une photo",
     delete: "Supprimer",
     paint_with_ai: "Peindre avec l'IA",
@@ -561,6 +567,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "Indice UV très dangereux. Restez à l'ombre et appliquez une protection SPF 50+."
   },
   de: {
+    app_title: "Mein Wetter-Freund",
     upload_photo: "Foto hochladen",
     delete: "Löschen",
     paint_with_ai: "Mit KI malen",
@@ -654,6 +661,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "UV-Index im gefährlichen Bereich. Schatten suchen und LSF 50+ auftragen."
   },
   pt: {
+    app_title: "Meu Companheiro do Clima",
     upload_photo: "Enviar foto",
     delete: "Excluir",
     paint_with_ai: "Pintar com IA",
@@ -747,6 +755,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "Índice UV muito perigoso. Procure sombras e use protetor FPS 50+."
   },
   ru: {
+    app_title: "Мой Погодный Друг (My Weather Pal)",
     upload_photo: "Загрузить фото",
     delete: "Удалить",
     paint_with_ai: "Создать с ИИ",
@@ -840,6 +849,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "УФ-индекс опасен. Держитесь в тени и используйте крем SPF 50+."
   },
   ko: {
+    app_title: "마이 웨더 팔 (My Weather Pal)",
     upload_photo: "사진 업로드",
     delete: "삭제",
     paint_with_ai: "AI로 그리기",
@@ -933,6 +943,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "자외선 지수가 위험 수준입니다. 그늘을 찾고 SPF 50+ 차단제를 바르세요."
   },
   id: {
+    app_title: "Sahabat Cuacaku (My Weather Pal)",
     upload_photo: "Unggah Foto",
     delete: "Hapus",
     paint_with_ai: "Lukis dengan AI",
@@ -1026,6 +1037,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "Indeks UV sangat berbahaya. Cari tempat teduh dan gunakan tabir surya SPF 50+."
   },
   vi: {
+    app_title: "Bạn Đồng Hành Thời Tiết (My Weather Pal)",
     upload_photo: "Tải ảnh lên",
     delete: "Xóa",
     paint_with_ai: "Vẽ bằng AI",
@@ -1119,6 +1131,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "Chỉ số UV ở mức nguy hiểm. Hãy tìm bóng râm và thoa kem chống nắng SPF 50+."
   },
   hi: {
+    app_title: "माई वेदर पाल (My Weather Pal)",
     upload_photo: "फोटो अपलोड करें",
     delete: "हटाएं",
     paint_with_ai: "एआई से चित्र बनाएं",
@@ -1212,6 +1225,7 @@ export const extraResourcesPart4: Record<string, Record<string, string>> = {
     alert_uv_desc: "यूवी इंडेक्स खतरनाक स्तर पर है। छाया में रहें और सनस्क्रीन लगाएं।"
   },
   ar: {
+    app_title: "صديق الطقس (My Weather Pal)",
     upload_photo: "تحميل صورة",
     delete: "حذف",
     paint_with_ai: "الرسم بالذكاء الاصطناعي",
