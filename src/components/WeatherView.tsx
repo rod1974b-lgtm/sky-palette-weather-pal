@@ -4,7 +4,6 @@ import type { TFunction } from "i18next";
 import {
   type Weather,
   type WeatherUnit,
-  describe,
 } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { useTranslation } from "react-i18next";
@@ -269,16 +268,16 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6">
-      {/* 1. SEVERE WEATHER ALERT WATCHER & TICKER */}
+      {/* 1. SEVERE WEATHER ALERT WATCHER */}
       <WeatherAlertWatcher
         weather={w}
+        unit={unit}
         activeAlerts={activeAlerts}
-        onOpenDetail={() => openGuide("alerts")}
       />
 
       {/* 2. FROSTED ACTION TOOLBAR (LOCKED SAFELY ABOVE THE HERO CARD) */}
-      <div className="w-full flex items-center justify-between gap-2 p-2 rounded-2xl bg-card/85 backdrop-blur-md border border-border shadow-xs">
-        <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="w-full flex items-center justify-between gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl bg-card/85 backdrop-blur-md border border-border shadow-xs">
+        <div className="flex items-center gap-1 sm:gap-1.5">
           <button
             type="button"
             onClick={handleNextArtwork}
@@ -366,14 +365,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               )}
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground font-medium mt-0.5">
-              {describe(w.current.code)}
+              {getConditionLabel(w.current.code, t)}
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => openGuide("all")}
-            className="px-2.5 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition border border-border/50 cursor-pointer flex items-center gap-1"
+            className="px-2.5 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition border border-border/50 cursor-pointer flex items-center gap-1 shrink-0"
           >
             <span>📖</span>
             <span className="hidden sm:inline">{t("guide_btn", "Weather Guide")}</span>
@@ -389,7 +388,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             <div className="inline-flex items-center justify-center shrink-0">
               <WeatherIcon
                 code={w.current.code}
-                isDay={Boolean(w.current.is_day)}
+                isDay={w.current.is_day ? 1 : 0}
                 className="w-12 h-12 sm:w-16 sm:h-16 drop-shadow-md"
               />
             </div>
@@ -487,7 +486,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       </section>
 
       {/* 5. WEATHER MASCOT BUDDY */}
-      <WeatherMascot weather={w} unit={unit} />
+      <WeatherMascot weather={w} />
 
       {/* 6. HOURLY FORECAST (TAP ANY CARD FOR EXPANDED DETAIL) */}
       {w.hourly && w.hourly.length > 0 && (
@@ -516,7 +515,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 <div className="flex justify-center py-0.5">
                   <WeatherIcon
                     code={h.code}
-                    isDay={h.is_day !== undefined ? Boolean(h.is_day) : true}
+                    isDay={h.is_day ? 1 : 0}
                     className="w-6 h-6"
                   />
                 </div>
@@ -555,7 +554,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 flex-1 px-2">
-                  <WeatherIcon code={d.code} isDay={true} className="w-5 h-5 shrink-0" />
+                  <WeatherIcon code={d.code} isDay={1} className="w-5 h-5 shrink-0" />
                   <span className="text-xs text-muted-foreground truncate">
                     {getConditionLabel(d.code, t)}
                   </span>
@@ -588,13 +587,13 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               key={cat}
               type="button"
               onClick={() => setActiveWearTab(cat)}
-              className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer capitalize ${
+              className={`flex-1 py-1.5 px-1 rounded-xl text-[11px] sm:text-xs font-bold transition cursor-pointer capitalize min-w-0 truncate ${
                 activeWearTab === cat
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {wearRecommendations[cat].icon} {wearRecommendations[cat].title.split(" ")[0]}
+              {wearRecommendations[cat].icon} <span className="truncate">{wearRecommendations[cat].title.split(" ")[0]}</span>
             </button>
           ))}
         </div>
@@ -617,7 +616,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       </section>
 
       {/* 9. OUTDOOR ACTIVITY PLANNER */}
-      <OutdoorActivityPlanner weather={w} />
+      <OutdoorActivityPlanner weather={w} unit={unit} />
 
       {/* 10. LIVE WEATHER & RAIN RADAR */}
       <WeatherRadar
@@ -628,10 +627,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       />
 
       {/* 11. SUN & MOON ASTRONOMY TRACKER */}
-      <AstronomyTracker
-        lat={w.place.lat}
-        lon={w.place.lon}
-      />
+      <AstronomyTracker weather={w} />
 
       {/* MODALS */}
       {galleryOpen && (
@@ -676,8 +672,6 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           isOpen={guideOpen}
           onClose={() => setGuideOpen(false)}
           initialTopic={guideTopic}
-          lat={w.place.lat}
-          lon={w.place.lon}
         />
       )}
 
