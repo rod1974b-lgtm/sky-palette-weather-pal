@@ -213,9 +213,25 @@ export const clearPendingDonationTier = () => {
   } catch {}
 };
 
+export const isThankYouBackgroundUnlocked = (tierId: string): boolean => {
+  if (typeof window === "undefined") return false;
+  return (
+    localStorage.getItem(`thankyou_unlocked_${tierId}`) === "true" ||
+    localStorage.getItem(`weather:monetization:${tierId}`) === "true"
+  );
+};
+
+export const getAllUnlockedThankYouBackgrounds = (): string[] => {
+  if (typeof window === "undefined") return [];
+  return ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.filter((t) =>
+    isThankYouBackgroundUnlocked(t.id)
+  ).map((t) => t.id);
+};
+
 export const saveThankYouBackgroundForever = (tierId: string) => {
   try {
     localStorage.setItem(`weather:monetization:${tierId}`, "true");
+    localStorage.setItem(`thankyou_unlocked_${tierId}`, "true");
     localStorage.setItem("weather:last-unlocked-tier", tierId);
     window.dispatchEvent(new CustomEvent("weather:monetization-updated", { detail: { tierId } }));
   } catch {}
