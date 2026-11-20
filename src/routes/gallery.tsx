@@ -22,6 +22,7 @@ import {
   applyCustomWallpaper,
   migrateLegacyLocalStorage,
 } from "@/lib/wallpaperStorage";
+import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
 
 const DESC =
   "Explore curated city landmark watercolors, create custom AI scenes, and personalize your forecast wallpaper.";
@@ -83,10 +84,21 @@ function getCityRegion(cityName: string): string {
   if (["ratchaburi", "bangkok", "chiang mai", "phuket", "krabi", "pattaya"].includes(c)) return "thailand";
   if (["singapore", "tokyo", "kyoto", "osaka", "seoul", "taipei", "hong kong", "hanoi", "ho chi minh city", "bali", "kuala lumpur", "sydney", "melbourne"].includes(c)) return "asia";
   if (["paris", "london", "rome", "venice", "barcelona", "amsterdam", "berlin", "zurich", "prague"].includes(c)) return "europe";
-  return "americas";
+  if (["new york", "san francisco", "los angeles", "vancouver", "toronto"].includes(c)) return "americas";
+  return "all";
 }
 
-export function getUserSlotLimits() {
+export interface UserSlotLimits {
+  citySlots: number;
+  aiSlots: number;
+  baseSlots: number;
+  isUnlimited: boolean;
+  hasAdBonus: boolean;
+  adHoursLeft: number;
+  tierLevel: number;
+}
+
+export function getUserSlotLimits(): UserSlotLimits {
   if (typeof window === "undefined") {
     return {
       citySlots: 1,
@@ -99,19 +111,19 @@ export function getUserSlotLimits() {
     };
   }
 
-  const isParty = localStorage.getItem("thankyou_unlocked_party_pack_root_beer_tier") === "true";
-  const isLarge = localStorage.getItem("thankyou_unlocked_large_root_beer_tier") === "true";
-  const isMedium = localStorage.getItem("thankyou_unlocked_medium_root_beer_tier") === "true";
-  const isSmall = localStorage.getItem("thankyou_unlocked_small_root_beer_tier") === "true";
+  const isPartyVip = localStorage.getItem("weather:monetization:party_pack_root_beer_tier") === "true";
+  const isLarge = localStorage.getItem("weather:monetization:large_root_beer_tier") === "true";
+  const isMedium = localStorage.getItem("weather:monetization:medium_root_beer_tier") === "true";
+  const isSmall = localStorage.getItem("weather:monetization:small_root_beer_tier") === "true";
 
-  let tierLevel = 0;
   let baseSlots = 1;
   let isUnlimited = false;
+  let tierLevel = 0;
 
-  if (isParty) {
+  if (isPartyVip) {
     tierLevel = 4;
-    baseSlots = 999;
     isUnlimited = true;
+    baseSlots = 999;
   } else if (isLarge) {
     tierLevel = 3;
     baseSlots = 6;
@@ -183,7 +195,6 @@ function getTierShortName(tierLevel: number, t: TFunction): string {
   }
 }
 
-// Client-Side Canvas Image Compression helper
 function compressImageDataUrl(dataUrl: string, maxDim = 1024, quality = 0.82): Promise<string> {
   return new Promise((resolve) => {
     if (typeof window === "undefined" || !dataUrl.startsWith("data:")) {
@@ -236,7 +247,7 @@ function compressImageFile(file: File, maxDim = 1024, quality = 0.82): Promise<s
 }
 
 export function ArtGalleryPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
   const [currentPlace, setCurrentPlace] = useState<Place>(() => {
@@ -260,7 +271,6 @@ export function ArtGalleryPage() {
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [paymentModalTier, setPaymentModalTier] = useState<string | null>(null);
 
-  // Targeted slot index (0 for Slot 1, 1 for Slot 2, etc.)
   const [targetSlotIndex, setTargetSlotIndex] = useState<number>(0);
 
   const [savedArtworks, setSavedArtworks] = useState<SavedItem[]>([]);
@@ -269,7 +279,6 @@ export function ArtGalleryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const studioRef = useRef<HTMLDivElement>(null);
 
-  // Load artworks from IndexedDB on mount and run one-time legacy localStorage migration
   useEffect(() => {
     applyPersistedLanguage();
     migrateLegacyLocalStorage().then(() => {
@@ -356,7 +365,13 @@ export function ArtGalleryPage() {
     saveCustomArtChoice(cityName, imageUrl);
     saveCustomArtChoice(currentPlace.name, imageUrl);
     await applyCustomWallpaper(cityName, currentPlace.name, imageUrl);
-    alert(t("alert_wallpaper_applied", `Applied wallpaper for ${cityName}! Tap "Back to Forecast" to see it live.`, { city: cityName }));
+    alert(
+      t(
+        "alert_wallpaper_applied",
+        `Applied wallpaper for ${getLocalizedCity(cityName, i18n.language)}! Tap "Back to Forecast" to see it live.`,
+        { city: getLocalizedCity(cityName, i18n.language) }
+      )
+    );
   };
 
   const handleDownloadArt = (item: SavedItem, slotNum: number) => {
@@ -478,7 +493,7 @@ export function ArtGalleryPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white font-sans pb-20 selection:bg-amber-500 selection:text-slate-950">
-      {/* Top Navigation Bar */}
+      {/* Top Navigation Bar with Localized City Pin Badge */}
       <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
         <Link
           to="/"
@@ -488,11 +503,12 @@ export function ArtGalleryPage() {
         </Link>
         <div className="flex items-center gap-3">
           <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
-            📍 {currentPlace.name}
+            📍 {getLocalizedCity(currentPlace.name, i18n.language)}
+            {currentPlace.country ? `, ${getLocalizedCountry(currentPlace.country, i18n.language)}` : ""}
           </span>
           <button
             onClick={() => setPaymentModalTier("small_root_beer_tier")}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:brightness-110 shadow transition"
+            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:brightness-110 shadow transition cursor-pointer"
           >
             🍺 {t("nav_support_root_beer", "Support with Root Beer")}
           </button>
@@ -536,14 +552,14 @@ export function ArtGalleryPage() {
                 <button
                   onClick={handleWatchAd}
                   disabled={isWatchingAd}
-                  className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40 transition flex items-center gap-1.5"
+                  className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40 transition flex items-center gap-1.5 cursor-pointer"
                 >
                   {isWatchingAd ? "⏳ " + t("btn_watching_ad", "Watching...") : "📺 " + t("btn_watch_ad_bonus", "Watch Ad (+1 Slot / 24h)")}
                 </button>
               )}
               <button
                 onClick={() => setPaymentModalTier("small_root_beer_tier")}
-                className="text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:brightness-110 shadow-lg transition"
+                className="text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:brightness-110 shadow-lg transition cursor-pointer"
               >
                 ⚡ {t("btn_unlock_more_slots", "Unlock More Slots")}
               </button>
@@ -637,7 +653,7 @@ export function ArtGalleryPage() {
                               e.stopPropagation();
                               setZoomedImage({ url: item.url, title: item.title });
                             }}
-                            className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition"
+                            className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition cursor-pointer"
                             title={t("btn_zoom", "Zoom")}
                           >
                             🔍
@@ -686,7 +702,7 @@ export function ArtGalleryPage() {
                             e.stopPropagation();
                             handleApplyWallpaper(currentPlace.name, item.url);
                           }}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition text-[11px]"
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition text-[11px] cursor-pointer"
                         >
                           ✓ {t("btn_apply_wallpaper", "Apply")}
                         </button>
@@ -696,7 +712,7 @@ export function ArtGalleryPage() {
                               e.stopPropagation();
                               handleDownloadArt(item, slotNumber);
                             }}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
                             title={t("btn_download", "Download")}
                           >
                             💾
@@ -706,7 +722,7 @@ export function ArtGalleryPage() {
                               e.stopPropagation();
                               handleDeleteSlot(slotIdx);
                             }}
-                            className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 transition"
+                            className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 transition cursor-pointer"
                             title={t("btn_delete", "Delete")}
                           >
                             🗑️
@@ -719,7 +735,7 @@ export function ArtGalleryPage() {
                           e.stopPropagation();
                           handleSelectTargetSlot(slotIdx);
                         }}
-                        className={`w-full py-1.5 rounded-lg font-semibold transition text-xs ${
+                        className={`w-full py-1.5 rounded-lg font-semibold transition text-xs cursor-pointer ${
                           isTargeted
                             ? "bg-amber-500 text-slate-950"
                             : "bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700"
@@ -733,7 +749,7 @@ export function ArtGalleryPage() {
                           e.stopPropagation();
                           setPaymentModalTier(tierCode);
                         }}
-                        className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 font-semibold transition text-xs border border-amber-500/30"
+                        className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 font-semibold transition text-xs border border-amber-500/30 cursor-pointer"
                       >
                         ⚡ {t("btn_unlock_slot", "Unlock Slot")}
                       </button>
@@ -753,7 +769,7 @@ export function ArtGalleryPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/60 pb-3">
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🎨</span> {t("heading_ai_studio", "AI Painting Studio for")} {currentPlace.name}
+                <span>🎨</span> {t("heading_ai_studio", "AI Painting Studio for")} {getLocalizedCity(currentPlace.name, i18n.language)}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 {t("studio_target_label", "Saving to:")}{" "}
@@ -775,7 +791,7 @@ export function ArtGalleryPage() {
             <div className="space-y-4 pt-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {t("label_describe_watercolor", "Describe your custom watercolor scene for")} {currentPlace.name}:
+                  {t("label_describe_watercolor", "Describe your custom watercolor scene for")} {getLocalizedCity(currentPlace.name, i18n.language)}:
                 </label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
@@ -893,7 +909,7 @@ export function ArtGalleryPage() {
                 <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-white truncate">{item.title}</h3>
-                    <p className="text-xs text-slate-400">{item.city}</p>
+                    <p className="text-xs text-slate-400">{getLocalizedCity(item.city, i18n.language)}</p>
                   </div>
 
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-700/60">
