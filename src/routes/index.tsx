@@ -19,6 +19,7 @@ import { CityComparison } from "@/components/CityComparison";
 import { PaymentModal } from "@/components/PaymentModal";
 import { ThankYouModal } from "@/components/ThankYouModal";
 import { saveThankYouBackgroundForever } from "@/lib/monetization";
+import { applyPersistedLanguage } from "@/lib/i18n";
 import {
   getLocalizedCity,
   getLocalizedCountry,
@@ -120,6 +121,8 @@ export function WeatherHomePage() {
 
   // Initialize from storage
   useEffect(() => {
+    applyPersistedLanguage();
+
     const savedUnit = loadUnitPref();
     setUnit(savedUnit);
 

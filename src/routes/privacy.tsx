@@ -1,6 +1,8 @@
 // src/routes/privacy.tsx
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { applyPersistedLanguage } from "@/lib/i18n";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -28,7 +30,26 @@ const EMAIL = "rod1974b@gmail.com";
 const ANDROID_PACKAGE = "co.median.android.odeqrey";
 
 function Privacy() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  // The route's static head() is English-only, so keep the browser tab title and
+  // social preview text in step with the chosen language.
+  useEffect(() => {
+    applyPersistedLanguage();
+    const title = t("privacy_meta_title", "Privacy Policy — My Weather Pal");
+    const desc = t(
+      "privacy_meta_desc",
+      "Privacy Policy for My Weather Pal: private local weather, AI watercolor generation, on-device IndexedDB storage, and Google Play Data Safety.",
+    );
+    document.title = title;
+    const setMeta = (selector: string, content: string) => {
+      const el = document.head.querySelector(selector);
+      if (el) el.setAttribute("content", content);
+    };
+    setMeta('meta[name="description"]', desc);
+    setMeta('meta[property="og:title"]', title);
+    setMeta('meta[property="og:description"]', desc);
+  }, [t, i18n.language]);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 text-foreground">

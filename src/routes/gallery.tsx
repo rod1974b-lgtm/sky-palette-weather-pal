@@ -3,6 +3,7 @@ import type { TFunction } from "i18next";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { applyPersistedLanguage } from "@/lib/i18n";
 import {
   LANDMARK_WATERCOLORS,
   LANDMARK_TITLES,
@@ -270,6 +271,7 @@ export function ArtGalleryPage() {
 
   // Load artworks from IndexedDB on mount and run one-time legacy localStorage migration
   useEffect(() => {
+    applyPersistedLanguage();
     migrateLegacyLocalStorage().then(() => {
       getSavedArtworks().then((items) => setSavedArtworks(items));
     });

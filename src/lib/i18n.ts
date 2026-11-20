@@ -84,11 +84,11 @@ function detectInitialLanguage(): string {
   return "en";
 }
 
-const initialLang = detectInitialLanguage();
-
+// Server rendering always produces English markup, so the client must hydrate with
+// English too; the saved language is applied afterwards by applyPersistedLanguage().
 i18n.use(initReactI18next).init({
   resources,
-  lng: initialLang,
+  lng: "en",
   fallbackLng: "en",
   interpolation: {
     escapeValue: false,
@@ -99,18 +99,24 @@ i18n.use(initReactI18next).init({
 });
 
 if (typeof document !== "undefined") {
-  document.documentElement.lang = initialLang;
-  document.documentElement.dir = initialLang === "ar" ? "rtl" : "ltr";
-
   i18n.on("languageChanged", (lng) => {
     try {
       localStorage.setItem("weather:lang", lng);
-      document.documentElement.lang = lng;
-      document.documentElement.dir = lng === "ar" ? "rtl" : "ltr";
     } catch {
       // ignore
     }
+    document.documentElement.lang = lng;
+    document.documentElement.dir = lng === "ar" ? "rtl" : "ltr";
   });
+}
+
+export function applyPersistedLanguage(): void {
+  // Called from each route's mount effect: the route has already hydrated with the
+  // server's English markup, so switching here cannot cause a hydration mismatch.
+  const lng = detectInitialLanguage();
+  if (lng && lng !== i18n.language) {
+    void i18n.changeLanguage(lng);
+  }
 }
 
 export default i18n;
