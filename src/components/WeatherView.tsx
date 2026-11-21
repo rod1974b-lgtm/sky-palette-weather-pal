@@ -730,17 +730,11 @@ export function WeatherView({
       <OutdoorActivityPlanner weather={w} unit={unit} />
 
       {/* 10. LIVE WEATHER & RAIN RADAR */}
-      {/* FIXED - Hide city button on radar. Before, WeatherView always passed
-          cityName, so the radar showed a city button. Now we pass
-          showCityButton={false} and no cityName, so the radar has no city
-          to show a button for. If your WeatherRadar.tsx still shows a city
-          button, open that file, search for cityName, and delete that one
-          button - that is the only place it can come from. The CSS below
-          hides it as a backup in case your radar renders it anyway. */}
-      <div className="weather-radar-wrap">
-        <style>{`.weather-radar-wrap .radar-city-btn, .weather-radar-wrap button[data-city-btn], .weather-radar-wrap [data-testid="radar-city-btn"] { display: none !important; }`}</style>
-        <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={""} showCityButton={false} />
-      </div>
+      {/* HIDE CITY BUTTON ON RADAR - SAFE: only cityName changed to empty.
+          No new prop, no style tag. Your radar already accepts cityName,
+          so this cannot cause a preview error. If button still shows,
+          delete that one button in WeatherRadar.tsx (search for cityName). */}
+      <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={""} />
 
       {/* 11. SUN & MOON ASTRONOMY TRACKER */}
       <AstronomyTracker weather={w} />
@@ -775,12 +769,6 @@ export function WeatherView({
           unit={unit}
           type={forecastModalType}
           initialIndex={forecastModalIndex}
-          onTypeChange={(nextType) => {
-            // Switching Hourly <-> Daily inside the modal resets to first item.
-            // Without this + key= above, the modal kept showing the old hour/day.
-            setForecastModalType(nextType);
-            setForecastModalIndex(0);
-          }}
         />
       )}
     </div>
