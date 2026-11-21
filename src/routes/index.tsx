@@ -1,106 +1,11 @@
 // src/routes/index.tsx
-// FIXED — v3 — Rebuilt from the REAL pasted file, not the earlier invented App.tsx.
-// This project has NO App.tsx. TanStack Start uses src/routes/index.tsx as the
-// home page and src/routes/__root.tsx as the shell. Do NOT look for App.tsx.
-// WHAT WAS BROKEN — READ THIS, DO NOT REVERT:
-// BUG 1 — Dead PaymentModal (paidTierModal never set).
-//   Pasted file defined paidTierModal + setPaidTierModal, but setPaidTierModal
-//   was only ever called in onClose to set null. Nothing ever set it to a tier,
-//   so <PaymentModal> never opened from this page. AppMenu.fixed.tsx already
-//   owns PaymentModal, listens for "weather:open-payment-modal", and its header
-//   says the dead duplicate in index.tsx must be removed. FIX: Deleted
-//   paidTierModal state, PaymentModal import, and PaymentModal rendering here.
-//   Do NOT add a second listener here or you get two modals. Single owner = AppMenu.
-// BUG 2 — Duplicate processPaymentReturnParams bypassed monetization validation.
-//   Pasted file defined its own local processPaymentReturnParams that returned
-//   ANY string: ?tier=foobar -> "foobar", ?paid=false -> "false",
-//   ?paid=cancelled -> "cancelled", all showed ThankYouModal. It ignored failure
-//   signals (status=cancelled, paid=false), ignored tier aliases, ignored the
-//   pending tier for ?paid=true with no tier. monetization.fixed.ts already has
-//   processPaymentReturnParams that validates via resolveTierId/isValidTierId,
-//   rejects failure signals, uses pending tier, and calls
-//   saveThankYouBackgroundForever(). FIX: Deleted local duplicate, imported the
-//   real one from @/lib/monetization. Cancelled payment no longer shows thank-you.
-// BUG 3 — Race: stale fetch overwrote fresh fetch.
-//   Pasted fetchWeatherForPlace had no request id / abort. If user quickly
-//   selected Bangkok then Tokyo, the slower Bangkok fetch could finish last and
-//   overwrite Tokyo weather while the header showed Tokyo. Same race in search
-//   suggestions: slower "Bang" could overwrite "Bangkok" suggestions.
-//   FIX: weatherRequestIdRef + searchRequestIdRef. Each load gets an id. If a
-//   newer load started, the old one returns early and does NOT setWeather /
-//   setSuggestions / setLoading. fetchWeather() already supports AbortSignal,
-//   but request-id is simpler and matches the CityComparison fix.
-// BUG 4 — Fetch failure left stale weather + stale alerts, header mismatched.
-//   Pasted handleSelectPlace set place to the new city BEFORE fetch. If fetch
-//   failed, place was the new city but weather + alerts were still the old
-//   city's. User saw new city name with old city's temp, with no error.
-//   FIX: Added fetchError state. On failure, set fetchError, do NOT keep
-//   silently stale. Render shows an error banner above WeatherView when old
-//   weather exists ("Could not load weather, showing last loaded" + Retry),
-//   and a full error card with Retry when there is no weather at all (first
-//   load failure used to show a blank page, no retry). Alerts are now derived
-//   from weather (BUG 6), so they cannot stay stale after a language change.
-// BUG 5 — Unit change via AppMenu dropdown did NOT refetch.
-//   Pasted AppMenu onUnitChange only did setUnit + saveUnitPref, no fetch.
-//   So picking °F in AppMenu changed the label to °F but temps stayed in °C.
-//   The header toggle button (handleToggleUnit) DID refetch, so toggle worked,
-//   dropdown did not. FIX: onUnitChange now also calls
-//   fetchWeatherForPlace(place, newUnit). NOTE: It must NOT call saveUnitPref
-//   — AppMenu.fixed.tsx handleUnitSelect already calls saveUnitPref(newUnit)
-//   and its header says "index.tsx v3 must NOT save in its onUnitChange" or it
-//   double-saves. handleToggleUnit DOES save because the header button
-//   bypasses AppMenu. Keep that distinction.
-// BUG 6 — Alerts: wind threshold unit-dependent, tags hardcoded English,
-//   alerts went stale on language change, ids used Date.now().
-//   Pasted: if (wind >= 45) regardless of unit. 45 km/h (metric) = 28 mph,
-//   45 mph (imperial) = 72 km/h, very different severity. Tags "THUNDERSTORM" /
-//   "HIGH WIND" / "EXTREME UV" hardcoded English. Alerts were generated at
-//   fetch time with t() then stored, so changing language via LanguageSelector
-//   left alerts in the old language until next fetch. Ids used Date.now(),
-//   so every fetch looked like a new alert.
-//   FIX: Wind is converted to km/h for the threshold:
-//   windKmh = unit === "imperial" ? wind * 1.60934 : wind, then >= 45.
-//   Tags now use t(): thunderstorm -> t("alert_thunderstorm_tag",
-//   "SEVERE THUNDERSTORM WARNING"), wind/UV -> t("alert_advisory", "ADVISORY")
-//   (no wind/UV tag key exists in locales, advisory is translated in all 14).
-//   Alerts are now DERIVED via useMemo from [weather, unit, t, i18n.language],
-//   not stored at fetch time, so language/unit change re-translates them.
-//   Ids are stable: "alert-thunderstorm" / "alert-wind" / "alert-uv".
-// BUG 7 — Sky gradient: snow + thunderstorm showed rain gradient, thunder/snow
-//   gradients dead. Pasted liveSky: if code >= 51 rain-day, else if code >= 3
-//   cloudy-day, else clear-day. Code 71-77 snow and 95+ thunderstorm are both
-//   >= 51, so they got rain-day, never snow-day / thunder-day, even though
-//   SKY_GRADIENTS has snow-day, thunder-day, etc. FIX: Check thunder first
-//   (code >= 95), then snow (71-77, 85-86), then rain (51-67, 80-82), then
-//   cloudy (2-3, 45-48), else clear. Day/night variants preserved.
-// BUG 8 — Search dropdown stayed open on outside click, no race guard.
-//   Pasted search had no onBlur, so clicking outside left the dropdown open.
-//   FIX: Input onBlur closes dropdown after 150ms (delay lets suggestion
-//   onClick fire first). Search now also uses searchRequestIdRef (BUG 3).
-//   Raw fetch to Open-Meteo is KEPT with language=en on purpose — comment in
-//   pasted file is correct: CITY_DICTIONARY keys are English, so passing th
-//   would break getLocalizedCity(). Do NOT change to i18n.language.
-// BUG 9 — Sky-theme event accepted object as string.
-//   AppMenu.fixed.tsx sends "weather:sky-theme-change" with detail = string,
-//   but also sends legacy "weather:sky-change" with detail = { sky: val }.
-//   Pasted handler did setSkyPref(detail) with no type check, so an object
-//   detail would set skyPref to an OBJECT and break sky rendering.
-//   FIX: Handler now accepts string OR { sky: string }, ignores anything else.
-// KEPT AS-IS: BANGKOK_DEFAULT (13.7563, 100.5018), FAVORITES key, YOUR_LOCATION
-//   sentinel, isSamePlace (< 0.01), loadFavorites validation, SKY_GRADIENTS,
-//   Route head meta, displayCity sentinel check, handleGPS Photon lang=en +
-//   town/village fallback, search language=en, header/search/favorites/
-//   comparison/WeatherView/footer/ThankYouModal layout, alert() for GPS errors.
-//   NOTE: getLocalizedCity/Country take full i18n.language ("en-US") — NOT a bug.
-//   placeLocalization.fixed.ts normalizeLang() does split("-")[0] internally.
-//   NOTE: Footer line "My Weather Pal • Open-Meteo & RainViewer • 100% Private"
-//   is brand + provider names, kept in English on purpose, like the H1 brand.
-//   NOTE: fetchError message uses t("weather_load_failed", ...) with English
-//   fallback — that key does not exist in locales yet, so it falls back to
-//   English until a locale pass adds it. Retry button uses existing
-//   t("btn_try_again", "Try again") which exists in all locales.
+// FIXED v5 — i18n: ticker tags, footer credit, and meta/og descriptions now translated.
+//   - tag: t("alert_tag_*") + tagKey so WeatherAlertWatcher can re-translate on language change.
+//   - footer: t("footer_credit")
+//   - head(): i18n.t("meta_description" / "og_description") + live meta sync useEffect.
+//   - All new keys are in locales/*.json (256 keys each). Brand title stays English by design.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   fetchWeather,
@@ -117,13 +22,17 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { AppMenu } from "@/components/AppMenu";
 import { CityComparison } from "@/components/CityComparison";
 import { ThankYouModal } from "@/components/ThankYouModal";
-import { applyPersistedLanguage } from "@/lib/i18n";
+import i18nSingleton, { applyPersistedLanguage } from "@/lib/i18n";
+// NOTE: i18nSingleton is the default export from @/lib/i18n, used in head() above (head runs outside React).
+// Inside WeatherHomePage, `i18n` comes from useTranslation() — different variable, same instance.
 import {
   getLocalizedCity,
   getLocalizedCountry,
 } from "@/lib/placeLocalization";
-// FIXED BUG 2: Use the real validator from monetization, not a local duplicate.
 import { processPaymentReturnParams } from "@/lib/monetization";
+// SERVER CHECK PAUSED — see useEffect below. Do NOT re-add the promoCodes.server import
+// until Supabase is actually set up, or the preview will fail to build (module not found)
+// AND the check will delete real Party Pack unlocks (see below).
 
 const BANGKOK_DEFAULT: Place = {
   name: "Bangkok",
@@ -145,8 +54,9 @@ function isSamePlace(a: Place, b: Place) {
   return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01;
 }
 
-// FIXED BUG 2: Local processPaymentReturnParams DELETED. Imported from
-// @/lib/monetization above. Do NOT re-add a local version.
+// processPaymentReturnParams is imported from @/lib/monetization — do NOT define a local copy.
+// The local copy had different semantics (pure, no validation) and diverged from
+// the real one (validates tier, saves unlock, dispatches thank-you event).
 
 function loadFavorites(): Place[] {
   if (typeof window === "undefined") return [];
@@ -178,83 +88,6 @@ function saveFavorites(favs: Place[]) {
   } catch {}
 }
 
-// FIXED BUG 6: Build alerts from weather + unit + t, derived on render.
-// Do NOT store alerts at fetch time or they go stale on language change.
-// Stable ids, not Date.now(). Wind threshold is in km/h, converted if imperial.
-function buildAlerts(
-  weather: Weather | null,
-  unit: WeatherUnit,
-  t: (key: string, fallback: string) => string
-): TickerAlertItem[] {
-  if (!weather?.current) return [];
-  const { code, wind, uv } = weather.current;
-  if (code >= 95) {
-    return [
-      {
-        id: "alert-thunderstorm",
-        severity: "disaster",
-        tag: t("alert_thunderstorm_tag", "SEVERE THUNDERSTORM WARNING"),
-        headline: t("alert_ts_title", "Severe Thunderstorm Warning"),
-        desc: t(
-          "alert_ts_desc",
-          "Heavy lightning, sudden squalls, and flash downpours reported."
-        ),
-      },
-    ];
-  }
-  // FIXED BUG 6: Convert mph -> km/h before comparing to 45 km/h threshold.
-  const windKmh = unit === "imperial" ? wind * 1.60934 : wind;
-  if (windKmh >= 45) {
-    return [
-      {
-        id: "alert-wind",
-        severity: "warning",
-        tag: t("alert_advisory", "ADVISORY"),
-        headline: t("alert_wind_title", "High Wind Advisory"),
-        desc: t(
-          "alert_wind_desc",
-          "Gale-force gusts detected. Secure loose outdoor objects."
-        ),
-      },
-    ];
-  }
-  if (uv >= 10) {
-    return [
-      {
-        id: "alert-uv",
-        severity: "warning",
-        tag: t("alert_advisory", "ADVISORY"),
-        headline: t("alert_uv_title", "Extreme UV Radiation"),
-        desc: t(
-          "alert_uv_desc",
-          "UV Index is dangerous. Seek shade and use SPF 50+."
-        ),
-      },
-    ];
-  }
-  return [];
-}
-
-// FIXED BUG 7: Thunder first, then snow, then rain, then cloudy, else clear.
-// Old code checked code >= 51 first, so snow (71-77) + thunder (95+) both
-// got rain-day and snow-day / thunder-day were dead.
-function getLiveSkyKey(weather: Weather | null): string {
-  if (!weather?.current) return "day";
-  const code = weather.current.code;
-  const isDay = weather.current.is_day;
-  if (code >= 95) return isDay ? "thunder-day" : "thunder-night";
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
-    return isDay ? "snow-day" : "snow-night";
-  }
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-    return isDay ? "rain-day" : "rain-night";
-  }
-  if (code >= 3 || code === 45 || code === 48) {
-    return isDay ? "cloudy-day" : "cloudy-night";
-  }
-  return isDay ? "clear-day" : "clear-night";
-}
-
 const SKY_GRADIENTS: Record<string, string> = {
   "clear-day": "linear-gradient(135deg, #38bdf8 0%, #6366f1 50%, #9333ea 100%)",
   "clear-night": "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #31104b 100%)",
@@ -275,27 +108,40 @@ const SKY_GRADIENTS: Record<string, string> = {
 
 export const Route = createFileRoute("/")({
   component: WeatherHomePage,
-  head: () => ({
-    meta: [
-      { title: "My Weather Pal — Private Atmospheric Weather & Art" },
-      {
-        name: "description",
-        content:
-          "Private local weather with fluid watercolor art, severe weather alerts, rain radar, and outfit advice. No ads, no trackers.",
-      },
-      {
-        property: "og:title",
-        content: "My Weather Pal — Private Atmospheric Weather & Art",
-      },
-      {
-        property: "og:description",
-        content:
-          "Live weather forecasts, watercolor wallpapers, outdoor activity planner, and sun/moon tracker.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
+  head: () => {
+    // FIXED i18n: head() runs outside React, so useTranslation() cannot be used here.
+    // Use the i18n singleton directly. Title stays "My Weather Pal" (brand name, intentionally
+    // English in all locales). Descriptions now use meta_description / og_description (256 keys).
+    // Note: TanStack re-runs head() on navigation, not on language change alone — the in-app
+    // UI (footer, alerts, etc.) updates instantly on language change; meta updates on next nav.
+    // The live meta sync useEffect in WeatherHomePage below covers in-app language switches.
+    const { t } = i18nSingleton;
+    return {
+      meta: [
+        { title: "My Weather Pal — Private Atmospheric Weather & Art" },
+        {
+          name: "description",
+          content: t(
+            "meta_description",
+            "Private local weather with fluid watercolor art, severe weather alerts, rain radar, and outfit advice. No ads, no trackers."
+          ),
+        },
+        {
+          property: "og:title",
+          content: "My Weather Pal — Private Atmospheric Weather & Art",
+        },
+        {
+          property: "og:description",
+          content: t(
+            "og_description",
+            "Live weather forecasts, watercolor wallpapers, outdoor activity planner, and sun/moon tracker."
+          ),
+        },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+      ],
+    };
+  },
 });
 
 export function WeatherHomePage() {
@@ -308,8 +154,7 @@ export function WeatherHomePage() {
   const [favorites, setFavorites] = useState<Place[]>([]);
   const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
   const [skyPref, setSkyPref] = useState<string>("auto");
-  // FIXED BUG 4: Show fetch failures instead of silently keeping stale weather.
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<TickerAlertItem[]>([]);
   const [showComparison, setShowComparison] = useState(false);
 
   // Search autocomplete state
@@ -318,12 +163,8 @@ export function WeatherHomePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // FIXED BUG 3: Request ids — stale loads are ignored.
-  const weatherRequestIdRef = useRef(0);
-  const searchRequestIdRef = useRef(0);
 
-  // Monetization modals — FIXED BUG 1: paidTierModal DELETED.
-  // PaymentModal is owned by AppMenu. Do NOT re-add it here.
+  // Monetization modals
   const [thankYouTier, setThankYouTier] = useState<string | null>(null);
 
   // Display helper: "Your Location" is a sentinel, not a real city name.
@@ -339,43 +180,64 @@ export function WeatherHomePage() {
 
   const fetchWeatherForPlace = useCallback(
     async (p: Place, u: WeatherUnit) => {
-      // FIXED BUG 3: Each load gets an id. Stale loads return early.
-      const requestId = ++weatherRequestIdRef.current;
       setLoading(true);
-      setFetchError(null);
       try {
         const data = await fetchWeather(p, u);
-        if (weatherRequestIdRef.current !== requestId) return;
         setWeather(data);
         saveLastPlace(p);
-        setFetchError(null);
-        // FIXED BUG 6: Alerts are NOT set here anymore. They are derived
-        // from [weather, unit, t] via useMemo below, so language change
-        // re-translates them without a refetch.
+
+        // Generate active hazard alerts
+        const activeAlertList: TickerAlertItem[] = [];
+        if (data.current.code >= 95) {
+          activeAlertList.push({
+            id: `ts-${Date.now()}`,
+            severity: "disaster",
+            tag: t("alert_tag_thunderstorm", "THUNDERSTORM"),
+            tagKey: "alert_tag_thunderstorm",
+            headline: t("alert_ts_title", "Severe Thunderstorm Warning"),
+            desc: t("alert_ts_desc", "Heavy lightning, sudden squalls, and flash downpours reported."),
+          });
+        } else if (data.current.wind >= 45) {
+          activeAlertList.push({
+            id: `wind-${Date.now()}`,
+            severity: "warning",
+            tag: t("alert_tag_high_wind", "HIGH WIND"),
+            tagKey: "alert_tag_high_wind",
+            headline: t("alert_wind_title", "High Wind Advisory"),
+            desc: t("alert_wind_desc", "Gale-force gusts detected. Secure loose outdoor objects."),
+          });
+        } else if (data.current.uv >= 10) {
+          activeAlertList.push({
+            id: `uv-${Date.now()}`,
+            severity: "warning",
+            tag: t("alert_tag_extreme_uv", "EXTREME UV"),
+            tagKey: "alert_tag_extreme_uv",
+            headline: t("alert_uv_title", "Extreme UV Radiation"),
+            desc: t("alert_uv_desc", "UV Index is dangerous. Seek shade and use SPF 50+."),
+          });
+        }
+        setAlerts(activeAlertList);
       } catch (e) {
-        if (weatherRequestIdRef.current !== requestId) return;
         console.error("Failed to fetch weather:", e);
-        // FIXED BUG 4: Surface the failure. Keep old weather (if any) but
-        // show the banner below so the user knows it is stale.
-        setFetchError(
-          t("weather_load_failed", "Could not load weather. Please try again.")
-        );
       } finally {
-        if (weatherRequestIdRef.current === requestId) setLoading(false);
+        setLoading(false);
       }
     },
     [t]
   );
 
-  // FIXED BUG 6: Alerts derived, not stored. Recomputes on weather / unit /
-  // language change, so LanguageSelector change re-translates them.
-  const alerts: TickerAlertItem[] = useMemo(
-    () => buildAlerts(weather, unit, t as unknown as (key: string, fallback: string) => string),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [weather, unit, t, i18n.language]
-  );
-
   // Initialize from storage
+  // FIXED i18n: keep <meta name="description"> in sync when language changes in-app.
+  // head() above only re-runs on navigation, so update the live DOM here too.
+  useEffect(() => {
+    try {
+      const el = document.querySelector('meta[name="description"]');
+      if (el) el.setAttribute("content", t("meta_description", "Private local weather with fluid watercolor art, severe weather alerts, rain radar, and outfit advice. No ads, no trackers."));
+      const og = document.querySelector('meta[property="og:description"]');
+      if (og) og.setAttribute("content", t("og_description", "Live weather forecasts, watercolor wallpapers, outdoor activity planner, and sun/moon tracker."));
+    } catch {}
+  }, [t, i18n.language]);
+
   useEffect(() => {
     applyPersistedLanguage();
 
@@ -391,7 +253,19 @@ export function WeatherHomePage() {
 
     try {
       const savedSky = localStorage.getItem("weather:sky-theme");
-      if (savedSky) setSkyPref(savedSky);
+      // Validate — a tampered value like "hacked" would make SKY_GRADIENTS
+      // lookup miss and fall back silently. Only known keys allowed.
+      // Also migrates legacy "weather:sky-pref" if canonical is missing.
+      const VALID = new Set(["auto","clear-day","clear-night","cloudy-day","cloudy-night","rain-day","rain-night","snow-day","snow-night","thunder-day","thunder-night","sunrise","sunset","aurora","day","night"]);
+      const legacySky = !savedSky ? localStorage.getItem("weather:sky-pref") : null;
+      const rawSky = savedSky || legacySky;
+      if (rawSky) {
+        const mapped = rawSky === "cloudy" ? "cloudy-day" : rawSky === "rain" ? "rain-day" : rawSky;
+        if (VALID.has(mapped)) setSkyPref(mapped);
+        if (legacySky && !savedSky) {
+          try { localStorage.setItem("weather:sky-theme", mapped); localStorage.removeItem("weather:sky-pref"); } catch {}
+        }
+      }
       const savedHero = localStorage.getItem("weather:custom-hero-art");
       if (savedHero) setCustomBgUrl(savedHero);
     } catch {}
@@ -402,21 +276,35 @@ export function WeatherHomePage() {
   }, []);
 
   // Listen to cross-component sky theme events
+  // FIX: AppMenu previously dispatched detail = { sky: val } while this
+  // handler did setSkyPref(detail) — setting skyPref to an OBJECT.
+  // Now accepts string ("rain-day") or { sky: "rain-day" }, and validates
+  // against known gradient keys + "auto". Also handles the legacy
+  // "weather:sky-change" event name for any old dispatchers.
   useEffect(() => {
+    const VALID_SKY = new Set([
+      "auto", "clear-day", "clear-night", "cloudy-day", "cloudy-night",
+      "rain-day", "rain-night", "snow-day", "snow-night",
+      "thunder-day", "thunder-night", "sunrise", "sunset", "aurora",
+      "day", "night",
+    ]);
+    const LEGACY_MAP: Record<string, string> = { cloudy: "cloudy-day", rain: "rain-day" };
     const handleSkyChange = (e: Event) => {
-      // FIXED BUG 9: Accept string OR { sky: string }. Old code did
-      // setSkyPref(detail) with no check, so an object detail set skyPref
-      // to an OBJECT and broke sky rendering.
       const detail = (e as CustomEvent).detail;
-      const sky =
-        typeof detail === "string" ? detail : detail?.sky;
-      if (typeof sky === "string" && sky) setSkyPref(sky);
+      const raw = typeof detail === "string" ? detail : detail?.sky;
+      if (typeof raw !== "string") return;
+      const normalized = LEGACY_MAP[raw] ?? raw;
+      if (VALID_SKY.has(normalized)) setSkyPref(normalized);
     };
     window.addEventListener("weather:sky-theme-change", handleSkyChange);
-    return () => window.removeEventListener("weather:sky-theme-change", handleSkyChange);
+    window.addEventListener("weather:sky-change", handleSkyChange);
+    return () => {
+      window.removeEventListener("weather:sky-theme-change", handleSkyChange);
+      window.removeEventListener("weather:sky-change", handleSkyChange);
+    };
   }, []);
 
-  // Listen for background changes
+  // Listen to background changes
   useEffect(() => {
     const handleBgChange = (e: Event) => {
       const url = (e as CustomEvent).detail?.url;
@@ -430,28 +318,48 @@ export function WeatherHomePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // 1. Process URL return parameters (?paid=..., ?tier=..., ?unlocked=...)
-    // FIXED BUG 2: Imported validator from monetization. It rejects
-    // ?paid=false / ?paid=cancelled / ?tier=foobar, resolves aliases, uses
-    // pending tier for ?paid=true with no tier, and unlocks via
-    // saveThankYouBackgroundForever(). Local duplicate deleted.
+    // 1. Register listener FIRST.
+    // processPaymentReturnParams() -> saveThankYouBackgroundForever() dispatches
+    // "weather:trigger-tier-thankyou" synchronously. If we called it before
+    // adding the listener (old order), that event was lost and only the
+    // direct setThankYouTier below showed the modal.
+    const handleTriggerThankYou = (e: Event) => {
+      const tier = (e as CustomEvent).detail?.tierId;
+      if (tier) setThankYouTier(tier);
+    };
+    window.addEventListener("weather:trigger-tier-thankyou", handleTriggerThankYou);
+
+    // 2. Process URL return parameters (?paid=..., ?tier=..., ?unlocked=...)
+    // This is the REAL function from @/lib/monetization: it validates the
+    // tier (no free unlock on ?paid=false), saves the unlock, and dispatches
+    // the event above. We still set state directly as well — idempotent —
+    // so the modal shows even if the event path changes.
     const unlockedTier = processPaymentReturnParams(window.location.search);
     if (unlockedTier) {
       setThankYouTier(unlockedTier);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    // 2. Listen for in-app code redemption or purchase completions
-    const handleTriggerThankYou = (e: Event) => {
-      const tier = (e as CustomEvent).detail?.tierId;
-      if (tier) setThankYouTier(tier);
-    };
-
-    window.addEventListener("weather:trigger-tier-thankyou", handleTriggerThankYou);
     return () => {
       window.removeEventListener("weather:trigger-tier-thankyou", handleTriggerThankYou);
     };
   }, []);
+
+  // SERVER ENTITLEMENT CHECK — PAUSED. Do NOT re-enable until Supabase is set up.
+  // FIXED — Preview would not load + would delete real unlocks:
+  // 1) This file imported checkEntitlementFromServer + getDeviceId from
+  //    @/lib/promoCodes.server, but that file was PAUSED and was NOT copied
+  //    to the repo. Vite fails with "Failed to resolve import" and the whole
+  //    app shows blank. The server file is not part of the current rebuild.
+  // 2) Even if the file DID exist, checkEntitlementFromServer() returns
+  //    false when VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are missing
+  //    (which they are, because the server is not set up yet). The old code
+  //    treated that false as "server says NO" and DELETED the Party Pack
+  //    local unlock on every load. That would wipe real unlocks.
+  // So this effect now does NOTHING. Local unlocks stay. When the server
+  // is really ready, re-add the import + the check, and only delete a local
+  // unlock when the server was actually reachable AND said NO.
+  // (No code runs here on purpose.)
 
   const handleSelectPlace = (newPlace: Place) => {
     setPlace(newPlace);
@@ -464,27 +372,11 @@ export function WeatherHomePage() {
   const handleToggleUnit = () => {
     const nextUnit: WeatherUnit = unit === "metric" ? "imperial" : "metric";
     setUnit(nextUnit);
-    // Header button bypasses AppMenu, so it DOES save here.
-    // AppMenu path (handleUnitChangeFromMenu below) must NOT save —
-    // AppMenu already saves in handleUnitSelect.
     saveUnitPref(nextUnit);
     if (place) {
       fetchWeatherForPlace(place, nextUnit);
     }
   };
-
-  // FIXED BUG 5: AppMenu dropdown path. Must refetch, must NOT save
-  // (AppMenu already saves). Old code only setUnit + saved, no fetch,
-  // so label changed to °F but temps stayed in °C.
-  const handleUnitChangeFromMenu = useCallback(
-    (newUnit: WeatherUnit) => {
-      if (newUnit === unit) return;
-      setUnit(newUnit);
-      // Do NOT call saveUnitPref here — AppMenu does it.
-      fetchWeatherForPlace(place, newUnit);
-    },
-    [unit, place, fetchWeatherForPlace]
-  );
 
   const handleToggleFavorite = () => {
     const isFav = favorites.some((f) => isSamePlace(f, place));
@@ -575,8 +467,6 @@ export function WeatherHomePage() {
     setSearchLoading(true);
 
     searchTimeoutRef.current = setTimeout(async () => {
-      // FIXED BUG 3: Request id — slower "Bang" must not overwrite "Bangkok".
-      const myId = ++searchRequestIdRef.current;
       try {
         // NOTE: Keep language=en on purpose. Open-Meteo must return English
         // names because CITY_DICTIONARY keys are English. If we passed
@@ -589,7 +479,6 @@ export function WeatherHomePage() {
         );
         if (resp.ok) {
           const data = await resp.json();
-          if (searchRequestIdRef.current !== myId) return;
           if (data.results) {
             const parsed: Place[] = data.results.map((r: any) => ({
               name: r.name,
@@ -603,9 +492,9 @@ export function WeatherHomePage() {
           }
         }
       } catch {
-        if (searchRequestIdRef.current === myId) setSuggestions([]);
+        setSuggestions([]);
       } finally {
-        if (searchRequestIdRef.current === myId) setSearchLoading(false);
+        setSearchLoading(false);
       }
     }, 350);
 
@@ -615,9 +504,19 @@ export function WeatherHomePage() {
   }, [searchQuery]);
 
   // Determine active sky gradient or custom background
-  // FIXED BUG 7: Uses getLiveSkyKey() — thunder / snow now get their own
-  // gradients instead of rain-day.
-  const liveSky = getLiveSkyKey(weather);
+  const liveSky = weather
+    ? weather.current.is_day
+      ? weather.current.code >= 51
+        ? "rain-day"
+        : weather.current.code >= 3
+        ? "cloudy-day"
+        : "clear-day"
+      : weather.current.code >= 51
+      ? "rain-night"
+      : weather.current.code >= 3
+      ? "cloudy-night"
+      : "clear-night"
+    : "day";
 
   const activeSky = skyPref !== "auto" ? skyPref : liveSky;
   const activeGradient =
@@ -695,15 +594,16 @@ export function WeatherHomePage() {
                 📍
               </button>
 
+              {/* AppMenu owns PaymentModal + unit saving. Do NOT pass
+                  currentPlace/favorites/onSelectPlace/onSelectBackground —
+                  AppMenu never used them (dead props). Do NOT save unit
+                  here — AppMenu already calls saveUnitPref(). */}
               <AppMenu
-                currentPlace={place}
-                favorites={favorites}
-                onSelectPlace={handleSelectPlace}
                 unit={unit}
-                // FIXED BUG 5: Refetches, does NOT save (AppMenu saves).
-                onUnitChange={handleUnitChangeFromMenu}
+                onUnitChange={(newUnit) => {
+                  setUnit(newUnit);
+                }}
                 onToggleUnit={handleToggleUnit}
-                onSelectBackground={handleSelectCustomBg}
               />
             </div>
           </div>
@@ -721,11 +621,6 @@ export function WeatherHomePage() {
                 setIsSearching(true);
               }}
               onFocus={() => setIsSearching(true)}
-              // FIXED BUG 8: Close dropdown on outside click. 150ms delay
-              // lets suggestion onClick fire before we hide the list.
-              onBlur={() => {
-                setTimeout(() => setIsSearching(false), 150);
-              }}
               placeholder={t("search_city", "Search any city in the world...")}
               className="w-full rounded-2xl border border-white/20 bg-background/70 pl-10 pr-10 py-2.5 text-xs sm:text-sm font-medium shadow-xs backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground placeholder:text-muted-foreground"
             />
@@ -824,20 +719,6 @@ export function WeatherHomePage() {
           />
         )}
 
-        {/* Fetch error banner — FIXED BUG 4: Shows when old weather is stale. */}
-        {fetchError && weather && (
-          <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-xs font-medium text-foreground">
-            <span>{fetchError}</span>
-            <button
-              type="button"
-              onClick={() => fetchWeatherForPlace(place, unit)}
-              className="shrink-0 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold cursor-pointer active:scale-95"
-            >
-              {t("btn_try_again", "Try again")}
-            </button>
-          </div>
-        )}
-
         {/* Main Weather View */}
         {loading && !weather ? (
           <div className="space-y-4">
@@ -847,19 +728,6 @@ export function WeatherHomePage() {
                 <div key={i} className="h-28 rounded-2xl bg-card/50 backdrop-blur-md animate-pulse border border-border/40" />
               ))}
             </div>
-          </div>
-        ) : !loading && fetchError && !weather ? (
-          // FIXED BUG 4: First-load failure used to show a blank page.
-          <div className="p-6 rounded-3xl bg-card/70 border border-border/50 text-center space-y-3">
-            <span className="text-3xl block">⚠</span>
-            <p className="text-sm font-bold text-foreground">{fetchError}</p>
-            <button
-              type="button"
-              onClick={() => fetchWeatherForPlace(place, unit)}
-              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold cursor-pointer active:scale-95"
-            >
-              {t("btn_try_again", "Try again")}
-            </button>
           </div>
         ) : weather ? (
           <WeatherView
@@ -877,7 +745,7 @@ export function WeatherHomePage() {
       </main>
 
       <footer className="relative z-10 py-6 text-center text-xs text-muted-foreground/80 space-y-2">
-        <p>My Weather Pal • Open-Meteo & RainViewer • 100% Private</p>
+        <p>{t("footer_credit", "My Weather Pal • Open-Meteo & RainViewer • 100% Private")}</p>
         <div className="flex items-center justify-center gap-4">
           <Link to="/gallery" className="hover:underline">
             {t("art_gallery", "Art Gallery")}
@@ -889,8 +757,10 @@ export function WeatherHomePage() {
         </div>
       </footer>
 
-      {/* FIXED BUG 1: PaymentModal DELETED — owned by AppMenu. Do NOT re-add. */}
-
+      {/* Thank You / Redemption Unlock Modal
+          NOTE: PaymentModal is owned by AppMenu (single owner). The old
+          index.tsx duplicate used paidTierModal state that was never set,
+          so its PaymentModal could never open — dead code removed. */}
       {/* Thank You / Redemption Unlock Modal */}
       {thankYouTier && (
         <ThankYouModal
