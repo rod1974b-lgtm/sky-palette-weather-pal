@@ -1,5 +1,5 @@
 // src/routes/index.tsx
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -18,7 +18,6 @@ import { AppMenu } from "@/components/AppMenu";
 import { CityComparison } from "@/components/CityComparison";
 import { PaymentModal } from "@/components/PaymentModal";
 import { ThankYouModal } from "@/components/ThankYouModal";
-import { saveThankYouBackgroundForever } from "@/lib/monetization";
 import { applyPersistedLanguage } from "@/lib/i18n";
 import {
   getLocalizedCity,
@@ -33,12 +32,63 @@ const BANGKOK_DEFAULT: Place = {
 };
 
 const FAVORITES_STORAGE_KEY = "weather:favorites:v1";
+const YOUR_LOCATION_SENTINEL = "Your Location";
+
+// ---------------------------------------------------------------------------
+// Helpers — defined outside the component so they are not re-created
+// on every render and cannot hit TDZ issues (isSamePlace was previously
+// defined *after* handleToggleFavorite which used it).
+// ---------------------------------------------------------------------------
+
+function isSamePlace(a: Place, b: Place) {
+  return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01;
+}
+
+/**
+ * Parses payment-return URL params.
+ *
+ * FIX: This function was *called* in the payment useEffect but never
+ * defined or imported anywhere, so `ReferenceError: processPaymentReturnParams
+ * is not defined` would crash the page on load in a strict build / at runtime
+ * when the effect ran.
+ *
+ * Supports: ?tier=<tier> | ?unlocked=<tier> | ?paid=<tier>
+ * Returns null when there is no usable tier (e.g. ?paid=true with no tier).
+ */
+function processPaymentReturnParams(search: string): string | null {
+  try {
+    const params = new URLSearchParams(search);
+    const tier = params.get("tier") || params.get("unlocked");
+    if (tier) return tier;
+
+    const paid = params.get("paid");
+    if (!paid) return null;
+    // ?paid=true / ?paid=1 / ?paid=success carry no tier info — don't guess.
+    if (paid === "true" || paid === "1" || paid === "success") return null;
+    return paid;
+  } catch {
+    return null;
+  }
+}
 
 function loadFavorites(): Place[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Validate shape — a single corrupted entry used to poison the whole list.
+    return parsed.filter(
+      (p): p is Place =>
+        !!p &&
+        typeof p === "object" &&
+        typeof (p as Place).name === "string" &&
+        typeof (p as Place).lat === "number" &&
+        typeof (p as Place).lon === "number" &&
+        Number.isFinite((p as Place).lat) &&
+        Number.isFinite((p as Place).lon)
+    );
   } catch {
     return [];
   }
@@ -96,7 +146,6 @@ export const Route = createFileRoute("/")({
 
 export function WeatherHomePage() {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
 
   const [place, setPlace] = useState<Place>(BANGKOK_DEFAULT);
   const [weather, setWeather] = useState<Weather | null>(null);
@@ -113,11 +162,67 @@ export function WeatherHomePage() {
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const searchTimeoutRef = useRef<any>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Monetization modals
   const [paidTierModal, setPaidTierModal] = useState<string | null>(null);
   const [thankYouTier, setThankYouTier] = useState<string | null>(null);
+
+  // Display helper: "Your Location" is a sentinel, not a real city name.
+  // It must go through i18n, NOT getLocalizedCity(), which only knows
+  // English city names from CITY_DICTIONARY.
+  const displayCity = useCallback(
+    (name: string) => {
+      if (name === YOUR_LOCATION_SENTINEL) return t("your_location", "Your Location");
+      return getLocalizedCity(name, i18n.language);
+    },
+    [i18n.language, t]
+  );
+
+  const fetchWeatherForPlace = useCallback(
+    async (p: Place, u: WeatherUnit) => {
+      setLoading(true);
+      try {
+        const data = await fetchWeather(p, u);
+        setWeather(data);
+        saveLastPlace(p);
+
+        // Generate active hazard alerts
+        const activeAlertList: TickerAlertItem[] = [];
+        if (data.current.code >= 95) {
+          activeAlertList.push({
+            id: `ts-${Date.now()}`,
+            severity: "disaster",
+            tag: "THUNDERSTORM",
+            headline: t("alert_ts_title", "Severe Thunderstorm Warning"),
+            desc: t("alert_ts_desc", "Heavy lightning, sudden squalls, and flash downpours reported."),
+          });
+        } else if (data.current.wind >= 45) {
+          activeAlertList.push({
+            id: `wind-${Date.now()}`,
+            severity: "warning",
+            tag: "HIGH WIND",
+            headline: t("alert_wind_title", "High Wind Advisory"),
+            desc: t("alert_wind_desc", "Gale-force gusts detected. Secure loose outdoor objects."),
+          });
+        } else if (data.current.uv >= 10) {
+          activeAlertList.push({
+            id: `uv-${Date.now()}`,
+            severity: "warning",
+            tag: "EXTREME UV",
+            headline: t("alert_uv_title", "Extreme UV Radiation"),
+            desc: t("alert_uv_desc", "UV Index is dangerous. Seek shade and use SPF 50+."),
+          });
+        }
+        setAlerts(activeAlertList);
+      } catch (e) {
+        console.error("Failed to fetch weather:", e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t]
+  );
 
   // Initialize from storage
   useEffect(() => {
@@ -141,12 +246,14 @@ export function WeatherHomePage() {
     } catch {}
 
     fetchWeatherForPlace(initialPlace, savedUnit);
+    // Only on mount — fetchWeatherForPlace is stable via useCallback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Listen to cross-component sky theme events
   useEffect(() => {
-    const handleSkyChange = (e: any) => {
-      const sky = e?.detail;
+    const handleSkyChange = (e: Event) => {
+      const sky = (e as CustomEvent).detail;
       if (sky) setSkyPref(sky);
     };
     window.addEventListener("weather:sky-theme-change", handleSkyChange);
@@ -155,15 +262,15 @@ export function WeatherHomePage() {
 
   // Listen to background changes
   useEffect(() => {
-    const handleBgChange = (e: any) => {
-      const url = e?.detail?.url;
+    const handleBgChange = (e: Event) => {
+      const url = (e as CustomEvent).detail?.url;
       if (url) setCustomBgUrl(url);
     };
     window.addEventListener("weather:custom-bg-change", handleBgChange);
     return () => window.removeEventListener("weather:custom-bg-change", handleBgChange);
   }, []);
 
-    // Listen for payment return URL params and instant tier unlock events
+  // Listen for payment return URL params and instant tier unlock events
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -175,8 +282,8 @@ export function WeatherHomePage() {
     }
 
     // 2. Listen for in-app code redemption or purchase completions
-    const handleTriggerThankYou = (e: any) => {
-      const tier = e?.detail?.tierId;
+    const handleTriggerThankYou = (e: Event) => {
+      const tier = (e as CustomEvent).detail?.tierId;
       if (tier) setThankYouTier(tier);
     };
 
@@ -185,48 +292,6 @@ export function WeatherHomePage() {
       window.removeEventListener("weather:trigger-tier-thankyou", handleTriggerThankYou);
     };
   }, []);
-
-  const fetchWeatherForPlace = async (p: Place, u: WeatherUnit) => {
-    setLoading(true);
-    try {
-      const data = await fetchWeather(p, u);
-      setWeather(data);
-      saveLastPlace(p);
-
-      // Generate active hazard alerts
-      const activeAlertList: TickerAlertItem[] = [];
-      if (data.current.code >= 95) {
-        activeAlertList.push({
-          id: `ts-${Date.now()}`,
-          severity: "disaster",
-          tag: "THUNDERSTORM",
-          headline: t("alert_ts_title", "Severe Thunderstorm Warning"),
-          desc: t("alert_ts_desc", "Heavy lightning, sudden squalls, and flash downpours reported."),
-        });
-      } else if (data.current.wind >= 45) {
-        activeAlertList.push({
-          id: `wind-${Date.now()}`,
-          severity: "warning",
-          tag: "HIGH WIND",
-          headline: t("alert_wind_title", "High Wind Advisory"),
-          desc: t("alert_wind_desc", "Gale-force gusts detected. Secure loose outdoor objects."),
-        });
-      } else if (data.current.uv >= 10) {
-        activeAlertList.push({
-          id: `uv-${Date.now()}`,
-          severity: "warning",
-          tag: "EXTREME UV",
-          headline: t("alert_uv_title", "Extreme UV Radiation"),
-          desc: t("alert_uv_desc", "UV Index is dangerous. Seek shade and use SPF 50+."),
-        });
-      }
-      setAlerts(activeAlertList);
-    } catch (e) {
-      console.error("Failed to fetch weather:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSelectPlace = (newPlace: Place) => {
     setPlace(newPlace);
@@ -257,10 +322,6 @@ export function WeatherHomePage() {
     saveFavorites(next);
   };
 
-  const isSamePlace = (a: Place, b: Place) => {
-    return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01;
-  };
-
   const handleSelectCustomBg = (url: string | null) => {
     setCustomBgUrl(url);
     try {
@@ -272,29 +333,39 @@ export function WeatherHomePage() {
   // GPS geolocation with reverse geocoding via Photon
   const handleGPS = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
+      alert(t("geolocation_unsupported", "Geolocation is not supported by your browser."));
       return;
     }
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lon } = pos.coords;
-        let placeName = "Your Location";
+        let placeName = YOUR_LOCATION_SENTINEL;
         let countryName = "";
 
         try {
+          // FIX: Force Photon to return English names with &lang=en.
+          // Without this Photon returns the local name (e.g. "ราชบุรี"),
+          // which getLocalizedCity() cannot map — CITY_DICTIONARY keys
+          // are English ("ratchaburi") — so the header would stay Thai
+          // even when the UI language is English, and vice-versa.
           const resp = await fetch(
-            `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`
+            `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=en`
           );
           if (resp.ok) {
             const data = await resp.json();
             const feat = data.features?.[0];
             if (feat?.properties) {
+              // FIX: Photon uses town / village for smaller places, not just city.
+              // Ratchaburi town, for example, can come back as `town`.
               placeName =
                 feat.properties.city ||
+                feat.properties.town ||
+                feat.properties.village ||
                 feat.properties.name ||
                 feat.properties.county ||
-                "Your Location";
+                feat.properties.state ||
+                YOUR_LOCATION_SENTINEL;
               countryName = feat.properties.country || "";
             }
           }
@@ -310,7 +381,7 @@ export function WeatherHomePage() {
       },
       () => {
         setLoading(false);
-        alert("Could not retrieve GPS coordinates. Please ensure location permissions are granted.");
+        alert(t("gps_failed", "Could not retrieve GPS coordinates. Please ensure location permissions are granted."));
       },
       { timeout: 10000 }
     );
@@ -329,6 +400,10 @@ export function WeatherHomePage() {
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
+        // NOTE: Keep language=en on purpose. Open-Meteo must return English
+        // names because CITY_DICTIONARY keys are English. If we passed
+        // i18n.language here, e.g. th, getLocalizedCity("กรุงเทพมหานคร")
+        // would not match "bangkok" and localization would silently fail.
         const resp = await fetch(
           `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
             searchQuery.trim()
@@ -423,7 +498,7 @@ export function WeatherHomePage() {
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-xs font-bold text-foreground shadow-xs min-w-0 max-w-[58%] sm:max-w-md">
               <span className="text-xs shrink-0">📍</span>
               <span className="font-semibold truncate">
-                {getLocalizedCity(place.name, i18n.language)}
+                {displayCity(place.name)}
                 {place.country ? `, ${getLocalizedCountry(place.country, i18n.language)}` : ""}
               </span>
             </div>
@@ -510,7 +585,7 @@ export function WeatherHomePage() {
                   className="w-full px-4 py-3 text-left hover:bg-muted/70 transition flex items-center justify-between text-xs sm:text-sm cursor-pointer"
                 >
                   <div className="font-semibold text-foreground">
-                    {getLocalizedCity(s.name, i18n.language)}
+                    {displayCity(s.name)}
                     {s.country && (
                       <span className="ml-1.5 text-muted-foreground text-xs font-normal">
                         ({getLocalizedCountry(s.country, i18n.language)})
@@ -539,13 +614,14 @@ export function WeatherHomePage() {
                   key={`${fav.name}-${fav.lat}-${fav.lon}`}
                   type="button"
                   onClick={() => handleSelectPlace(fav)}
+                  title={fav.country ? `${fav.name}, ${fav.country}` : fav.name}
                   className={`rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-md transition cursor-pointer ${
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "border border-white/20 bg-background/50 hover:bg-background/80"
                   }`}
                 >
-                  {getLocalizedCity(fav.name, i18n.language)}
+                  {displayCity(fav.name)}
                 </button>
               );
             })}
@@ -560,7 +636,7 @@ export function WeatherHomePage() {
                     : "bg-background/50 hover:bg-background/80 text-muted-foreground"
                 }`}
               >
-                ⚖️ {showComparison ? t("hide_comparison", "Hide Compare") : t("compare_cities", "Compare Cities")}
+                ⚖ {showComparison ? t("hide_comparison", "Hide Compare") : t("compare_cities", "Compare Cities")}
               </button>
             )}
           </div>
