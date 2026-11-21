@@ -1,4 +1,25 @@
 // src/components/WeatherAlertWatcher.tsx
+// FIXED v3 — i18n: tLocal() now checks alert dict FIRST, then i18next (was reversed).
+// WHY: Watcher keys title / subtitle / close collide with main locales + extras.
+//   title in extras = "My Weather Pal" / "Weather & Celestial Guide" / "No Weather Data Available"
+//   close in main = "Close" / "ปิด" (not "Done"). With i18next-first, dict was never reached,
+//   so watcher title/subtitle/Done button showed the WRONG strings.
+//   With dict-first, watcher uses its own dict for its own keys, and keys NOT in dict
+//   (weather_code, feels_like_short, official_alert_badge, current_location) still fall through to i18next.
+// ALSO: section aria-label now uses tLocal("alert_watcher_aria") + alertTranslations.fixed.ts
+//   adds alert_watcher_aria + done + 12 settings_* keys for 12 languages. Use BOTH files together.
+// FIXED v2 — i18n: official alert title now uses tagKey, not the already-translated tag.
+// Before: detectedHazards used `titleKey: alert.tag || "hazard_official_title"`.
+//   index.tsx v5 passes tag = t("alert_tag_*") (already translated) + tagKey.
+//   This file ignored tagKey, so the title was the translated string used as a key,
+//   and it never re-translated when you switched language after the alert was created.
+// After: TickerAlertItem now has optional tagKey, and official alerts use
+//   resolveOfficialTitleKey(alert) which prefers tagKey, maps old English constants
+//   ("THUNDERSTORM" -> "alert_tag_thunderstorm", etc.), and falls back to tag / hazard_official_title.
+//   No other logic changed. Hazard titles/descs/advice still come from alertTranslations.ts
+//   via tLocal() fallback, NOT from locales/*.json. Do not duplicate them into locales.
+// FIXED: Settings drawer Done button used tLocal("close", "Done") -> showed "Close" / "ปิด".
+//   Now uses tLocal("done", "Done") to match its aria-label.
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { Weather, WeatherUnit } from "@/lib/weather";
@@ -21,8 +42,21 @@ export interface TickerAlertItem {
   details?: string;
   area?: string;
   tag?: string;
+  // FIXED: index.tsx passes tagKey so the title re-translates on language change.
+  // tag alone is already translated at creation time, so it cannot re-translate.
+  tagKey?: string;
   timeAgo?: string;
   timestamp?: number;
+}
+
+// FIXED: Map old English tag constants to translation keys, for callers that
+// still pass tag without tagKey. If tagKey is present, it wins.
+function resolveOfficialTitleKey(alert: TickerAlertItem): string {
+  if (alert.tagKey) return alert.tagKey;
+  if (alert.tag === "THUNDERSTORM") return "alert_tag_thunderstorm";
+  if (alert.tag === "HIGH WIND") return "alert_tag_high_wind";
+  if (alert.tag === "EXTREME UV") return "alert_tag_extreme_uv";
+  return alert.tag || "hazard_official_title";
 }
 
 export interface WeatherAlertWatcherProps {
@@ -125,12 +159,13 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
 
   const tLocal = useCallback(
     (key: string, fallback: string): string => {
-      // Check standard i18next first, fallback to alert dictionary, then fallback string
+      // FIXED v3: dict FIRST, then i18next. See header. Watcher keys title/subtitle/close
+      // collide with main locales + extras, so i18next-first meant dict was never reached.
+      const dictVal = (dict as unknown as Record<string, string | undefined>)[key];
+      if (dictVal) return dictVal;
       const i18nVal = t(key);
       if (i18nVal && i18nVal !== key) return i18nVal;
-
-      const val = (dict as unknown as Record<string, string | undefined>)[key];
-      return val || fallback;
+      return fallback;
     },
     [dict, t]
   );
@@ -213,7 +248,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         id: "heat",
         type: "heat",
         severity: feelsC >= 43 ? "danger" : "warning",
-        icon: "🌡️",
+        icon: "🌡",
         titleKey: "hazard_heat_title",
         descKey: "hazard_heat_desc",
         adviceKey: "hazard_heat_advice",
@@ -230,7 +265,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         id: "cold",
         type: "cold",
         severity: tempC <= -10 ? "danger" : "warning",
-        icon: "❄️",
+        icon: "❄",
         titleKey: "hazard_cold_title",
         descKey: "hazard_cold_desc",
         adviceKey: "hazard_cold_advice",
@@ -244,7 +279,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         id: "rain",
         type: "rain",
         severity: precipitation >= 25 ? "danger" : "warning",
-        icon: "🌧️",
+        icon: "🌧",
         titleKey: "hazard_rain_title",
         descKey: "hazard_rain_desc",
         adviceKey: "hazard_rain_advice",
@@ -283,7 +318,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
           type: "official",
           severity: "danger",
           icon: "🚨",
-          titleKey: alert.tag || "hazard_official_title",
+          titleKey: resolveOfficialTitleKey(alert),
           descKey: resolvedHeadline,
           adviceKey: alert.details || "hazard_official_advice",
           metricValue: alert.area || alert.source || t("official_alert_badge", "Official Alert"),
@@ -364,7 +399,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
 
   return (
     <section
-      aria-label={t("alert_watcher_aria", "Severe Weather Alert Watcher")}
+      aria-label={tLocal("alert_watcher_aria", "Severe Weather Alert Watcher")}
       className="relative overflow-hidden rounded-2xl border-2 border-border/80 bg-card/95 p-4 sm:p-6 shadow-xl backdrop-blur-lg transition-all duration-300"
     >
       {/* Test Notification Banner Toast */}
@@ -396,7 +431,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
                 : "bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/50"
             }`}
           >
-            {hasHazards ? "⚠️" : "🛡️"}
+            {hasHazards ? "⚠" : "🛡"}
           </div>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -480,7 +515,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
             title={tLocal("test_btn", "Test Alert & Chime")}
             aria-label={tLocal("test_btn", "Test Alert & Chime")}
           >
-            <span className="text-base">▶️</span>
+            <span className="text-base">▶</span>
             <span>{tLocal("test_btn", "Test Alert")}</span>
           </button>
 
@@ -492,7 +527,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
             title={tLocal("settings_btn", "Alert Settings")}
             aria-label={tLocal("settings_btn", "Alert Settings")}
           >
-            ⚙️
+            ⚙
           </button>
         </div>
       </div>
@@ -575,7 +610,7 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
               className="text-xs sm:text-sm font-bold text-foreground px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 border border-border"
               aria-label={t("done", "Done")}
             >
-              {tLocal("close", "Done")}
+              {tLocal("done", "Done")}
             </button>
           </div>
 
@@ -646,19 +681,19 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
                     key: "notifyHeat",
                     labelKey: "settings_heat_label",
                     defaultLabel: "Extreme Heatwaves (> 38°C)",
-                    icon: "🌡️",
+                    icon: "🌡",
                   },
                   {
                     key: "notifyCold",
                     labelKey: "settings_cold_label",
                     defaultLabel: "Freezing Cold (≤ 0°C)",
-                    icon: "❄️",
+                    icon: "❄",
                   },
                   {
                     key: "notifyRain",
                     labelKey: "settings_rain_label",
                     defaultLabel: "Torrential Rain & Floods",
-                    icon: "🌧️",
+                    icon: "🌧",
                   },
                   {
                     key: "notifyAir",
