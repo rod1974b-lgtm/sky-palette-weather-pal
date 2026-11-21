@@ -1,4 +1,106 @@
 // src/routes/gallery.tsx
+// FIXED — v2 — Rebuilt from the REAL pasted file.
+// WHAT WAS BROKEN — READ THIS, DO NOT REVERT:
+// BUG 1 — Slot limits read raw localStorage flags, bypassed monetization.
+//   Pasted getUserSlotLimits() did localStorage.getItem(
+//   "weather:monetization:party_pack_root_beer_tier") === "true" etc. Anyone
+//   could set that flag in DevTools and get unlimited slots. It also had no
+//   single source of truth — if a user had small + medium flags, order picked
+//   the highest, but PAID_TIER_KEY is the real record.
+//   FIX: Primary source is now getPaidTier() + getTierById() from
+//   @/lib/monetization, using tier.bonus.aiBackgrounds (small 2, medium 4,
+//   large 6, party 999 sentinel). If getPaidTier() is null, fall back to the
+//   legacy flags for users who unlocked before PAID_TIER_KEY existed —
+//   migration only, new unlocks must go via saveThankYouBackgroundForever().
+//   NOTE: Slots are PERMANENT. Tier bonus says "2 Permanent Slots", "4
+//   Permanent Slots + 30 Days Ad-Free". Ad-free expiry does NOT revoke slots.
+//   Do NOT check expiry for slots. isAdFreeActive() is for ads only.
+//   NOTE: 999 is the existing sentinel for unlimited. UI only shows 6 slots,
+//   so unlimited means all 6 unlocked in the UI. Do NOT treat 999 as a
+//   literal slot count in the UI.
+// BUG 2 — handleApplyWallpaper double-saved and overwrote current city.
+//   Pasted: saveCustomArtChoice(cityName) + saveCustomArtChoice(
+//   currentPlace.name) + applyCustomWallpaper(cityName, currentPlace.name).
+//   Tapping Apply on the Paris card also overwrote Bangkok (currentPlace)
+//   wallpaper to the Paris image. Going back to Forecast for Bangkok then
+//   showed Paris. FIX: Only save for cityName. Removed the second
+//   saveCustomArtChoice(currentPlace.name). If cityName === currentPlace.name,
+//   one save is enough anyway. applyCustomWallpaper() call kept as-is.
+// BUG 3 — getCityRegion missed Cairo / Dubai, Sydney / Melbourne wrong,
+//   capCity broke multi-word cities.
+//   Pasted: Cairo + Dubai fell through to "all", so they disappeared when
+//   filtering to any region except All. Sydney / Melbourne were in "asia",
+//   geographically wrong. capCity was cityKey.charAt(0).toUpperCase() +
+//   slice(1), so "chiang mai" became "Chiang mai", "ho chi minh city" became
+//   "Ho chi minh city", "new york" became "New york".
+//   FIX: Dubai -> asia (Middle East is Asia), Cairo -> africa,
+//   Sydney / Melbourne -> oceania. Added Africa + Oceania filter buttons.
+//   Added titleCaseCity() that title-cases EVERY word.
+// BUG 4 — handlePhotoUpload had no slot check, no file validation.
+//   Pasted: handleGenerateAi checked slot limit, handlePhotoUpload did not.
+//   If target was stale (e.g. ad bonus expired), a photo could fill a locked
+//   slot. Any file type / size was accepted, corrupted file failed silently.
+//   FIX: Same slot check in handlePhotoUpload. Validate file.type starts
+//   with "image/", file.size <= 10MB, show translated alert if invalid.
+//   Reset input value after handling so the same file can be re-selected.
+// BUG 5 — handleViewWeather 0,0 fallback + dead event.
+//   Pasted: If city not in LANDMARK_COORDINATES, it saved { name: city,
+//   country: "Global", lat: 0, lon: 0 } as last-place. 0,0 is Gulf of Guinea
+//   ocean, not Global. Home then loaded ocean weather with the city name.
+//   It also dispatched "weather:place-changed", which home (index.tsx) does
+//   NOT listen for — dead event.
+//   FIX: If not found, do NOT overwrite last-place, do NOT navigate, show
+//   translated alert "Weather not available for this city". Removed dead
+//   dispatch. Navigation + localStorage is enough.
+// BUG 6 — Search did not search localized name, region buttons English,
+//   no empty state.
+//   Pasted: filteredLandmarks only checked English city / title, so a Thai
+//   user searching "กรุงเทพ" found nothing. Region buttons showed raw keys
+//   "all", "thailand" etc., not translated. Empty search showed a blank grid.
+//   FIX: Search also checks getLocalizedCity(city, i18n.language). Region
+//   buttons use t("gallery_filter_<region>", fallback) with English fallback
+//   (only gallery_filter_all exists in locales, others fall back to English
+//   until a locale pass adds them). Added empty state with Clear button.
+//   filteredLandmarks now depends on i18n.language so it updates on language change.
+// BUG 7 — Zoom modal closed on image click, no Escape, mobile zoom invisible.
+//   Pasted: Lightbox onClick closed, inner card had no stopPropagation, so
+//   clicking the image closed it. No Escape listener. Zoom button was
+//   opacity-0 group-hover:opacity-100, on touch devices hover never happens,
+//   so mobile users could never zoom.
+//   FIX: Inner card stops propagation, Escape closes, image container
+//   onClick opens zoom (so mobile can tap the image), zoom button is
+//   always visible on mobile (opacity-100 sm:opacity-0 sm:group-hover:opacity-100).
+// BUG 8 — AI prompt sent "Your Location" + no length limit.
+//   Pasted: If currentPlace was the "Your Location" sentinel, generate sent
+//   city "Your Location" to AI, meaningless. aiPrompt had no limit, user
+//   could paste 10k chars.
+//   FIX: For AI, city = currentPlace.name === "Your Location" ? "Bangkok" :
+//   currentPlace.name. aiPrompt is trimmed and limited to 200 chars.
+// BUG 9 — useEffect no cleanup, no catch, slotLimits went stale.
+//   Pasted: migrateLegacyLocalStorage().then(() => getSavedArtworks().then(
+//   ...)) with no catch, no mounted flag. If component unmounted early,
+//   setSavedArtworks ran on unmounted. If IndexedDB failed, unhandled
+//   rejection. slotLimits was only refreshed on mount / after ad / after
+//   payment modal, so ad bonus expiry did not update while staying on page.
+//   FIX: Mounted flag + catch. Interval every 60s refreshes slotLimits so
+//   ad bonus expiry updates while staying on the page.
+// BUG 10 — Download filename used currentPlace, not the item.
+//   Pasted: handleDownloadArt used currentPlace.name, so downloading Paris
+//   art while currentPlace was Bangkok gave "bangkok-slot-1.png".
+//   FIX: Filename now uses item.title sanitized, fallback to city.
+// BUG 11 — Alert / confirm fallbacks used ${} instead of {{}}.
+//   Pasted: t("alert_wallpaper_applied", `Applied wallpaper for ${city}...`,
+//   { city }) etc. The ${} was evaluated even when a translation existed,
+//   and the fallback did not use the i18n placeholder. FIX: Fallbacks now
+//   use {{city}} / {{hours}} / {{slot}} placeholders so i18n interpolates
+//   them in both translation and fallback.
+// KEPT AS-IS: LANDMARK_COORDINATES (keys must stay lowercase to match
+//   cityKey), LANDMARK_WATERCOLORS / LANDMARK_TITLES usage, compressImage
+//   helpers (1024 / 0.82), PaymentModal in gallery (gallery has NO AppMenu,
+//   so gallery NEEDS its own PaymentModal — do NOT delete it like in
+//   index.tsx where AppMenu owns it), slot UI layout / 6-slot grid, tier
+//   names / slot counts, ad bonus +1 slot / 24h, photo upload flow,
+//   header / tier banner / slots / studio / landmarks / lightbox layout.
 import type { TFunction } from "i18next";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -14,6 +116,9 @@ import { PaymentModal } from "@/components/PaymentModal";
 import type { Place } from "@/lib/weather";
 import {
   showRewardedAdViaMedian,
+  // FIXED BUG 1: Single source of truth for slots.
+  getPaidTier,
+  getTierById,
 } from "@/lib/monetization";
 import {
   type SavedItem,
@@ -79,12 +184,25 @@ const LANDMARK_COORDINATES: Record<string, Place> = {
   dubai: { name: "Dubai", country: "United Arab Emirates", lat: 25.2048, lon: 55.2708 },
 };
 
+// FIXED BUG 3: Title-case EVERY word, not just the first letter of the string.
+function titleCaseCity(key: string): string {
+  return key
+    .split(" ")
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
 function getCityRegion(cityName: string): string {
   const c = cityName.toLowerCase();
   if (["ratchaburi", "bangkok", "chiang mai", "phuket", "krabi", "pattaya"].includes(c)) return "thailand";
-  if (["singapore", "tokyo", "kyoto", "osaka", "seoul", "taipei", "hong kong", "hanoi", "ho chi minh city", "bali", "kuala lumpur", "sydney", "melbourne"].includes(c)) return "asia";
+  // FIXED BUG 3: Dubai is Asia (Middle East), Cairo is Africa, Sydney /
+  // Melbourne are Oceania, not Asia. Previously Cairo + Dubai fell through
+  // to "all" and disappeared on any filter except All.
+  if (["singapore", "tokyo", "kyoto", "osaka", "seoul", "taipei", "hong kong", "hanoi", "ho chi minh city", "bali", "kuala lumpur", "dubai"].includes(c)) return "asia";
+  if (["sydney", "melbourne"].includes(c)) return "oceania";
   if (["paris", "london", "rome", "venice", "barcelona", "amsterdam", "berlin", "zurich", "prague"].includes(c)) return "europe";
   if (["new york", "san francisco", "los angeles", "vancouver", "toronto"].includes(c)) return "americas";
+  if (["cairo"].includes(c)) return "africa";
   return "all";
 }
 
@@ -111,28 +229,56 @@ export function getUserSlotLimits(): UserSlotLimits {
     };
   }
 
-  const isPartyVip = localStorage.getItem("weather:monetization:party_pack_root_beer_tier") === "true";
-  const isLarge = localStorage.getItem("weather:monetization:large_root_beer_tier") === "true";
-  const isMedium = localStorage.getItem("weather:monetization:medium_root_beer_tier") === "true";
-  const isSmall = localStorage.getItem("weather:monetization:small_root_beer_tier") === "true";
-
+  // FIXED BUG 1: Primary source = getPaidTier() + getTierById().
+  // Slots are permanent — do NOT check ad-free expiry here.
   let baseSlots = 1;
   let isUnlimited = false;
   let tierLevel = 0;
 
-  if (isPartyVip) {
-    tierLevel = 4;
-    isUnlimited = true;
-    baseSlots = 999;
-  } else if (isLarge) {
-    tierLevel = 3;
-    baseSlots = 6;
-  } else if (isMedium) {
-    tierLevel = 2;
-    baseSlots = 4;
-  } else if (isSmall) {
-    tierLevel = 1;
-    baseSlots = 2;
+  const paidTierId = getPaidTier();
+  if (paidTierId) {
+    const tier = getTierById(paidTierId);
+    if (tier) {
+      if (paidTierId === "party_pack_root_beer_tier") {
+        tierLevel = 4;
+        isUnlimited = true;
+        baseSlots = 999;
+      } else if (paidTierId === "large_root_beer_tier") {
+        tierLevel = 3;
+        baseSlots = tier.bonus.aiBackgrounds;
+      } else if (paidTierId === "medium_root_beer_tier") {
+        tierLevel = 2;
+        baseSlots = tier.bonus.aiBackgrounds;
+      } else if (paidTierId === "small_root_beer_tier") {
+        tierLevel = 1;
+        baseSlots = tier.bonus.aiBackgrounds;
+      }
+    }
+  }
+
+  // Legacy fallback: flags set before PAID_TIER_KEY existed. Migration only.
+  // If getPaidTier() is null but a legacy flag is set, honor it so existing
+  // supporters do not lose slots on upgrade. New unlocks must go via
+  // saveThankYouBackgroundForever(), which sets PAID_TIER_KEY.
+  if (!paidTierId) {
+    const isPartyVip = localStorage.getItem("weather:monetization:party_pack_root_beer_tier") === "true";
+    const isLarge = localStorage.getItem("weather:monetization:large_root_beer_tier") === "true";
+    const isMedium = localStorage.getItem("weather:monetization:medium_root_beer_tier") === "true";
+    const isSmall = localStorage.getItem("weather:monetization:small_root_beer_tier") === "true";
+    if (isPartyVip) {
+      tierLevel = 4;
+      isUnlimited = true;
+      baseSlots = 999;
+    } else if (isLarge) {
+      tierLevel = 3;
+      baseSlots = 6;
+    } else if (isMedium) {
+      tierLevel = 2;
+      baseSlots = 4;
+    } else if (isSmall) {
+      tierLevel = 1;
+      baseSlots = 2;
+    }
   }
 
   let hasAdBonus = false;
@@ -140,18 +286,24 @@ export function getUserSlotLimits(): UserSlotLimits {
   try {
     const adTimestamp = localStorage.getItem("weather:gallery-ad-bonus-time");
     if (adTimestamp) {
-      const elapsed = Date.now() - parseInt(adTimestamp, 10);
-      const remainingMs = 24 * 60 * 60 * 1000 - elapsed;
-      if (remainingMs > 0) {
-        hasAdBonus = true;
-        adHoursLeft = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
-      } else {
+      const parsed = parseInt(adTimestamp, 10);
+      if (!Number.isFinite(parsed)) {
         localStorage.removeItem("weather:gallery-ad-bonus-time");
+      } else {
+        const elapsed = Date.now() - parsed;
+        const remainingMs = 24 * 60 * 60 * 1000 - elapsed;
+        if (remainingMs > 0) {
+          hasAdBonus = true;
+          adHoursLeft = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+        } else {
+          localStorage.removeItem("weather:gallery-ad-bonus-time");
+        }
       }
     }
   } catch {}
 
   const effectiveAiSlots = isUnlimited ? 999 : baseSlots + (hasAdBonus ? 1 : 0);
+  // citySlots is legacy — UI uses aiSlots. Kept for compat: 1 base + ad bonus.
   const effectiveCitySlots = isUnlimited ? 999 : 1 + (hasAdBonus ? 1 : 0);
 
   return {
@@ -227,7 +379,11 @@ function compressImageDataUrl(dataUrl: string, maxDim = 1024, quality = 0.82): P
         if (webp.startsWith("data:image/webp")) return resolve(webp);
       } catch {}
 
-      resolve(canvas.toDataURL("image/jpeg", quality));
+      try {
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch {
+        resolve(dataUrl);
+      }
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
@@ -254,7 +410,12 @@ export function ArtGalleryPage() {
     if (typeof window !== "undefined") {
       try {
         const last = localStorage.getItem("weather:last-place");
-        if (last) return JSON.parse(last);
+        if (last) {
+          const parsed = JSON.parse(last) as Place;
+          if (parsed && typeof parsed.name === "string" && Number.isFinite(parsed.lat) && Number.isFinite(parsed.lon)) {
+            return parsed;
+          }
+        }
       } catch {}
     }
     return { name: "Bangkok", country: "Thailand", lat: 13.7563, lon: 100.5018 };
@@ -281,14 +442,47 @@ export function ArtGalleryPage() {
 
   useEffect(() => {
     applyPersistedLanguage();
-    migrateLegacyLocalStorage().then(() => {
-      getSavedArtworks().then((items) => setSavedArtworks(items));
-    });
+    // FIXED BUG 9: Mounted flag + catch. No setState on unmounted, no
+    // unhandled rejection if IndexedDB is blocked (private mode).
+    let mounted = true;
+    migrateLegacyLocalStorage()
+      .then(() => getSavedArtworks())
+      .then((items) => {
+        if (mounted) setSavedArtworks(items);
+      })
+      .catch(() => {
+        if (mounted) setSavedArtworks([]);
+      });
+    // FIXED BUG 9: Refresh slotLimits every 60s so ad bonus expiry updates
+    // while staying on the page, without a manual reload.
+    const interval = setInterval(() => {
+      if (mounted) setSlotLimits(getUserSlotLimits());
+    }, 60 * 1000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
+
+  // FIXED BUG 7: Escape closes the lightbox.
+  useEffect(() => {
+    if (!zoomedImage) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomedImage(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomedImage]);
 
   const saveArtworkList = async (items: SavedItem[]) => {
     setSavedArtworks(items);
-    await saveSavedArtworks(items);
+    try {
+      await saveSavedArtworks(items);
+    } catch {
+      // IndexedDB quota / blocked — UI already shows the item, but it will
+      // not survive reload. Tell the user instead of silently losing it.
+      alert(t("error_save_artwork", "Could not save artwork on this device. Storage may be full or blocked."));
+    }
   };
 
   const handleSelectTargetSlot = (slotIndex: number) => {
@@ -304,7 +498,8 @@ export function ArtGalleryPage() {
       alert(
         t(
           "alert_ad_already_active",
-          `You already have an active Ad Slot (+1 slot) for ${slotLimits.adHoursLeft} more hours!`,
+          // FIXED BUG 11: Use {{hours}} placeholder, not ${} in fallback.
+          "You already have an active Ad Slot (+1 slot) for {{hours}} more hours!",
           { hours: slotLimits.adHoursLeft }
         )
       );
@@ -339,7 +534,8 @@ export function ArtGalleryPage() {
   const landmarkItems = useMemo(() => {
     const list: { city: string; image: string; title: string; region: string }[] = [];
     for (const [cityKey, urls] of Object.entries(LANDMARK_WATERCOLORS)) {
-      const capCity = cityKey.charAt(0).toUpperCase() + cityKey.slice(1);
+      // FIXED BUG 3: Title-case every word.
+      const capCity = titleCaseCity(cityKey);
       const region = getCityRegion(cityKey);
       urls.forEach((url, idx) => {
         const titleKey = `${cityKey}_${idx}`;
@@ -351,24 +547,32 @@ export function ArtGalleryPage() {
   }, []);
 
   const filteredLandmarks = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return landmarkItems.filter((item) => {
       const matchRegion = selectedRegion === "all" || item.region === selectedRegion;
+      if (!q) return matchRegion;
+      // FIXED BUG 6: Also search the localized city name, so Thai search
+      // "กรุงเทพ" finds Bangkok. Previously only English city / title.
+      const localizedCity = getLocalizedCity(item.city, i18n.language).toLowerCase();
       const matchSearch =
-        searchQuery === "" ||
-        item.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.title.toLowerCase().includes(searchQuery.toLowerCase());
+        item.city.toLowerCase().includes(q) ||
+        item.title.toLowerCase().includes(q) ||
+        localizedCity.includes(q);
       return matchRegion && matchSearch;
     });
-  }, [landmarkItems, selectedRegion, searchQuery]);
+    // FIXED BUG 6: Depend on i18n.language so search updates on language change.
+  }, [landmarkItems, selectedRegion, searchQuery, i18n.language]);
 
   const handleApplyWallpaper = async (cityName: string, imageUrl: string) => {
+    // FIXED BUG 2: Only save for cityName. Do NOT also save for
+    // currentPlace.name — tapping Apply on Paris used to overwrite Bangkok.
     saveCustomArtChoice(cityName, imageUrl);
-    saveCustomArtChoice(currentPlace.name, imageUrl);
     await applyCustomWallpaper(cityName, currentPlace.name, imageUrl);
     alert(
       t(
         "alert_wallpaper_applied",
-        `Applied wallpaper for ${getLocalizedCity(cityName, i18n.language)}! Tap "Back to Forecast" to see it live.`,
+        // FIXED BUG 11: Use {{city}} placeholder in fallback.
+        "Applied wallpaper for {{city}}! Tap \"Back to Forecast\" to see it live.",
         { city: getLocalizedCity(cityName, i18n.language) }
       )
     );
@@ -378,7 +582,13 @@ export function ArtGalleryPage() {
     try {
       const link = document.createElement("a");
       link.href = item.url;
-      link.download = `${currentPlace.name.toLowerCase().replace(/\s+/g, "-")}-slot-${slotNum}.png`;
+      // FIXED BUG 10: Filename from item title, not currentPlace.
+      const safeTitle = (item.title || `slot-${slotNum}`)
+        .toLowerCase()
+        .replace(/[^a-z0-9\u0E00-\u0E7F]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 48) || `slot-${slotNum}`;
+      link.download = `${safeTitle}-slot-${slotNum}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -387,7 +597,8 @@ export function ArtGalleryPage() {
 
   const handleDeleteSlot = async (index: number) => {
     const slotNum = index + 1;
-    if (confirm(t("confirm_delete_slot", `Delete artwork in Slot ${slotNum}?`, { slot: slotNum }))) {
+    // FIXED BUG 11: Use {{slot}} placeholder in fallback.
+    if (confirm(t("confirm_delete_slot", "Delete artwork in Slot {{slot}}?", { slot: slotNum }))) {
       const updated = [...savedArtworks];
       updated.splice(index, 1);
       await saveArtworkList(updated);
@@ -396,27 +607,31 @@ export function ArtGalleryPage() {
 
   const handleViewWeather = (cityName: string) => {
     const key = cityName.toLowerCase();
-    const targetPlace = LANDMARK_COORDINATES[key] || {
-      name: cityName,
-      country: "Global",
-      lat: 0,
-      lon: 0,
-    };
+    const targetPlace = LANDMARK_COORDINATES[key];
+    // FIXED BUG 5: Do NOT save 0,0 as last-place. 0,0 is Gulf of Guinea
+    // ocean, not Global. If the city has no coordinates, do not navigate.
+    if (!targetPlace) {
+      alert(t("error_weather_not_available", "Weather is not available for this city yet."));
+      return;
+    }
     try {
       localStorage.setItem("weather:last-place", JSON.stringify(targetPlace));
-      window.dispatchEvent(new CustomEvent("weather:place-changed", { detail: targetPlace }));
+      // Dead event removed: home does not listen for "weather:place-changed".
+      // Navigation + localStorage is enough.
     } catch {}
     navigate({ to: "/" });
   };
 
   const handleGenerateAi = async () => {
-    if (!aiPrompt.trim()) return;
+    const prompt = aiPrompt.trim().slice(0, 200);
+    if (!prompt) return;
 
     if (!slotLimits.isUnlimited && targetSlotIndex >= slotLimits.aiSlots) {
       alert(
         t(
           "alert_slot_limit",
-          `Slot ${targetSlotIndex + 1} is locked. Watch an ad for +1 slot (24h) or upgrade with Root Beer to unlock it permanently!`,
+          // FIXED BUG 11: Use {{slot}} placeholder in fallback.
+          "Slot {{slot}} is locked. Watch an ad for +1 slot (24h) or upgrade with Root Beer to unlock it permanently!",
           { slot: targetSlotIndex + 1 }
         )
       );
@@ -426,10 +641,12 @@ export function ArtGalleryPage() {
     setIsGenerating(true);
     setAiError(null);
     try {
+      // FIXED BUG 8: Do NOT send "Your Location" sentinel to AI.
+      const cityForAi = currentPlace.name === "Your Location" ? "Bangkok" : currentPlace.name;
       const res = await generateWatercolorFn({
         data: {
-          city: currentPlace.name,
-          userPrompt: aiPrompt.trim(),
+          city: cityForAi,
+          userPrompt: prompt,
           weatherDesc: "fluid watercolor painting, vibrant atmospheric wash, visible paper texture",
         },
       });
@@ -440,7 +657,7 @@ export function ArtGalleryPage() {
         const newItem: SavedItem = {
           id: `ai-${Date.now()}`,
           url: optimizedUrl,
-          title: `${currentPlace.name} — ${aiPrompt.slice(0, 30)}...`,
+          title: `${currentPlace.name} — ${prompt.slice(0, 30)}...`,
           timestamp: Date.now(),
         };
 
@@ -468,7 +685,34 @@ export function ArtGalleryPage() {
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Reset input so the same file can be re-selected after handling.
+    e.target.value = "";
     if (!file) return;
+
+    // FIXED BUG 4: Same slot check as handleGenerateAi. Previously photo
+    // upload had no check, so a stale target could fill a locked slot.
+    if (!slotLimits.isUnlimited && targetSlotIndex >= slotLimits.aiSlots) {
+      alert(
+        t(
+          "alert_slot_limit",
+          "Slot {{slot}} is locked. Watch an ad for +1 slot (24h) or upgrade with Root Beer to unlock it permanently!",
+          { slot: targetSlotIndex + 1 }
+        )
+      );
+      return;
+    }
+
+    // FIXED BUG 4: Validate file type + size before reading it.
+    if (!file.type.startsWith("image/")) {
+      alert(t("error_invalid_image_type", "Please choose an image file (JPG, PNG, WebP)."));
+      return;
+    }
+    const MAX_BYTES = 10 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      alert(t("error_image_too_large", "This photo is too large. Please choose one under 10MB."));
+      return;
+    }
+
     try {
       const compressedUrl = await compressImageFile(file, 1024, 0.82);
       setUploadedPhoto(compressedUrl);
@@ -488,7 +732,32 @@ export function ArtGalleryPage() {
 
       await saveArtworkList(updated);
       await handleApplyWallpaper(currentPlace.name, compressedUrl);
-    } catch {}
+    } catch {
+      alert(t("error_upload_failed", "Could not read this photo. Please try another one."));
+    }
+  };
+
+  const regionLabel = (region: string): string => {
+    // Only gallery_filter_all exists in locales. Others fall back to English
+    // until a locale pass adds them. Value stays English for filtering.
+    switch (region) {
+      case "all":
+        return t("gallery_filter_all", "All");
+      case "thailand":
+        return t("gallery_filter_thailand", "Thailand");
+      case "asia":
+        return t("gallery_filter_asia", "Asia");
+      case "oceania":
+        return t("gallery_filter_oceania", "Oceania");
+      case "europe":
+        return t("gallery_filter_europe", "Europe");
+      case "americas":
+        return t("gallery_filter_americas", "Americas");
+      case "africa":
+        return t("gallery_filter_africa", "Africa");
+      default:
+        return region;
+    }
   };
 
   return (
@@ -534,7 +803,7 @@ export function ArtGalleryPage() {
               </p>
               <div className="flex flex-wrap gap-2 mt-2 text-xs text-slate-300">
                 <span className="bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">
-                  🖼️ {t("gallery_slots_available", "Active Slots:")}{" "}
+                  🖼 {t("gallery_slots_available", "Active Slots:")}{" "}
                   <strong className="text-white">
                     {slotLimits.isUnlimited ? t("slot_unlimited", "Unlimited") : slotLimits.aiSlots}
                   </strong>
@@ -572,7 +841,7 @@ export function ArtGalleryPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🖼️</span> {t("heading_saved_wallpaper_slots", "Your Wallpaper Slots")}
+                <span>🖼</span> {t("heading_saved_wallpaper_slots", "Your Wallpaper Slots")}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 {t(
@@ -642,7 +911,14 @@ export function ArtGalleryPage() {
                   <div className="p-4 flex-1 flex flex-col items-center justify-center min-h-[170px]">
                     {item?.url ? (
                       <div className="w-full space-y-2">
-                        <div className="relative group rounded-xl overflow-hidden aspect-video bg-slate-950">
+                        <div
+                          className="relative group rounded-xl overflow-hidden aspect-video bg-slate-950 cursor-pointer"
+                          // FIXED BUG 7: Tap image to zoom — mobile has no hover.
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setZoomedImage({ url: item.url, title: item.title });
+                          }}
+                        >
                           <img
                             src={item.url}
                             alt={item.title}
@@ -653,7 +929,8 @@ export function ArtGalleryPage() {
                               e.stopPropagation();
                               setZoomedImage({ url: item.url, title: item.title });
                             }}
-                            className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                            // FIXED BUG 7: Always visible on mobile, hover-only on desktop.
+                            className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
                             title={t("btn_zoom", "Zoom")}
                           >
                             🔍
@@ -725,7 +1002,7 @@ export function ArtGalleryPage() {
                             className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 transition cursor-pointer"
                             title={t("btn_delete", "Delete")}
                           >
-                            🗑️
+                            🗑
                           </button>
                         </div>
                       </div>
@@ -797,7 +1074,8 @@ export function ArtGalleryPage() {
                   <input
                     type="text"
                     value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onChange={(e) => setAiPrompt(e.target.value.slice(0, 200))}
+                    maxLength={200}
                     placeholder={t(
                       "placeholder_ai_prompt",
                       "e.g., sunset over temple towers with golden glow and paper texture"
@@ -819,7 +1097,7 @@ export function ArtGalleryPage() {
 
               {aiError && (
                 <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-800 text-rose-200 text-xs">
-                  ⚠️ {aiError}
+                  ⚠ {aiError}
                 </div>
               )}
 
@@ -851,7 +1129,7 @@ export function ArtGalleryPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🏛️</span> {t("heading_city_landmarks", "Curated City Landmarks")}
+                <span>🏛</span> {t("heading_city_landmarks", "Curated City Landmarks")}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 {t(
@@ -863,7 +1141,7 @@ export function ArtGalleryPage() {
 
             {/* Filter buttons & Search */}
             <div className="flex flex-wrap items-center gap-2">
-              {["all", "thailand", "asia", "europe", "americas"].map((region) => (
+              {["all", "thailand", "asia", "oceania", "europe", "americas", "africa"].map((region) => (
                 <button
                   key={region}
                   onClick={() => setSelectedRegion(region)}
@@ -873,7 +1151,7 @@ export function ArtGalleryPage() {
                       : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
                   }`}
                 >
-                  {region}
+                  {regionLabel(region)}
                 </button>
               ))}
               <input
@@ -886,51 +1164,75 @@ export function ArtGalleryPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredLandmarks.map((item, idx) => (
-              <div
-                key={`${item.city}-${idx}`}
-                className="bg-slate-800/80 border border-slate-700 rounded-2xl overflow-hidden shadow hover:border-slate-600 transition flex flex-col justify-between"
+          {filteredLandmarks.length === 0 ? (
+            // FIXED BUG 6: Empty state — was a blank grid.
+            <div className="text-center py-10 space-y-2">
+              <p className="text-sm text-slate-300">{t("gallery_no_results", "No artworks found for this search.")}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedRegion("all");
+                }}
+                className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 cursor-pointer"
               >
-                <div className="relative group aspect-video bg-slate-950">
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
-                  />
-                  <button
+                {t("gallery_clear_search", "Clear search")}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredLandmarks.map((item, idx) => (
+                <div
+                  key={`${item.city}-${idx}`}
+                  className="bg-slate-800/80 border border-slate-700 rounded-2xl overflow-hidden shadow hover:border-slate-600 transition flex flex-col justify-between"
+                >
+                  <div
+                    className="relative group aspect-video bg-slate-950 cursor-pointer"
+                    // FIXED BUG 7: Tap image to zoom on mobile.
                     onClick={() => setZoomedImage({ url: item.image, title: item.title })}
-                    className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition cursor-pointer"
                   >
-                    🔍
-                  </button>
-                </div>
-
-                <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-white truncate">{item.title}</h3>
-                    <p className="text-xs text-slate-400">{getLocalizedCity(item.city, i18n.language)}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-700/60">
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                    />
                     <button
-                      onClick={() => handleApplyWallpaper(item.city, item.image)}
-                      className="flex-1 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomedImage({ url: item.image, title: item.title });
+                      }}
+                      className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-900 text-white text-xs p-1.5 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
                     >
-                      ✓ {t("btn_apply_wallpaper", "Apply Wallpaper")}
-                    </button>
-                    <button
-                      onClick={() => handleViewWeather(item.city)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-slate-200 text-xs transition border border-slate-700 cursor-pointer"
-                      title={t("btn_view_weather", "View Weather")}
-                    >
-                      ⛅
+                      🔍
                     </button>
                   </div>
+
+                  <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-white truncate">{item.title}</h3>
+                      <p className="text-xs text-slate-400">{getLocalizedCity(item.city, i18n.language)}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-700/60">
+                      <button
+                        onClick={() => handleApplyWallpaper(item.city, item.image)}
+                        className="flex-1 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer"
+                      >
+                        ✓ {t("btn_apply_wallpaper", "Apply Wallpaper")}
+                      </button>
+                      <button
+                        onClick={() => handleViewWeather(item.city)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-slate-200 text-xs transition border border-slate-700 cursor-pointer"
+                        title={t("btn_view_weather", "View Weather")}
+                      >
+                        ⛅
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       </main>
 
@@ -940,7 +1242,11 @@ export function ArtGalleryPage() {
           className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
           onClick={() => setZoomedImage(null)}
         >
-          <div className="max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
+          <div
+            className="max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl"
+            // FIXED BUG 7: Clicking the image / card must NOT close the modal.
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 flex items-center justify-between border-b border-slate-800">
               <h3 className="font-bold text-sm text-white">{zoomedImage.title}</h3>
               <button
@@ -961,7 +1267,8 @@ export function ArtGalleryPage() {
         </div>
       )}
 
-      {/* Payment / Tier Modal */}
+      {/* Payment / Tier Modal — KEPT: gallery has no AppMenu, so gallery
+          NEEDS its own PaymentModal. Do NOT delete it like in index.tsx. */}
       {paymentModalTier && (
         <PaymentModal
           tierId={paymentModalTier}
