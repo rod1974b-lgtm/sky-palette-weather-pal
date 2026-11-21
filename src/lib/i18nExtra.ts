@@ -1,6 +1,17 @@
 // src/lib/i18nExtra.ts - PART 1: Core Weather, Clothing, Gallery & Mascots
-// Fully localizes EN, TH, ES, FR, DE, and PT with baseline fallbacks for remaining languages.
-import { extraResourcesPart2 } from "./i18nExtraPart2";
+// Fully localizes EN, TH, ES, FR, DE, and PT.
+// FIXED — Batch 6:
+// 1. REMOVED the `import { extraResourcesPart2 }` + `...extraResourcesPart2` spread.
+//    That spread OVERWROTE en/th/es/fr/de/pt entirely if Part2 defined the same
+//    languages, deleting all 124 keys below. And i18n.ts already imports Part2
+//    separately and merges it in buildResourceBundle(), so this file must be
+//    STANDALONE. No import, no spread.
+// 2. ADDED the 34 keys that CityComparison / PaymentModal / ThankYouModal call
+//    via t() but were missing from Part 1: compare_* (16), promo_* (10),
+//    thank_you_* (8). Before this, those screens fell back to English even
+//    when the user was in Thai / Spanish / French / German / Portuguese.
+// 3. FIXED pt typo: slot_large_tier "Nivel ..." (Spanish) -> "Nível ..."
+// 4. No other translations changed. All original Part 1 values kept verbatim.
 export const extraResources: Record<string, Record<string, string>> = {
   en: {
     // WeatherView Actions & Header
@@ -25,7 +36,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     no_weather_title: "No Weather Data Available",
     no_weather_desc: "Search for a city or use your location pin to view weather.",
     cond_unknown: "Unknown",
-
     // AQI & Health Advisories
     aqi_good_advice: "Air quality is satisfactory; enjoy outdoor activities!",
     aqi_mod_advice: "Moderate air quality. Unusually sensitive people should consider reducing prolonged outdoor exertion.",
@@ -34,7 +44,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     aqi_hazardous: "Hazardous",
     aqi_hazard_advice: "Emergency warning: Air is hazardous. Stay indoors, keep windows closed, and run air purifiers.",
     aqi_normal_advice: "Air quality is suitable for standard activities.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Sturdy compact umbrella or raincoat",
     wear_acc_sunglasses: "UV400 sunglasses & SPF 50 sunscreen",
@@ -55,7 +64,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     wear_cas_mild: "Classic cotton t-shirt paired with a light cardigan, overshirt, and chinos.",
     wear_cas_warm: "Breathable airy cotton t-shirt, casual linen shorts or trousers, and walking sneakers.",
     wear_cas_hot: "Comfortable casual tee or polo, relaxed jeans or breathable shorts, and sun protection.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "AI Watercolor Studio & Landmarks",
     gallery_tier_label: "Your Plan:",
@@ -72,7 +80,7 @@ export const extraResources: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "e.g. sunset glow, river reflections, floating market lanterns in {{city}}...",
     placeholder_search_city: "Search city or landmark...",
     upload_or_device_photo: "Or upload photo into Slot {{slot}}",
-    btn_paint_with_ai: "Paint Slot {{slot}} 🖌️",
+    btn_paint_with_ai: "Paint Slot {{slot}} 🖌",
     btn_generate_ai: "Paint Scene 🎨",
     btn_painting: "Painting... 🎨",
     btn_apply_wallpaper: "Set as Wallpaper",
@@ -110,7 +118,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     confirm_delete_slot: "Delete artwork in Slot {{slot}}?",
     error_generate_failed: "Could not generate image. Please try another description.",
     error_generation_generic: "Generation failed. Please try again.",
-
     // Mascot & Companions
     tap_to_chat: "Tap to speak!",
     change_mascot: "Choose Companion Mascot",
@@ -121,7 +128,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     hidden: "Hidden",
     active: "Active",
     unlocked: "Unlocked",
-
     // Monetization & Google Play
     google_play_prompt: "Unlock permanently with Google Play In-App Purchase",
     one_time: "One-time",
@@ -138,8 +144,44 @@ export const extraResources: Record<string, Record<string, string>> = {
     tier_short_party: "Party VIP (Unlimited)",
     sun_times: "Sun Times",
     seven_day_forecast: "7-Day Forecast",
+    // City Comparison — ADDED, was missing (CityComparison.tsx calls these)
+    compare_title: "City Comparison Hub",
+    compare_subtitle: "Compare live weather & air quality across your favorite destinations",
+    compare_best_weather: "☀ Best Weather",
+    compare_cleanest_air: "🍃 Cleanest Air",
+    compare_viewing_now: "Viewing Now",
+    compare_view_city: "View Weather",
+    compare_no_favorites: "No Favorite Cities Added Yet",
+    compare_no_favorites_desc: "Tap the heart ❤ on any city to compare live weather conditions side-by-side.",
+    compare_try_cities: "Quick add popular cities:",
+    compare_refresh: "Refresh Comparison",
+    compare_humidity: "Humidity",
+    compare_wind: "Wind",
+    compare_feels: "Feels",
+    compare_high_low: "H / L",
+    compare_aqi: "AQI",
+    compare_unavailable: "Weather Unavailable",
+    // Promo Codes — ADDED, was missing (promoCodes.ts / PaymentModal.tsx)
+    promo_code_label: "Have a VIP / Supporter Code?",
+    promo_code_input: "Enter promo code",
+    promo_empty: "Please enter a promo code.",
+    promo_rate_limited: "Too many failed attempts. Please wait a minute and try again.",
+    promo_error_generic: "Could not redeem code. Please try again.",
+    promo_already_redeemed: "This code has already been redeemed and has expired.",
+    promo_invalid: "Invalid code. Please check and try again.",
+    promo_already_unlocked: "You already have the Party Pack unlocked — no need to use this code. Share it with a friend!",
+    promo_success: "VIP Party Pack successfully unlocked!",
+    promo_success_burn_failed: "VIP Party Pack successfully unlocked! (Note: this device could not record the code as used — keep it safe.)",
+    // Thank You Modal — ADDED, was missing (ThankYouModal.tsx)
+    thank_you_title: "Thank You!",
+    thank_you_unlocked: "Your thank-you background is now saved forever on this device.",
+    thank_you_adfree_forever: "Ad-free forever",
+    thank_you_adfree_days: "Ad-free for {{days}} days — backgrounds stay forever",
+    thank_you_message_small_root_beer_tier: "You unlocked a special thank-you background. Cheers!",
+    thank_you_message_medium_root_beer_tier: "You unlocked a special thank-you background + extra art. Cheers!",
+    thank_you_message_large_root_beer_tier: "You unlocked the full thank-you collection. Thank you so much!",
+    thank_you_message_party_pack_root_beer_tier: "You unlocked everything in the party pack. You're legendary!",
   },
-
   th: {
     // WeatherView Actions & Header
     next_artwork: "เปลี่ยนภาพศิลปะ",
@@ -163,7 +205,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     no_weather_title: "ไม่พบข้อมูลสภาพอากาศ",
     no_weather_desc: "ค้นหาชื่อเมืองหรือแตะไอคอนหมุดตำแหน่งเพื่อดูสภาพอากาศ",
     cond_unknown: "ไม่ทราบสภาพอากาศ",
-
     // AQI & Health Advisories
     aqi_good_advice: "คุณภาพอากาศดีมาก เหมาะสำหรับกิจกรรมกลางแจ้งทุกชนิด!",
     aqi_mod_advice: "คุณภาพอากาศปานกลาง ผู้ที่มีภาวะภูมิแพ้ควรลดการออกกำลังกายกลางแจ้งเป็นเวลานาน",
@@ -172,7 +213,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     aqi_hazardous: "อันตรายอย่างยิ่ง",
     aqi_hazard_advice: "เตือนภัยระดับสูงสุด: อากาศเป็นอันตราย หลีกเลี่ยงการออกนอกอาคาร ปิดหน้าต่างให้สนิท",
     aqi_normal_advice: "คุณภาพอากาศปกติ เหมาะสำหรับการใช้ชีวิตประจำวัน",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "ร่มพับแข็งแรงหรือเสื้อกันฝน",
     wear_acc_sunglasses: "แว่นกันแดด UV400 และครีมกันแดด SPF 50",
@@ -193,7 +233,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     wear_cas_mild: "เสื้อยืดคอตตอน สวมทับด้วยคาร์ดิแกนบาง หรือเสื้อเชิ้ตแขนสั้น",
     wear_cas_warm: "เสื้อยืดเนื้อโปร่งสบาย กางเกงขาสั้น หรือกางเกงผ้าลินิน",
     wear_cas_hot: "เสื้อผ้าฝ้ายเบาสบาย สีอ่อน ระบายอากาศได้ดีเยี่ยม",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "สตูดิโอภาพสีน้ำ AI & แลนด์มาร์ก",
     gallery_tier_label: "แพ็กเกจของคุณ:",
@@ -210,7 +249,7 @@ export const extraResources: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "เช่น แสงพระอาทิตย์ตก เงาสะท้อนในแม่น้ำ โคมไฟตลาดน้ำใน {{city}}...",
     placeholder_search_city: "ค้นหาเมืองหรือแลนด์มาร์ก...",
     upload_or_device_photo: "หรืออัปโหลดรูปภาพจากอุปกรณ์เข้าสล็อต {{slot}}",
-    btn_paint_with_ai: "วาดภาพสล็อต {{slot}} 🖌️",
+    btn_paint_with_ai: "วาดภาพสล็อต {{slot}} 🖌",
     btn_generate_ai: "เริ่มวาดภาพ 🎨",
     btn_painting: "กำลังวาดภาพ... 🎨",
     btn_apply_wallpaper: "ตั้งเป็นภาพพื้นหลัง",
@@ -248,7 +287,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     confirm_delete_slot: "คุณต้องการลบภาพในสล็อตที่ {{slot}} หรือไม่?",
     error_generate_failed: "ไม่สามารถสร้างภาพได้ โปรดลองระบุคำอธิบายใหม่อีกครั้ง",
     error_generation_generic: "การสร้างภาพขัดข้อง โปรดลองใหม่อีกครั้ง",
-
     // Mascot & Companions
     tap_to_chat: "แตะเพื่อพูดคุย!",
     change_mascot: "เลือกเพื่อนคู่หูมาสคอต",
@@ -259,7 +297,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     hidden: "ซ่อนอยู่",
     active: "ใช้งานอยู่",
     unlocked: "ปลดล็อกแล้ว",
-
     // Monetization & Google Play
     google_play_prompt: "ปลดล็อกถาวรผ่านระบบการชำระเงิน Google Play",
     one_time: "ชำระครั้งเดียว",
@@ -276,8 +313,44 @@ export const extraResources: Record<string, Record<string, string>> = {
     tier_short_party: "ปาร์ตี้ VIP (ไม่จำกัด)",
     sun_times: "เวลาดวงอาทิตย์",
     seven_day_forecast: "พยากรณ์ 7 วัน",
+    // City Comparison — ADDED
+    compare_title: "เปรียบเทียบเมือง",
+    compare_subtitle: "เปรียบเทียบสภาพอากาศและคุณภาพอากาศแบบสดๆ ในเมืองโปรดของคุณ",
+    compare_best_weather: "☀ อากาศดีที่สุด",
+    compare_cleanest_air: "🍃 อากาศสะอาดที่สุด",
+    compare_viewing_now: "กำลังดูอยู่",
+    compare_view_city: "ดูสภาพอากาศ",
+    compare_no_favorites: "ยังไม่มีเมืองโปรด",
+    compare_no_favorites_desc: "แตะหัวใจ ❤ ที่เมืองใดก็ได้เพื่อเปรียบเทียบสภาพอากาศแบบข้างกัน",
+    compare_try_cities: "เพิ่มเมืองยอดนิยมอย่างรวดเร็ว:",
+    compare_refresh: "รีเฟรชการเปรียบเทียบ",
+    compare_humidity: "ความชื้น",
+    compare_wind: "ลม",
+    compare_feels: "รู้สึกเหมือน",
+    compare_high_low: "สูง / ต่ำ",
+    compare_aqi: "AQI",
+    compare_unavailable: "ไม่มีข้อมูลสภาพอากาศ",
+    // Promo Codes — ADDED
+    promo_code_label: "มีโค้ด VIP / ผู้สนับสนุนไหม?",
+    promo_code_input: "ใส่โค้ดโปรโมชั่น",
+    promo_empty: "กรุณาใส่โค้ดโปรโมชั่น",
+    promo_rate_limited: "ลองผิดหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่",
+    promo_error_generic: "แลกโค้ดไม่สำเร็จ กรุณาลองใหม่",
+    promo_already_redeemed: "โค้ดนี้ถูกใช้ไปแล้วและหมดอายุแล้ว",
+    promo_invalid: "โค้ดไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่",
+    promo_already_unlocked: "คุณมี Party Pack แล้ว ไม่ต้องใช้โค้ดนี้ แบ่งให้เพื่อนได้เลย!",
+    promo_success: "ปลดล็อก VIP Party Pack สำเร็จ!",
+    promo_success_burn_failed: "ปลดล็อก VIP Party Pack สำเร็จ! (หมายเหตุ: อุปกรณ์นี้บันทึกไม่ได้ว่าโค้ดถูกใช้แล้ว โปรดเก็บโค้ดไว้ให้ดี)",
+    // Thank You Modal — ADDED
+    thank_you_title: "ขอบคุณ!",
+    thank_you_unlocked: "ภาพพื้นหลังขอบคุณของคุณบันทึกถาวรในอุปกรณ์นี้แล้ว",
+    thank_you_adfree_forever: "ไม่มีโฆษณาตลอดไป",
+    thank_you_adfree_days: "ไม่มีโฆษณา {{days}} วัน — ภาพพื้นหลังอยู่ถาวร",
+    thank_you_message_small_root_beer_tier: "คุณปลดล็อกภาพพื้นหลังขอบคุณพิเศษแล้ว ขอบคุณนะ!",
+    thank_you_message_medium_root_beer_tier: "คุณปลดล็อกภาพพื้นหลังขอบคุณพิเศษ + งานศิลปะเพิ่มแล้ว ขอบคุณนะ!",
+    thank_you_message_large_root_beer_tier: "คุณปลดล็อกคอลเลกชันขอบคุณทั้งหมดแล้ว ขอบคุณมากๆ!",
+    thank_you_message_party_pack_root_beer_tier: "คุณปลดล็อกทุกอย่างใน Party Pack แล้ว คุณสุดยอดมาก!",
   },
-
   es: {
     // WeatherView Actions & Header
     next_artwork: "Siguiente Arte",
@@ -301,7 +374,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     no_weather_title: "Sin datos meteorológicos disponibles",
     no_weather_desc: "Busca una ciudad o usa tu ubicación para ver el clima.",
     cond_unknown: "Desconocido",
-
     // AQI & Health Advisories
     aqi_good_advice: "¡La calidad del aire es satisfactoria; disfruta al aire libre!",
     aqi_mod_advice: "Calidad moderada. Personas muy sensibles deben considerar reducir el esfuerzo al aire libre.",
@@ -310,7 +382,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     aqi_hazardous: "Peligroso",
     aqi_hazard_advice: "Alerta máxima: Aire peligroso. Permanece en interiores con ventanas cerradas.",
     aqi_normal_advice: "La calidad del aire es adecuada para actividades habituales.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Paraguas compacto resistente o impermeable",
     wear_acc_sunglasses: "Gafas de sol UV400 y protector solar SPF 50",
@@ -331,7 +402,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     wear_cas_mild: "Camiseta de algodón clásica combinada con cárdigan y chinos.",
     wear_cas_warm: "Camiseta fresca de algodón, pantalones cortos de lino y zapatillas.",
     wear_cas_hot: "Camiseta holgada y ligera, bermudas frescas y protección solar.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "Estudio de Acuarela IA y Monumentos",
     gallery_tier_label: "Tu Plan:",
@@ -348,7 +418,7 @@ export const extraResources: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "ej. resplandor del atardecer, reflejos en el río, faroles en {{city}}...",
     placeholder_search_city: "Buscar ciudad o monumento...",
     upload_or_device_photo: "O sube una foto en la Ranura {{slot}}",
-    btn_paint_with_ai: "Pintar Ranura {{slot}} 🖌️",
+    btn_paint_with_ai: "Pintar Ranura {{slot}} 🖌",
     btn_generate_ai: "Pintar Escena 🎨",
     btn_painting: "Pintando... 🎨",
     btn_apply_wallpaper: "Establecer como Fondo",
@@ -386,7 +456,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     confirm_delete_slot: "¿Eliminar obra en la Ranura {{slot}}?",
     error_generate_failed: "No se pudo generar la imagen. Prueba con otra descripción.",
     error_generation_generic: "Error al generar. Inténtalo de nuevo.",
-
     // Mascot & Companions
     tap_to_chat: "¡Toca para hablar!",
     change_mascot: "Elegir Mascota Compañera",
@@ -397,7 +466,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     hidden: "Oculto",
     active: "Activo",
     unlocked: "Desbloqueado",
-
     // Monetization & Google Play
     google_play_prompt: "Desbloquea permanentemente mediante Google Play In-App Purchase",
     one_time: "Pago único",
@@ -414,8 +482,44 @@ export const extraResources: Record<string, Record<string, string>> = {
     tier_short_party: "Party VIP (Ilimitado)",
     sun_times: "Horas del Sol",
     seven_day_forecast: "Pronóstico 7 Días",
+    // City Comparison — ADDED
+    compare_title: "Comparación de Ciudades",
+    compare_subtitle: "Compara el clima en vivo y la calidad del aire en tus destinos favoritos",
+    compare_best_weather: "☀ Mejor Clima",
+    compare_cleanest_air: "🍃 Aire Más Limpio",
+    compare_viewing_now: "Viendo Ahora",
+    compare_view_city: "Ver Clima",
+    compare_no_favorites: "Aún No Has Añadido Ciudades Favoritas",
+    compare_no_favorites_desc: "Toca el corazón ❤ en cualquier ciudad para comparar el clima en vivo lado a lado.",
+    compare_try_cities: "Añade ciudades populares rápidamente:",
+    compare_refresh: "Actualizar Comparación",
+    compare_humidity: "Humedad",
+    compare_wind: "Viento",
+    compare_feels: "Sensación",
+    compare_high_low: "Máx / Mín",
+    compare_aqi: "AQI",
+    compare_unavailable: "Clima No Disponible",
+    // Promo Codes — ADDED
+    promo_code_label: "¿Tienes un Código VIP / de Apoyo?",
+    promo_code_input: "Introduce el código promocional",
+    promo_empty: "Por favor, introduce un código promocional.",
+    promo_rate_limited: "Demasiados intentos fallidos. Espera un minuto e inténtalo de nuevo.",
+    promo_error_generic: "No se pudo canjear el código. Inténtalo de nuevo.",
+    promo_already_redeemed: "Este código ya fue canjeado y ha caducado.",
+    promo_invalid: "Código no válido. Compruébalo e inténtalo de nuevo.",
+    promo_already_unlocked: "Ya tienes el Party Pack desbloqueado — no necesitas usar este código. ¡Compártelo con un amigo!",
+    promo_success: "¡Party Pack VIP desbloqueado con éxito!",
+    promo_success_burn_failed: "¡Party Pack VIP desbloqueado! (Nota: este dispositivo no pudo registrar el código como usado — guárdalo bien.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "¡Gracias!",
+    thank_you_unlocked: "Tu fondo de agradecimiento ya está guardado para siempre en este dispositivo.",
+    thank_you_adfree_forever: "Sin anuncios para siempre",
+    thank_you_adfree_days: "Sin anuncios durante {{days}} días — los fondos quedan para siempre",
+    thank_you_message_small_root_beer_tier: "¡Desbloqueaste un fondo de agradecimiento especial. ¡Salud!",
+    thank_you_message_medium_root_beer_tier: "¡Desbloqueaste un fondo de agradecimiento especial + arte extra. ¡Salud!",
+    thank_you_message_large_root_beer_tier: "¡Desbloqueaste toda la colección de agradecimiento. ¡Muchas gracias!",
+    thank_you_message_party_pack_root_beer_tier: "¡Desbloqueaste todo el Party Pack. ¡Eres legendario!",
   },
-
   fr: {
     // WeatherView Actions & Header
     next_artwork: "Art Suivant",
@@ -439,7 +543,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     no_weather_title: "Aucune donnée météo disponible",
     no_weather_desc: "Recherchez une ville ou utilisez votre position pour afficher la météo.",
     cond_unknown: "Inconnu",
-
     // AQI & Health Advisories
     aqi_good_advice: "Qualité de l'air très satisfaisante ; profitez de vos sorties !",
     aqi_mod_advice: "Qualité modérée. Les personnes très sensibles doivent limiter les efforts intenses.",
@@ -448,7 +551,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     aqi_hazardous: "Dangereux",
     aqi_hazard_advice: "Alerte maximale : Air dangereux. Restez à l'intérieur fenêtres closes.",
     aqi_normal_advice: "Qualité de l'air adaptée aux activités habituelles.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Parapluie compact robuste ou imperméable",
     wear_acc_sunglasses: "Lunettes de soleil UV400 et crème solaire SPF 50",
@@ -469,7 +571,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     wear_cas_mild: "T-shirt en coton classique avec gilet léger et pantalon chino.",
     wear_cas_warm: "T-shirt aéré en coton, short en lin et baskets légères.",
     wear_cas_hot: "Vêtements amples en coton clair, bermuda aéré et lunettes de soleil.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "Studio Aquarelle IA & Monuments",
     gallery_tier_label: "Votre Forfait :",
@@ -486,7 +587,7 @@ export const extraResources: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "ex. reflets du crépuscule sur le fleuve, lampions du marché à {{city}}...",
     placeholder_search_city: "Rechercher une ville ou un monument...",
     upload_or_device_photo: "Ou téléversez une photo dans l'Emplacement {{slot}}",
-    btn_paint_with_ai: "Peindre Emplacement {{slot}} 🖌️",
+    btn_paint_with_ai: "Peindre Emplacement {{slot}} 🖌",
     btn_generate_ai: "Peindre la Scène 🎨",
     btn_painting: "Création en cours... 🎨",
     btn_apply_wallpaper: "Définir comme Fond",
@@ -524,7 +625,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     confirm_delete_slot: "Supprimer l'œuvre dans l'Emplacement {{slot}} ?",
     error_generate_failed: "Impossible de créer l'image. Essayez une autre description.",
     error_generation_generic: "Échec de génération. Veuillez réessayer.",
-
     // Mascot & Companions
     tap_to_chat: "Appuyez pour parler !",
     change_mascot: "Choisir la Mascotte Compagnon",
@@ -535,7 +635,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     hidden: "Masqué",
     active: "Actif",
     unlocked: "Déverrouillé",
-
     // Monetization & Google Play
     google_play_prompt: "Débloquez définitivement avec Google Play In-App Purchase",
     one_time: "Paiement unique",
@@ -552,8 +651,44 @@ export const extraResources: Record<string, Record<string, string>> = {
     tier_short_party: "Party VIP (Illimité)",
     sun_times: "Heures du Soleil",
     seven_day_forecast: "Prévisions 7 Jours",
+    // City Comparison — ADDED
+    compare_title: "Comparaison des Villes",
+    compare_subtitle: "Comparez la météo en direct et la qualité de l'air de vos destinations préférées",
+    compare_best_weather: "☀ Meilleure Météo",
+    compare_cleanest_air: "🍃 Air le Plus Pur",
+    compare_viewing_now: "En Cours de Consultation",
+    compare_view_city: "Voir la Météo",
+    compare_no_favorites: "Aucune Ville Favorite Ajoutée",
+    compare_no_favorites_desc: "Appuyez sur le cœur ❤ d'une ville pour comparer la météo en direct côte à côte.",
+    compare_try_cities: "Ajout rapide de villes populaires :",
+    compare_refresh: "Actualiser la Comparaison",
+    compare_humidity: "Humidité",
+    compare_wind: "Vent",
+    compare_feels: "Ressenti",
+    compare_high_low: "Max / Min",
+    compare_aqi: "AQI",
+    compare_unavailable: "Météo Indisponible",
+    // Promo Codes — ADDED
+    promo_code_label: "Vous avez un Code VIP / Soutien ?",
+    promo_code_input: "Entrez le code promo",
+    promo_empty: "Veuillez entrer un code promo.",
+    promo_rate_limited: "Trop de tentatives échouées. Veuillez attendre une minute et réessayer.",
+    promo_error_generic: "Impossible d'utiliser le code. Veuillez réessayer.",
+    promo_already_redeemed: "Ce code a déjà été utilisé et a expiré.",
+    promo_invalid: "Code invalide. Vérifiez et réessayez.",
+    promo_already_unlocked: "Vous avez déjà le Party Pack — pas besoin d'utiliser ce code. Partagez-le avec un ami !",
+    promo_success: "Party Pack VIP débloqué avec succès !",
+    promo_success_burn_failed: "Party Pack VIP débloqué ! (Remarque : cet appareil n'a pas pu enregistrer le code comme utilisé — gardez-le précieusement.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "Merci !",
+    thank_you_unlocked: "Votre fond de remerciement est désormais enregistré pour toujours sur cet appareil.",
+    thank_you_adfree_forever: "Sans pub pour toujours",
+    thank_you_adfree_days: "Sans pub pendant {{days}} jours — les fonds restent pour toujours",
+    thank_you_message_small_root_beer_tier: "Vous avez débloqué un fond de remerciement spécial. Santé !",
+    thank_you_message_medium_root_beer_tier: "Vous avez débloqué un fond de remerciement spécial + des œuvres en plus. Santé !",
+    thank_you_message_large_root_beer_tier: "Vous avez débloqué toute la collection de remerciement. Merci beaucoup !",
+    thank_you_message_party_pack_root_beer_tier: "Vous avez débloqué tout le Party Pack. Vous êtes légendaire !",
   },
-
   de: {
     // WeatherView Actions & Header
     next_artwork: "Nächste Kunst",
@@ -577,7 +712,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     no_weather_title: "Keine Wetterdaten verfügbar",
     no_weather_desc: "Suchen Sie eine Stadt oder tippen Sie auf den Standort-Pin.",
     cond_unknown: "Unbekannt",
-
     // AQI & Health Advisories
     aqi_good_advice: "Luftqualität ist hervorragend; genießen Sie Aktivitäten im Freien!",
     aqi_mod_advice: "Moderate Luftqualität. Empfindliche Personen sollten lange Anstrengungen draußen meiden.",
@@ -586,7 +720,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     aqi_hazardous: "Gefährlich",
     aqi_hazard_advice: "Höchste Warnstufe: Gefährliche Luft. Drinnen bleiben und Fenster schließen.",
     aqi_normal_advice: "Luftqualität ist für normale Aktivitäten unbedenklich.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Stabiler Regenschirm oder Regenmantel",
     wear_acc_sunglasses: "UV400-Sonnenbrille & LSF 50 Sonnencreme",
@@ -607,7 +740,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     wear_cas_mild: "Klassisches Baumwoll-T-Shirt, leichte Strickjacke und Chinos.",
     wear_cas_warm: "Luftiges T-Shirt, bequeme Leinenshorts und Sneakers.",
     wear_cas_hot: "Helle, atmungsaktive Sommerkleidung, kurze Hosen und Sonnenschutz.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "KI-Aquarellstudio & Wahrzeichen",
     gallery_tier_label: "Ihr Plan:",
@@ -624,7 +756,7 @@ export const extraResources: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "z.B. Abendrot, Flussspiegelungen, Lampions in {{city}}...",
     placeholder_search_city: "Stadt oder Wahrzeichen suchen...",
     upload_or_device_photo: "Oder eigenes Foto in Slot {{slot}} hochladen",
-    btn_paint_with_ai: "Slot {{slot}} malen 🖌️",
+    btn_paint_with_ai: "Slot {{slot}} malen 🖌",
     btn_generate_ai: "Szene malen 🎨",
     btn_painting: "Wird gemalt... 🎨",
     btn_apply_wallpaper: "Als Hintergrund setzen",
@@ -662,7 +794,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     confirm_delete_slot: "Kunstwerk in Slot {{slot}} löschen?",
     error_generate_failed: "Bild konnte nicht erstellt werden. Bitte versuchen Sie eine andere Beschreibung.",
     error_generation_generic: "Fehler beim Erstellen. Bitte erneut versuchen.",
-
     // Mascot & Companions
     tap_to_chat: "Tippen zum Sprechen!",
     change_mascot: "Maskottchen auswählen",
@@ -673,7 +804,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     hidden: "Ausgeblendet",
     active: "Aktiv",
     unlocked: "Freigeschaltet",
-
     // Monetization & Google Play
     google_play_prompt: "Dauerhaft freischalten über Google Play In-App-Kauf",
     one_time: "Einmalig",
@@ -690,8 +820,44 @@ export const extraResources: Record<string, Record<string, string>> = {
     tier_short_party: "Party VIP (Unbegrenzt)",
     sun_times: "Sonnenzeiten",
     seven_day_forecast: "7-Tage-Vorhersage",
+    // City Comparison — ADDED
+    compare_title: "Städtevergleich",
+    compare_subtitle: "Vergleiche Live-Wetter & Luftqualität deiner Lieblingsziele",
+    compare_best_weather: "☀ Bestes Wetter",
+    compare_cleanest_air: "🍃 Sauberste Luft",
+    compare_viewing_now: "Wird Angesehen",
+    compare_view_city: "Wetter Ansehen",
+    compare_no_favorites: "Noch Keine Lieblingsstädte Hinzugefügt",
+    compare_no_favorites_desc: "Tippe auf das Herz ❤ einer Stadt, um Live-Wetter nebeneinander zu vergleichen.",
+    compare_try_cities: "Beliebte Städte schnell hinzufügen:",
+    compare_refresh: "Vergleich Aktualisieren",
+    compare_humidity: "Luftfeuchtigkeit",
+    compare_wind: "Wind",
+    compare_feels: "Gefühlt",
+    compare_high_low: "Max / Min",
+    compare_aqi: "AQI",
+    compare_unavailable: "Wetter Nicht Verfügbar",
+    // Promo Codes — ADDED
+    promo_code_label: "Hast du einen VIP- / Unterstützer-Code?",
+    promo_code_input: "Promo-Code eingeben",
+    promo_empty: "Bitte gib einen Promo-Code ein.",
+    promo_rate_limited: "Zu viele fehlgeschlagene Versuche. Bitte warte eine Minute und versuche es erneut.",
+    promo_error_generic: "Code konnte nicht eingelöst werden. Bitte versuche es erneut.",
+    promo_already_redeemed: "Dieser Code wurde bereits eingelöst und ist abgelaufen.",
+    promo_invalid: "Ungültiger Code. Bitte prüfe ihn und versuche es erneut.",
+    promo_already_unlocked: "Du hast das Party Pack schon — du brauchst diesen Code nicht. Teile ihn mit einem Freund!",
+    promo_success: "VIP Party Pack erfolgreich freigeschaltet!",
+    promo_success_burn_failed: "VIP Party Pack freigeschaltet! (Hinweis: Dieses Gerät konnte den Code nicht als verwendet speichern — bewahre ihn gut auf.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "Danke!",
+    thank_you_unlocked: "Dein Dankeschön-Hintergrund ist jetzt für immer auf diesem Gerät gespeichert.",
+    thank_you_adfree_forever: "Für immer werbefrei",
+    thank_you_adfree_days: "Werbefrei für {{days}} Tage — Hintergründe bleiben für immer",
+    thank_you_message_small_root_beer_tier: "Du hast einen besonderen Dankeschön-Hintergrund freigeschaltet. Prost!",
+    thank_you_message_medium_root_beer_tier: "Du hast einen besonderen Dankeschön-Hintergrund + extra Kunst freigeschaltet. Prost!",
+    thank_you_message_large_root_beer_tier: "Du hast die ganze Dankeschön-Sammlung freigeschaltet. Vielen Dank!",
+    thank_you_message_party_pack_root_beer_tier: "Du hast alles im Party Pack freigeschaltet. Du bist legendär!",
   },
-
   pt: {
     // WeatherView Actions & Header
     next_artwork: "Próxima Arte",
@@ -715,7 +881,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     no_weather_title: "Nenhum dado meteorológico disponível",
     no_weather_desc: "Pesquise uma cidade ou use seu pin de localização para ver o tempo.",
     cond_unknown: "Desconhecido",
-
     // AQI & Health Advisories
     aqi_good_advice: "A qualidade do ar está ótima; aproveite as atividades ao ar livre!",
     aqi_mod_advice: "Qualidade moderada. Pessoas muito sensíveis devem evitar esforço prolongado lá fora.",
@@ -724,7 +889,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     aqi_hazardous: "Perigoso",
     aqi_hazard_advice: "Aviso de emergência: Ar perigoso. Permaneça em ambientes fechados.",
     aqi_normal_advice: "A qualidade do ar é adequada para a rotina diária.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Guarda-chuva compacto resistente ou capa de chuva",
     wear_acc_sunglasses: "Óculos de sol UV400 e protetor solar FPS 50",
@@ -745,7 +909,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     wear_cas_mild: "Camiseta de algodão básica com cardigã leve e calça chino.",
     wear_cas_warm: "Camiseta fresca de algodão, bermuda de linho e tênis confortáveis.",
     wear_cas_hot: "Roupas bem leves de algodão claro, bermuda respirável e proteção solar.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "Estúdio de Aquarela IA e Monumentos",
     gallery_tier_label: "Seu Plano:",
@@ -762,7 +925,7 @@ export const extraResources: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "ex: brilho do pôr do sol, reflexos no rio, lanternas em {{city}}...",
     placeholder_search_city: "Buscar cidade ou monumento...",
     upload_or_device_photo: "Ou envie uma foto para o Slot {{slot}}",
-    btn_paint_with_ai: "Pintar Slot {{slot}} 🖌️",
+    btn_paint_with_ai: "Pintar Slot {{slot}} 🖌",
     btn_generate_ai: "Pintar Cenário 🎨",
     btn_painting: "Pintando... 🎨",
     btn_apply_wallpaper: "Definir como Papel de Parede",
@@ -790,7 +953,7 @@ export const extraResources: Record<string, Record<string, string>> = {
     slot_unlock_ad_or_small: "Assista a um anúncio por 24h ou pegue um Small Root Beer ($1)",
     slot_small_or_ad: "Small Root Beer ($1) ou Anúncio",
     slot_medium_tier: "Nível Medium Root Beer ($3)",
-    slot_large_tier: "Nivel Large Root Beer ($5)",
+    slot_large_tier: "Nível Large Root Beer ($5)",
     slot_locked_title: "Slot Bloqueado",
     slot_ad_active: "Anúncio Ativo",
     alert_wallpaper_applied: "Papel de parede aplicado para {{city}}! Toque em \"Voltar à Previsão\" para ver.",
@@ -800,7 +963,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     confirm_delete_slot: "Excluir obra no Slot {{slot}}?",
     error_generate_failed: "Não foi possível gerar a imagem. Tente outra descrição.",
     error_generation_generic: "Falha na geração. Tente novamente.",
-
     // Mascot & Companions
     tap_to_chat: "Toque para falar!",
     change_mascot: "Escolher Mascote Companheiro",
@@ -811,7 +973,6 @@ export const extraResources: Record<string, Record<string, string>> = {
     hidden: "Oculto",
     active: "Ativo",
     unlocked: "Desbloqueado",
-
     // Monetization & Google Play
     google_play_prompt: "Desbloqueie permanentemente com Google Play In-App Purchase",
     one_time: "Pagamento único",
@@ -828,8 +989,42 @@ export const extraResources: Record<string, Record<string, string>> = {
     tier_short_party: "Party VIP (Ilimitado)",
     sun_times: "Horários do Sol",
     seven_day_forecast: "Previsão de 7 Dias",
+    // City Comparison — ADDED
+    compare_title: "Comparação de Cidades",
+    compare_subtitle: "Compare o tempo ao vivo e a qualidade do ar dos seus destinos favoritos",
+    compare_best_weather: "☀ Melhor Tempo",
+    compare_cleanest_air: "🍃 Ar Mais Limpo",
+    compare_viewing_now: "Visualizando Agora",
+    compare_view_city: "Ver Tempo",
+    compare_no_favorites: "Nenhuma Cidade Favorita Adicionada Ainda",
+    compare_no_favorites_desc: "Toque no coração ❤ de qualquer cidade para comparar o tempo ao vivo lado a lado.",
+    compare_try_cities: "Adicione cidades populares rapidamente:",
+    compare_refresh: "Atualizar Comparação",
+    compare_humidity: "Umidade",
+    compare_wind: "Vento",
+    compare_feels: "Sensação",
+    compare_high_low: "Máx / Mín",
+    compare_aqi: "AQI",
+    compare_unavailable: "Tempo Indisponível",
+    // Promo Codes — ADDED
+    promo_code_label: "Tem um Código VIP / de Apoiador?",
+    promo_code_input: "Digite o código promocional",
+    promo_empty: "Por favor, digite um código promocional.",
+    promo_rate_limited: "Muitas tentativas falhadas. Espere um minuto e tente novamente.",
+    promo_error_generic: "Não foi possível resgatar o código. Tente novamente.",
+    promo_already_redeemed: "Este código já foi resgatado e expirou.",
+    promo_invalid: "Código inválido. Verifique e tente novamente.",
+    promo_already_unlocked: "Você já tem o Party Pack — não precisa usar este código. Compartilhe com um amigo!",
+    promo_success: "Party Pack VIP desbloqueado com sucesso!",
+    promo_success_burn_failed: "Party Pack VIP desbloqueado! (Nota: este dispositivo não conseguiu registrar o código como usado — guarde-o bem.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "Obrigado!",
+    thank_you_unlocked: "Seu papel de parede de agradecimento já está salvo para sempre neste dispositivo.",
+    thank_you_adfree_forever: "Sem anúncios para sempre",
+    thank_you_adfree_days: "Sem anúncios por {{days}} dias — os papéis de parede ficam para sempre",
+    thank_you_message_small_root_beer_tier: "Você desbloqueou um papel de parede de agradecimento especial. Saúde!",
+    thank_you_message_medium_root_beer_tier: "Você desbloqueou um papel de parede de agradecimento especial + arte extra. Saúde!",
+    thank_you_message_large_root_beer_tier: "Você desbloqueou toda a coleção de agradecimento. Muito obrigado!",
+    thank_you_message_party_pack_root_beer_tier: "Você desbloqueou tudo no Party Pack. Você é lendário!",
   },
-
-   ...extraResourcesPart2,
 };
-
