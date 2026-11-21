@@ -81,6 +81,7 @@ export interface ForecastDetailModalProps {
   initialIndex?: number;
   selectedIndex?: number;
   onSelectIndex?: (idx: number) => void;
+  onTypeChange?: (nextType: "hourly" | "daily") => void;
   hourlyList?: HourlyDetailItem[];
   dailyList?: DailyDetailItem[];
   unit: WeatherUnit;
@@ -119,6 +120,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   initialIndex,
   selectedIndex,
   onSelectIndex,
+  onTypeChange,
   hourlyList: propHourlyList,
   dailyList: propDailyList,
   unit,
@@ -195,6 +197,11 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
     initialIndex ?? selectedIndex ?? 0
   );
 
+  // FIXED - Weather did not change when tapping a different hour/day:
+  // The modal kept its own internalIndex and only synced on initialIndex.
+  // When you opened a different hour/day, React reused the same modal
+  // instance and internalIndex stayed on the old hour. Now it also resets
+  // when type changes, and the parent forces a fresh modal with key= (see WeatherView).
   useEffect(() => {
     const idx = initialIndex ?? selectedIndex ?? 0;
     if (idx >= 0 && idx < totalItems) {
@@ -202,7 +209,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
     } else {
       setInternalIndex(0);
     }
-  }, [initialIndex, selectedIndex, totalItems, isOpen]);
+  }, [initialIndex, selectedIndex, totalItems, isOpen, type]);
 
   // FIXED BUG 7: Lock background scroll while the modal is open.
   useEffect(() => {
@@ -340,6 +347,30 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
             ✕
           </button>
         </div>
+
+        {/* FIXED - Hourly / Daily switch inside the modal. Before, you had to
+            close the modal to switch from Hourly to 7-Day. Now tap here. */}
+        {onTypeChange && (
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/50 shrink-0 mt-3">
+            {(["hourly", "daily"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => {
+                  if (tab !== type) {
+                    onTypeChange(tab);
+                  }
+                }}
+                aria-pressed={type === tab}
+                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  type === tab ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "hourly" ? t("hourly_forecast", "Hourly") : t("daily_forecast", "7-Day")}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto overscroll-contain space-y-3.5 pr-0.5 pt-1">
