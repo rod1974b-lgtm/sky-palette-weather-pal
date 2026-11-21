@@ -16,6 +16,20 @@ interface ThankYouProps {
   onClose?: () => void;
 }
 
+const BASE = "/tier plans";
+const TIER_ASSETS: Record<ThankYouProps["tierId"], { image: string; video?: string }> = {
+  small_root_beer_tier: { image: `${BASE}/static_transparent_deeper_amber/small_amber_transparent.png` },
+  medium_root_beer_tier: { image: `${BASE}/static_transparent_deeper_amber/medium_amber_transparent.png` },
+  large_root_beer_tier: {
+    image: `${BASE}/static_transparent_deeper_amber/large_amber_transparent.png`,
+    video: `${BASE}/animated_videos_no_price/large_root_beer_tier_thank_you_no_price_deeper_amber.mp4`,
+  },
+  party_pack_root_beer_tier: {
+    image: `${BASE}/static_transparent_deeper_amber/party_amber_transparent.png`,
+    video: `${BASE}/animated_videos_no_price/party_pack_root_beer_tier_thank_you_no_price_deeper_amber.mp4`,
+  },
+};
+
 export function RootBeerThankYou({ tierId, onClose }: ThankYouProps) {
   const { t } = useTranslation();
   const [unlocked, setUnlocked] = useState<boolean>(() =>
@@ -24,6 +38,8 @@ export function RootBeerThankYou({ tierId, onClose }: ThankYouProps) {
 
   const tier = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.find((t) => t.id === tierId);
   if (!tier) return null;
+  const assets = TIER_ASSETS[tierId];
+  const thankYouText = t(`thank_you_${tierId}`, `Thank you for the ${tier.name}! 🍺`);
 
   const handleUnlock = () => {
     saveThankYouBackgroundForever(tierId);
@@ -36,7 +52,7 @@ export function RootBeerThankYou({ tierId, onClose }: ThankYouProps) {
   return (
     <div className="relative w-full max-w-md mx-auto rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-amber-50 to-orange-100 border border-amber-800/30">
       {/* Background Video overlay (for Large and Party Pack tiers) */}
-      {tier.files.video && (
+      {assets.video && (
         <video
           autoPlay
           loop
@@ -44,15 +60,15 @@ export function RootBeerThankYou({ tierId, onClose }: ThankYouProps) {
           playsInline
           className="absolute inset-0 w-full h-full object-cover mix-blend-multiply opacity-25 pointer-events-none"
         >
-          <source src={tier.files.video} type="video/mp4" />
+          <source src={assets.video} type="video/mp4" />
         </video>
       )}
 
       {/* Mascot & Mug Graphic */}
       <div className="p-6 flex items-center justify-center min-h-[220px]">
         <img
-          src={tier.files.staticTransparent}
-          alt={tier.thankYouText}
+          src={assets.image}
+          alt={thankYouText}
           className="max-h-56 w-auto object-contain drop-shadow-md transition-transform duration-300 hover:scale-105"
         />
       </div>
@@ -78,7 +94,7 @@ export function RootBeerThankYou({ tierId, onClose }: ThankYouProps) {
 
       {/* Deeper Amber Ribbon Tag */}
       <div className="bg-gradient-to-r from-[#7a3b0e] via-[#8B4513] to-[#7a3b0e] text-amber-100 px-6 py-2.5 text-center shadow-inner">
-        <p className="text-xs sm:text-sm font-bold tracking-wide">{tier.thankYouText}</p>
+        <p className="text-xs sm:text-sm font-bold tracking-wide">{thankYouText}</p>
       </div>
     </div>
   );

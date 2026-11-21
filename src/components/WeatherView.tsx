@@ -53,7 +53,7 @@ export interface WeatherViewProps {
   onToggleFavorite?: () => void;
   onSelectBackground?: (url: string | null) => void;
   activeAlerts?: TickerAlertItem[];
-  customBgUrl?: string;
+  customBgUrl?: string | undefined;
 }
 
 function getConditionLabel(code: number, t: TFunction): string {
@@ -124,8 +124,9 @@ export function WeatherView({
   const [currentBgUrl, setCurrentBgUrl] = useState<string>("");
 
   const w = weather;
-  const tempUnit = unit === "celsius" ? "°C" : "°F";
-  const windUnit = unit === "celsius" ? "km/h" : "mph";
+  const isMetric = unit === "metric";
+  const tempUnit = isMetric ? "°C" : "°F";
+  const windUnit = isMetric ? "km/h" : "mph";
 
   // Migrate legacy storage on mount
   useEffect(() => {
@@ -181,16 +182,16 @@ export function WeatherView({
   };
 
   // Safe metrics fallbacks
-  const uvVal = w.current?.uvIndex ?? 0;
+  const uvVal = Math.round(w.current?.uvIndex ?? w.current?.uv ?? 0);
   const humidityVal = w.current?.humidity ?? 0;
-  const windVal = Math.round(w.current?.windSpeed ?? 0);
+  const windVal = Math.round(w.current?.wind_speed ?? w.current?.wind ?? 0);
   const pressureVal = Math.round(w.current?.pressure ?? 1013);
-  const visibilityVal = Math.round((w.current?.visibility ?? 10000) / 1000);
-  const pm25Val = Math.round(w.current?.airQuality?.pm25 ?? 0);
+  const visibilityVal = Math.round(w.current?.vis ?? 10);
+  const pm25Val = Math.round(w.current?.pm25 ?? 0);
   const aqiInfo = getAirQualityCategory(pm25Val, t);
 
   // Clothing recommendations
-  const currentTempC = unit === "celsius" ? w.current.temp : ((w.current.temp - 32) * 5) / 9;
+  const currentTempC = isMetric ? w.current.temp : ((w.current.temp - 32) * 5) / 9;
   const isRainy = (w.current.code >= 51 && w.current.code <= 67) || (w.current.code >= 80 && w.current.code <= 99);
 
   return (
@@ -198,8 +199,8 @@ export function WeatherView({
       {/* 1. SEVERE WEATHER ALERT WATCHER & LIVE TICKER */}
       <WeatherAlertWatcher
         weather={w}
+        unit={unit}
         activeAlerts={activeAlerts}
-        onOpenPostcard={() => setPostcardOpen(true)}
       />
 
       {/* 2. ARTWORK & QUICK CONTROLS TOOLBAR (Outside & Above Hero Card) */}
@@ -315,7 +316,7 @@ export function WeatherView({
           </div>
 
           <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
-            <WeatherIcon code={w.current.code} isDay={w.current.isDay} className="w-full h-full drop-shadow-md" />
+            <WeatherIcon code={w.current.code} isDay={w.current.is_day ?? 1} className="w-full h-full drop-shadow-md" />
           </div>
         </div>
 
@@ -390,7 +391,7 @@ export function WeatherView({
 
           {/* Visibility */}
           <div
-            onClick={() => openGuide("visibility")}
+            onClick={() => openGuide("conditions")}
             className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer"
           >
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
@@ -414,14 +415,13 @@ export function WeatherView({
             <span>⏱️</span>
             <span>{t("hourly_forecast", "Hourly Forecast (Tap for Details)")}</span>
           </h3>
-          <span className="text-[11px] text-muted-foreground font-medium">24 Hours</span>
+          <span className="text-[11px] text-muted-foreground font-medium">{t("hours_24", "24 Hours")}</span>
         </div>
 
         <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-thin">
           {(w.hourly || []).slice(0, 24).map((h, idx) => {
-            const timeLabel = new Date(h.time).toLocaleTimeString([], {
+            const timeLabel = new Date(h.time).toLocaleTimeString(i18n.language || undefined, {
               hour: "numeric",
-              hour12: true,
             });
             return (
               <div
@@ -433,7 +433,7 @@ export function WeatherView({
                   {timeLabel}
                 </span>
                 <div className="w-8 h-8 flex items-center justify-center my-0.5">
-                  <WeatherIcon code={h.code} isDay={h.isDay} className="w-full h-full" />
+                  <WeatherIcon code={h.code} isDay={h.is_day ?? 1} className="w-full h-full" />
                 </div>
                 <span className="text-sm font-bold text-foreground">
                   {Math.round(h.temp)}°
@@ -474,7 +474,7 @@ export function WeatherView({
               {/* Icon & Written Condition Label */}
               <div className="flex items-center gap-2 flex-1 min-w-0 px-2">
                 <div className="w-7 h-7 shrink-0 flex items-center justify-center">
-                  <WeatherIcon code={d.code} isDay={true} className="w-full h-full" />
+                  <WeatherIcon code={d.code} isDay={1} className="w-full h-full" />
                 </div>
                 <span className="text-xs text-muted-foreground truncate">
                   {getConditionLabel(d.code, t)}
@@ -483,13 +483,13 @@ export function WeatherView({
 
               {/* Rain Chance */}
               <div className="text-xs font-semibold text-sky-500 w-12 text-center">
-                {(d.precipitationProbability ?? 0) > 0 ? `${d.precipitationProbability}%` : ""}
+                {(d.precipProbMax ?? d.pop ?? 0) > 0 ? `${Math.round(d.precipProbMax ?? d.pop ?? 0)}%` : ""}
               </div>
 
               {/* Min/Max Temperature */}
               <div className="flex items-center gap-2 text-sm font-bold justify-end w-20 text-right">
-                <span className="text-foreground">{Math.round(d.maxTemp)}°</span>
-                <span className="text-muted-foreground font-normal">{Math.round(d.minTemp)}°</span>
+                <span className="text-foreground">{Math.round(d.max)}°</span>
+                <span className="text-muted-foreground font-normal">{Math.round(d.min)}°</span>
               </div>
             </div>
           ))}

@@ -25,7 +25,7 @@ export interface AiGalleryModalProps {
   city?: string;
   cityName?: string;
   currentCity?: string;
-  country?: string;
+  country?: string | undefined;
   weatherCode?: number;
   currentWeatherCode?: number;
   weatherDesc?: string;
@@ -460,7 +460,7 @@ export function AiGalleryModal({
     searchQuery === ""
       ? true
       : item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.city.toLowerCase().includes(searchQuery.toLowerCase())
+        (item.city ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
