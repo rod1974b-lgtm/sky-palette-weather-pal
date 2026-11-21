@@ -730,7 +730,11 @@ export function WeatherView({
       <OutdoorActivityPlanner weather={w} unit={unit} />
 
       {/* 10. LIVE WEATHER & RAIN RADAR */}
-      <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={w.place.name} />
+      {/* HIDE CITY BUTTON ON RADAR - SAFE: only cityName changed to empty.
+          No new prop, no style tag. Your radar already accepts cityName,
+          so this cannot cause a preview error. If button still shows,
+          delete that one button in WeatherRadar.tsx (search for cityName). */}
+      <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={""} />
 
       {/* 11. SUN & MOON ASTRONOMY TRACKER */}
       <AstronomyTracker weather={w} />
@@ -758,6 +762,7 @@ export function WeatherView({
 
       {forecastModalOpen && (
         <ForecastDetailModal
+          key={`${forecastModalType}-${forecastModalIndex}-${w.place.name}`}
           isOpen={forecastModalOpen}
           onClose={() => setForecastModalOpen(false)}
           weather={w}
