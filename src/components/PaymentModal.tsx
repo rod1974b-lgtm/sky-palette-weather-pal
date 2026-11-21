@@ -1,5 +1,5 @@
 // src/components/PaymentModal.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE,
@@ -8,6 +8,8 @@ import {
   purchaseTierViaGooglePlay,
   saveThankYouBackgroundForever,
   setPendingDonationTier,
+  getPendingDonationTier,
+  clearPendingDonationTier,
   type RootBeerTier,
   type DonationProvider,
 } from "@/lib/monetization";
@@ -36,28 +38,46 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
     (t) => t.id === tierId
   );
 
-  if (!tier) return null;
-
   const isAndroidMedian = typeof window !== "undefined" && isMedianAndroidApp();
 
-  const handleOpenWebPayment = (provider: DonationProvider, label: string) => {
-    try {
-      setPendingDonationTier(tier.id);
-      const url = getDonationUrl(tier.id, provider);
-      setSelectedProvider(label);
-      setHasOpenedCheckout(true);
-      setErrorMessage(null);
-
-      const popup = window.open(url, "_blank", "noopener,noreferrer");
-      if (!popup || popup.closed || typeof popup.closed === "undefined") {
-        window.location.href = url;
+  // Listen for window focus to detect when user returns from checkout tab
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      const pendingTier = getPendingDonationTier();
+      if (pendingTier && pendingTier === tierId) {
+        setHasOpenedCheckout(true);
       }
-    } catch {
-      setErrorMessage(t("pay_error_link", "Could not open payment link. Please try again."));
-    }
-  };
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
+  }, [tierId]);
+
+  const handleOpenWebPayment = useCallback(
+    (provider: DonationProvider, label: string) => {
+      if (!tier) return;
+      try {
+        setPendingDonationTier(tier.id);
+        const url = getDonationUrl(tier.id, provider);
+        setSelectedProvider(label);
+        setHasOpenedCheckout(true);
+        setErrorMessage(null);
+
+        const popup = window.open(url, "_blank", "noopener,noreferrer");
+        if (!popup || popup.closed || typeof popup.closed === "undefined") {
+          window.location.href = url;
+        }
+      } catch {
+        setErrorMessage(
+          t("pay_error_link", "Could not open payment link. Please try again.")
+        );
+      }
+    },
+    [tier, t]
+  );
 
   const handleGooglePlayPurchase = () => {
+    if (!tier) return;
     setPlayBillingLoading(true);
     setErrorMessage(null);
 
@@ -86,7 +106,9 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
   };
 
   const handleManualConfirmDonation = () => {
+    if (!tier) return;
     saveThankYouBackgroundForever(tier.id);
+    clearPendingDonationTier();
     if (onSuccess) {
       onSuccess(tier.id);
     } else {
@@ -119,6 +141,8 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
     }
   };
 
+  if (!tier) return null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
@@ -140,7 +164,9 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
           </button>
           <div className="text-3xl mb-1">🍺</div>
           <h2 className="text-xl font-bold tracking-tight">{tier.name}</h2>
-          <p className="text-xs text-amber-100/90 mt-1">{tier.displayPrice} • {tier.tagline}</p>
+          <p className="text-xs text-amber-100/90 mt-1">
+            {tier.displayPrice} • {tier.tagline}
+          </p>
         </div>
 
         {/* Modal Body */}
@@ -161,7 +187,10 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-600 font-bold">✓</span>
-                <span>{tier.perks?.adFree || (tier.bonus.noAdsForever ? "Lifetime Ad-Free" : "Standard ads")}</span>
+                <span>
+                  {tier.perks?.adFree ||
+                    (tier.bonus.noAdsForever ? "Lifetime Ad-Free" : "Standard ads")}
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-600 font-bold">✓</span>
@@ -170,35 +199,32 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
             </ul>
           </div>
 
-          {/* Android Google Play In-App Billing Option */}
-          {isAndroidMedian && (
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={handleGooglePlayPurchase}
-                disabled={playBillingLoading}
-                className="w-full py-3.5 px-4 rounded-xl font-semibold text-sm bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {playBillingLoading ? (
-                  <span>{t("processing", "Connecting to Google Play...")}</span>
-                ) : (
-                  <>
-                    <span>Google Play Billing ({tier.displayPrice})</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* Web Payment Options (Buy Me a Coffee & PayPal) */}
-          <div className="space-y-2">
+          {/* Payment Providers */}
+          <div className="space-y-2.5">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               {isAndroidMedian
-                ? t("pay_or_web", "Or Support via Web Checkout")
-                : t("pay_support_via", "Support via Online Checkout")}
+                ? t("pay_or_web", "Select Payment Option")
+                : t("pay_support_via", "Choose Payment Option")}
             </h4>
 
-            {/* Direct BMC Extra link for this exact tier */}
+            {/* Google Pay Button (Primary Option) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (isAndroidMedian) {
+                  handleGooglePlayPurchase();
+                } else {
+                  handleOpenWebPayment("googlepay", "Google Pay");
+                }
+              }}
+              disabled={playBillingLoading}
+              className="w-full py-3.5 px-4 rounded-xl font-semibold text-sm bg-black hover:bg-zinc-800 text-white shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 border border-zinc-700 disabled:opacity-50"
+            >
+              <span className="font-bold tracking-tight text-base">GPay</span>
+              <span className="text-xs opacity-90">({tier.displayPrice})</span>
+            </button>
+
+            {/* Buy Me a Coffee Option */}
             <button
               type="button"
               onClick={() => handleOpenWebPayment("buymeacoffee", "Buy Me a Coffee")}
@@ -219,28 +245,42 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
             </button>
           </div>
 
-          {/* Post-Checkout Confirmation Button */}
+          {/* Error Message Display */}
+          {errorMessage && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-xs">
+              {errorMessage}
+            </div>
+          )}
+
+          {/* Post-Checkout Confirmation Prompt */}
           {hasOpenedCheckout && (
             <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/50 rounded-2xl space-y-2 text-center animate-in fade-in duration-300">
               <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
-                {t("pay_opened_notice", "Opened {{provider}} in your browser. Completed your contribution?", {
-                  provider: selectedProvider || "checkout",
-                })}
+                {t(
+                  "pay_opened_notice",
+                  "Opened {{provider}} in your browser. Completed your contribution?",
+                  {
+                    provider: selectedProvider || "checkout",
+                  }
+                )}
               </p>
               <button
                 type="button"
                 onClick={handleManualConfirmDonation}
-                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all"
+                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all active:scale-[0.98]"
               >
                 {t("pay_confirm_unlock", "I Contributed — Unlock My Perks Now! 🎉")}
               </button>
             </div>
           )}
 
-          {/* Promo Code Vault Entry */}
+          {/* VIP Promo Code Vault */}
           <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
             <form onSubmit={handleRedeemPromo} className="space-y-2">
-              <label htmlFor="promo_code_input" className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+              <label
+                htmlFor="promo_code_input"
+                className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400"
+              >
                 {t("promo_code_label", "Have a VIP / Supporter Code?")}
               </label>
               <div className="flex gap-2">
@@ -260,16 +300,19 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
                   {redeemLoading ? "..." : t("redeem", "Redeem")}
                 </button>
               </div>
-              {promoError && <p className="text-[11px] text-red-600 dark:text-red-400">{promoError}</p>}
-              {promoSuccess && <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">{promoSuccess}</p>}
             </form>
-          </div>
 
-          {errorMessage && (
-            <p className="text-xs text-red-600 dark:text-red-400 text-center font-medium bg-red-50 dark:bg-red-950/20 p-2 rounded-lg border border-red-200 dark:border-red-800/40">
-              {errorMessage}
-            </p>
-          )}
+            {promoError && (
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1.5 font-medium">
+                {promoError}
+              </p>
+            )}
+            {promoSuccess && (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1.5 font-medium">
+                ✓ {promoSuccess}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>
