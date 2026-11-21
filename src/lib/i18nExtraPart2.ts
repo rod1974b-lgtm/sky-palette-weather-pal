@@ -1,6 +1,14 @@
 // src/lib/i18nExtraPart2.ts - PART 2: Asian & Global Languages
 // Fully localizes JA, ZH, HI, RU, AR, KO, ID, and VI
-
+// FIXED — Batch 6:
+// 1. GOOD NEWS: This file did NOT have the Part 1 bug. No import, no ...spread,
+//    so it was already standalone. Kept that way.
+// 2. ADDED the 34 keys that CityComparison / PaymentModal / ThankYouModal call
+//    via t() but were missing from Part 2: compare_* (16), promo_* (10),
+//    thank_you_* (8). Before this, those screens fell back to English even
+//    when the user was in Japanese / Chinese / Hindi / Russian / Arabic /
+//    Korean / Indonesian / Vietnamese.
+// 3. No other translations changed. All original Part 2 values kept verbatim.
 export const extraResourcesPart2: Record<string, Record<string, string>> = {
   ja: {
     // WeatherView Actions & Header
@@ -25,7 +33,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "天気データがありません",
     no_weather_desc: "都市名で検索するか位置情報アイコンを押してください。",
     cond_unknown: "不明",
-
     // AQI & Health Advisories
     aqi_good_advice: "空気は非常に綺麗です。屋外活動を存分に楽しみましょう！",
     aqi_mod_advice: "空気質は普通です。敏感な方は長時間の激しい運動をお控えください。",
@@ -34,7 +41,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "極めて危険",
     aqi_hazard_advice: "緊急警告：空気が非常に危険です。窓を閉め外出を控えてください。",
     aqi_normal_advice: "標準的な日常生活に適した空気質です。",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "丈夫な折りたたみ傘またはレインコート",
     wear_acc_sunglasses: "UV400サングラス＆日焼け止めSPF50",
@@ -55,7 +61,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "定番コットンTシャツに薄手カーディガンやシャツの羽織り。",
     wear_cas_warm: "風通しの良い半袖Tシャツ、リネンショーツ、スニーカー。",
     wear_cas_hot: "涼しい薄手コットンシャツ、通気性の良いボトムス、紫外線対策。",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "AI水彩画スタジオ＆世界のランドマーク",
     gallery_tier_label: "現在のプラン:",
@@ -72,7 +77,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "例: 夕暮れの光、川の反射、{{city}}のランタン...",
     placeholder_search_city: "都市やランドマークを検索...",
     upload_or_device_photo: "または写真を手動でスロット {{slot}} に追加",
-    btn_paint_with_ai: "スロット {{slot}} を描く 🖌️",
+    btn_paint_with_ai: "スロット {{slot}} を描く 🖌",
     btn_generate_ai: "情景を描画 🎨",
     btn_painting: "描画中... 🎨",
     btn_apply_wallpaper: "壁紙に設定",
@@ -110,7 +115,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "スロット {{slot}} の作品を削除しますか？",
     error_generate_failed: "画像を生成できませんでした。別の説明でお試しください。",
     error_generation_generic: "生成に失敗しました。再度お試しください。",
-
     // Mascot & Companions
     tap_to_chat: "タップしておしゃべり！",
     change_mascot: "相棒マスコットを選択",
@@ -121,7 +125,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "非表示",
     active: "選択中",
     unlocked: "解除済み",
-
     // Monetization & Google Play
     google_play_prompt: "Google Playアプリ内課金で永久アンロック",
     one_time: "買い切り",
@@ -138,8 +141,44 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "VIP (無制限)",
     sun_times: "日の出・日の入り",
     seven_day_forecast: "7日間予報",
+    // City Comparison — ADDED
+    compare_title: "都市比較ハブ",
+    compare_subtitle: "お気に入りの都市のライブ天気と大気質を比較",
+    compare_best_weather: "☀ ベスト天気",
+    compare_cleanest_air: "🍃 最も綺麗な空気",
+    compare_viewing_now: "表示中",
+    compare_view_city: "天気を見る",
+    compare_no_favorites: "お気に入り都市がまだありません",
+    compare_no_favorites_desc: "都市のハート ❤ をタップして、ライブ天気を並べて比較しましょう。",
+    compare_try_cities: "人気都市をクイック追加:",
+    compare_refresh: "比較を更新",
+    compare_humidity: "湿度",
+    compare_wind: "風",
+    compare_feels: "体感",
+    compare_high_low: "最高 / 最低",
+    compare_aqi: "AQI",
+    compare_unavailable: "天気情報なし",
+    // Promo Codes — ADDED
+    promo_code_label: "VIP / サポーターコードをお持ちですか？",
+    promo_code_input: "プロモコードを入力",
+    promo_empty: "プロモコードを入力してください。",
+    promo_rate_limited: "失敗回数が多すぎます。1分待ってから再試行してください。",
+    promo_error_generic: "コードを利用できませんでした。もう一度お試しください。",
+    promo_already_redeemed: "このコードは既に使用され、期限切れです。",
+    promo_invalid: "無効なコードです。確認して再試行してください。",
+    promo_already_unlocked: "Party Packは既に解除済みです — このコードは使わずに友達にシェアしてください！",
+    promo_success: "VIP Party Packのロックを解除しました！",
+    promo_success_burn_failed: "VIP Party Packのロックを解除しました！（注意：この端末ではコードを使用済みとして記録できませんでした — 大切に保管してください。）",
+    // Thank You Modal — ADDED
+    thank_you_title: "ありがとう！",
+    thank_you_unlocked: "サンキュー背景はこの端末に永久保存されました。",
+    thank_you_adfree_forever: "永久広告なし",
+    thank_you_adfree_days: "広告なし {{days}} 日間 — 背景は永久保存",
+    thank_you_message_small_root_beer_tier: "特別なサンキュー背景を解除しました！乾杯！",
+    thank_you_message_medium_root_beer_tier: "特別なサンキュー背景 + 追加アートを解除しました！乾杯！",
+    thank_you_message_large_root_beer_tier: "サンキューコレクション全体を解除しました！本当にありがとうございます！",
+    thank_you_message_party_pack_root_beer_tier: "Party Packの全てを解除しました！あなたは伝説です！",
   },
-
   zh: {
     // WeatherView Actions & Header
     next_artwork: "切换艺术画",
@@ -163,7 +202,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "暂无天气数据",
     no_weather_desc: "搜索城市名称或点击定位图钉查看天气。",
     cond_unknown: "未知",
-
     // AQI & Health Advisories
     aqi_good_advice: "空气质量优良，非常适合户外活动！",
     aqi_mod_advice: "空气质量良好。极敏感人群应减少户外剧烈运动。",
@@ -172,7 +210,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "严重污染",
     aqi_hazard_advice: "严重污染警报：尽量留在室内，紧闭门窗并开启净化设备。",
     aqi_normal_advice: "空气质量适宜常规日常生活。",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "结实折叠雨伞或雨衣",
     wear_acc_sunglasses: "防紫外线UV400太阳镜及防晒霜",
@@ -193,7 +230,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "经典纯棉T恤外搭薄开衫或衬衫，配休闲卡其裤。",
     wear_cas_warm: "舒适轻薄短袖T恤、亚麻短裤与运动鞋。",
     wear_cas_hot: "浅色透气轻薄棉质衣物、凉爽短裤与防晒装备。",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "AI水彩画工坊与地标",
     gallery_tier_label: "当前方案:",
@@ -210,7 +246,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "例如：金色黄昏、水波倒影、{{city}}水上集市灯火...",
     placeholder_search_city: "搜索城市或地标...",
     upload_or_device_photo: "或从设备上传照片至槽位 {{slot}}",
-    btn_paint_with_ai: "绘制槽位 {{slot}} 🖌️",
+    btn_paint_with_ai: "绘制槽位 {{slot}} 🖌",
     btn_generate_ai: "生成水彩画 🎨",
     btn_painting: "正在绘制中... 🎨",
     btn_apply_wallpaper: "设为天气壁纸",
@@ -248,7 +284,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "确认删除槽位 {{slot}} 的画作吗？",
     error_generate_failed: "无法生成图片，请尝试其他画面描述。",
     error_generation_generic: "生成失败，请稍后重试。",
-
     // Mascot & Companions
     tap_to_chat: "点击与我互动！",
     change_mascot: "选择天气陪伴小宠",
@@ -259,7 +294,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "已隐藏",
     active: "已选中",
     unlocked: "已解锁",
-
     // Monetization & Google Play
     google_play_prompt: "通过 Google Play 官方应用内购买永久解锁",
     one_time: "一次性买断",
@@ -276,8 +310,44 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "狂欢VIP (无限)",
     sun_times: "日照时刻",
     seven_day_forecast: "7天天气预报",
+    // City Comparison — ADDED
+    compare_title: "城市对比中心",
+    compare_subtitle: "对比你喜爱目的地的实时天气和空气质量",
+    compare_best_weather: "☀ 最佳天气",
+    compare_cleanest_air: "🍃 最清新空气",
+    compare_viewing_now: "正在查看",
+    compare_view_city: "查看天气",
+    compare_no_favorites: "尚未添加收藏城市",
+    compare_no_favorites_desc: "点击任意城市的心形 ❤ 即可并排对比实时天气。",
+    compare_try_cities: "快速添加热门城市：",
+    compare_refresh: "刷新对比",
+    compare_humidity: "湿度",
+    compare_wind: "风速",
+    compare_feels: "体感",
+    compare_high_low: "最高 / 最低",
+    compare_aqi: "AQI",
+    compare_unavailable: "暂无天气",
+    // Promo Codes — ADDED
+    promo_code_label: "有 VIP / 支持者兑换码吗？",
+    promo_code_input: "输入优惠码",
+    promo_empty: "请输入优惠码。",
+    promo_rate_limited: "失败次数过多。请等待一分钟后再试。",
+    promo_error_generic: "无法兑换代码。请再试一次。",
+    promo_already_redeemed: "此代码已兑换并已过期。",
+    promo_invalid: "无效代码。请检查后重试。",
+    promo_already_unlocked: "你已解锁 Party Pack — 不需要用这个代码。分享给朋友吧！",
+    promo_success: "VIP Party Pack 解锁成功！",
+    promo_success_burn_failed: "VIP Party Pack 解锁成功！（提示：此设备未能将代码记录为已使用 — 请妥善保管。）",
+    // Thank You Modal — ADDED
+    thank_you_title: "谢谢！",
+    thank_you_unlocked: "你的感谢背景已永久保存在此设备上。",
+    thank_you_adfree_forever: "永久无广告",
+    thank_you_adfree_days: "无广告 {{days}} 天 — 背景永久保留",
+    thank_you_message_small_root_beer_tier: "你解锁了特别感谢背景。干杯！",
+    thank_you_message_medium_root_beer_tier: "你解锁了特别感谢背景 + 额外艺术。干杯！",
+    thank_you_message_large_root_beer_tier: "你解锁了全部感谢收藏。非常感谢！",
+    thank_you_message_party_pack_root_beer_tier: "你解锁了 Party Pack 的全部内容。你太厉害了！",
   },
-
   hi: {
     // WeatherView Actions & Header
     next_artwork: "अगली कला",
@@ -301,7 +371,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "कोई मौसम डेटा उपलब्ध नहीं है",
     no_weather_desc: "शहर खोजें या मौसम देखने के लिए स्थान पिन दबाएं।",
     cond_unknown: "अज्ञात",
-
     // AQI & Health Advisories
     aqi_good_advice: "वायु गुणवत्ता बहुत अच्छी है; बाहर की गतिविधियों का आनंद लें!",
     aqi_mod_advice: "मध्यम वायु गुणवत्ता। संवेदनशील व्यक्तियों को अधिक परिश्रम से बचना चाहिए।",
@@ -310,7 +379,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "अत्यधिक खतरनाक",
     aqi_hazard_advice: "आपातकालीन चेतावनी: हवा खतरनाक है। खिड़कियां बंद रखें और घर के अंदर रहें।",
     aqi_normal_advice: "वायु गुणवत्ता सामान्य गतिविधियों के लिए उपयुक्त है।",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "मजबूत कॉम्पैक्ट छाता या रेनकोट",
     wear_acc_sunglasses: "UV400 धूप का चश्मा और सनस्क्रीन",
@@ -331,7 +399,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "क्लासिक कॉटन टी-शर्ट और हल्का कार्डिगन।",
     wear_cas_warm: "हल्की सूती टी-शर्ट, शॉर्ट्स और स्नीकर्स।",
     wear_cas_hot: "हल्के रंग के ढीले सूती कपड़े और धूप से बचाव।",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "एआई वाटरकलर स्टूडियो व स्थल",
     gallery_tier_label: "आपकी योजना:",
@@ -348,7 +415,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "जैसे: सूर्यास्त की सुनहरी धूप, नदी पर रोशनी, {{city}} का बाज़ार...",
     placeholder_search_city: "शहर या स्थल खोजें...",
     upload_or_device_photo: "या स्लॉट {{slot}} में अपना फोटो अपलोड करें",
-    btn_paint_with_ai: "स्लॉट {{slot}} पेंट करें 🖌️",
+    btn_paint_with_ai: "स्लॉट {{slot}} पेंट करें 🖌",
     btn_generate_ai: "दृश्य बनाएं 🎨",
     btn_painting: "पेंटिंग जारी है... 🎨",
     btn_apply_wallpaper: "वॉलपेपर लगाएं",
@@ -386,7 +453,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "क्या आप स्लॉट {{slot}} की कलाकृति हटाना चाहते हैं?",
     error_generate_failed: "छवि उत्पन्न नहीं हो सकी। कृपया अन्य विवरण के साथ प्रयास करें।",
     error_generation_generic: "जनरेशन विफल रही। कृपया पुनः प्रयास करें।",
-
     // Mascot & Companions
     tap_to_chat: "बात करने के लिए टैप करें!",
     change_mascot: "साथी मैस्कॉट चुनें",
@@ -397,7 +463,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "छिपा हुआ",
     active: "सक्रिय",
     unlocked: "अनलॉक",
-
     // Monetization & Google Play
     google_play_prompt: "Google Play इन-ऐप खरीदारी द्वारा स्थायी रूप से अनलॉक करें",
     one_time: "एकमुश्त भुगतान",
@@ -414,8 +479,44 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "पार्टी वीआईपी (असीमित)",
     sun_times: "सूर्य समय",
     seven_day_forecast: "7 दिनों का पूर्वानुमान",
+    // City Comparison — ADDED
+    compare_title: "शहर तुलना हब",
+    compare_subtitle: "अपने पसंदीदा स्थानों के लाइव मौसम और वायु गुणवत्ता की तुलना करें",
+    compare_best_weather: "☀ सबसे अच्छा मौसम",
+    compare_cleanest_air: "🍃 सबसे साफ़ हवा",
+    compare_viewing_now: "अभी देख रहे हैं",
+    compare_view_city: "मौसम देखें",
+    compare_no_favorites: "अभी कोई पसंदीदा शहर नहीं जोड़ा गया",
+    compare_no_favorites_desc: "किसी भी शहर पर दिल ❤ दबाएं ताकि लाइव मौसम को साथ-साथ तुलना कर सकें।",
+    compare_try_cities: "लोकप्रिय शहर जल्दी जोड़ें:",
+    compare_refresh: "तुलना ताज़ा करें",
+    compare_humidity: "नमी",
+    compare_wind: "हवा",
+    compare_feels: "महसूस",
+    compare_high_low: "अधिक / कम",
+    compare_aqi: "AQI",
+    compare_unavailable: "मौसम उपलब्ध नहीं",
+    // Promo Codes — ADDED
+    promo_code_label: "क्या आपके पास VIP / समर्थक कोड है?",
+    promo_code_input: "प्रोमो कोड डालें",
+    promo_empty: "कृपया प्रोमो कोड डालें।",
+    promo_rate_limited: "बहुत अधिक असफल प्रयास। कृपया एक मिनट प्रतीक्षा करें और फिर से प्रयास करें।",
+    promo_error_generic: "कोड रिडीम नहीं हो सका। कृपया फिर से प्रयास करें।",
+    promo_already_redeemed: "यह कोड पहले ही रिडीम हो चुका है और समाप्त हो गया है।",
+    promo_invalid: "अमान्य कोड। कृपया जाँचें और फिर से प्रयास करें।",
+    promo_already_unlocked: "आपके पास Party Pack पहले से अनलॉक है — इस कोड का उपयोग करने की आवश्यकता नहीं है। इसे किसी दोस्त को दें!",
+    promo_success: "VIP Party Pack सफलतापूर्वक अनलॉक हुआ!",
+    promo_success_burn_failed: "VIP Party Pack अनलॉक हुआ! (नोट: इस डिवाइस पर कोड को उपयोग किया गया के रूप में रिकॉर्ड नहीं किया जा सका — इसे सुरक्षित रखें।)",
+    // Thank You Modal — ADDED
+    thank_you_title: "धन्यवाद!",
+    thank_you_unlocked: "आपका धन्यवाद वॉलपेपर अब इस डिवाइस पर हमेशा के लिए सहेजा गया है।",
+    thank_you_adfree_forever: "हमेशा के लिए विज्ञापन मुक्त",
+    thank_you_adfree_days: "{{days}} दिनों के लिए विज्ञापन मुक्त — वॉलपेपर हमेशा रहेंगे",
+    thank_you_message_small_root_beer_tier: "आपने एक विशेष धन्यवाद वॉलपेपर अनलॉक किया। बधाई हो!",
+    thank_you_message_medium_root_beer_tier: "आपने एक विशेष धन्यवाद वॉलपेपर + अतिरिक्त कला अनलॉक की। बधाई हो!",
+    thank_you_message_large_root_beer_tier: "आपने पूरा धन्यवाद संग्रह अनलॉक किया। बहुत-बहुत धन्यवाद!",
+    thank_you_message_party_pack_root_beer_tier: "आपने Party Pack की सारी चीज़ें अनलॉक कर दीं। आप कमाल हैं!",
   },
-
   ru: {
     // WeatherView Actions & Header
     next_artwork: "След. арт",
@@ -439,7 +540,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "Нет данных о погоде",
     no_weather_desc: "Найдите город или нажмите на значок геолокации.",
     cond_unknown: "Неизвестно",
-
     // AQI & Health Advisories
     aqi_good_advice: "Качество воздуха отличное; прекрасное время для прогулок!",
     aqi_mod_advice: "Умеренное качество. Чувствительным людям стоит снизить нагрузку на улице.",
@@ -448,7 +548,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "Опасно",
     aqi_hazard_advice: "Экстренное предупреждение: Опасный воздух. Закройте окна и оставайтесь дома.",
     aqi_normal_advice: "Качество воздуха подходит для обычной повседневной активности.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Надежный компактный зонт или дождевик",
     wear_acc_sunglasses: "Очки UV400 и крем с защитой SPF 50",
@@ -469,7 +568,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "Классическая хлопковая футболка, кардиган и брюки чинос.",
     wear_cas_warm: "Воздушная футболка, льняные шорты и удобные кеды.",
     wear_cas_hot: "Свободная светлая хлопковая одежда, шорты и защита от солнца.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "ИИ Акварельная Студия и Достопримечательности",
     gallery_tier_label: "Ваш тариф:",
@@ -486,7 +584,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "напр., закатный свет, отражения в воде, фонарики в {{city}}...",
     placeholder_search_city: "Поиск города или места...",
     upload_or_device_photo: "Или загрузите фото в слот {{slot}}",
-    btn_paint_with_ai: "Нарисовать слот {{slot}} 🖌️",
+    btn_paint_with_ai: "Нарисовать слот {{slot}} 🖌",
     btn_generate_ai: "Создать картину 🎨",
     btn_painting: "Рисуем... 🎨",
     btn_apply_wallpaper: "Установить обои",
@@ -524,7 +622,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "Удалить рисунок в слоте {{slot}}?",
     error_generate_failed: "Не удалось создать изображение. Попробуйте другое описание.",
     error_generation_generic: "Ошибка при генерации. Попробуйте еще раз.",
-
     // Mascot & Companions
     tap_to_chat: "Нажмите, чтобы поговорить!",
     change_mascot: "Выбрать маскота-спутника",
@@ -535,7 +632,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "Скрыто",
     active: "Выбран",
     unlocked: "Открыт",
-
     // Monetization & Google Play
     google_play_prompt: "Разблокируйте навсегда через Google Play In-App Purchase",
     one_time: "Разовая покупка",
@@ -552,8 +648,44 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "Party VIP (Безлимит)",
     sun_times: "Солнце",
     seven_day_forecast: "Прогноз на 7 дней",
+    // City Comparison — ADDED
+    compare_title: "Сравнение городов",
+    compare_subtitle: "Сравнивайте погоду в реальном времени и качество воздуха в любимых городах",
+    compare_best_weather: "☀ Лучшая погода",
+    compare_cleanest_air: "🍃 Самый чистый воздух",
+    compare_viewing_now: "Сейчас просматривается",
+    compare_view_city: "Смотреть погоду",
+    compare_no_favorites: "Избранных городов пока нет",
+    compare_no_favorites_desc: "Нажмите на сердечко ❤ любого города, чтобы сравнить погоду в реальном времени.",
+    compare_try_cities: "Быстро добавить популярные города:",
+    compare_refresh: "Обновить сравнение",
+    compare_humidity: "Влажность",
+    compare_wind: "Ветер",
+    compare_feels: "Ощущается",
+    compare_high_low: "Макс / Мин",
+    compare_aqi: "AQI",
+    compare_unavailable: "Погода недоступна",
+    // Promo Codes — ADDED
+    promo_code_label: "Есть VIP / код поддержки?",
+    promo_code_input: "Введите промокод",
+    promo_empty: "Пожалуйста, введите промокод.",
+    promo_rate_limited: "Слишком много неудачных попыток. Подождите минуту и попробуйте снова.",
+    promo_error_generic: "Не удалось активировать код. Попробуйте снова.",
+    promo_already_redeemed: "Этот код уже был использован и истёк.",
+    promo_invalid: "Неверный код. Проверьте и попробуйте снова.",
+    promo_already_unlocked: "Party Pack уже разблокирован — этот код не нужен. Поделитесь им с другом!",
+    promo_success: "VIP Party Pack успешно разблокирован!",
+    promo_success_burn_failed: "VIP Party Pack разблокирован! (Примечание: это устройство не смогло записать код как использованный — сохраните его.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "Спасибо!",
+    thank_you_unlocked: "Ваш благодарственный фон теперь навсегда сохранён на этом устройстве.",
+    thank_you_adfree_forever: "Без рекламы навсегда",
+    thank_you_adfree_days: "Без рекламы {{days}} дн. — фоны остаются навсегда",
+    thank_you_message_small_root_beer_tier: "Вы разблокировали особый благодарственный фон. Ура!",
+    thank_you_message_medium_root_beer_tier: "Вы разблокировали особый благодарственный фон + дополнительное искусство. Ура!",
+    thank_you_message_large_root_beer_tier: "Вы разблокировали всю благодарственную коллекцию. Огромное спасибо!",
+    thank_you_message_party_pack_root_beer_tier: "Вы разблокировали всё в Party Pack. Вы легенда!",
   },
-
   ar: {
     // WeatherView Actions & Header
     next_artwork: "العمل الفني التالي",
@@ -577,7 +709,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "لا تتوفر بيانات الطقس",
     no_weather_desc: "ابحث عن اسم مدينة أو انقر على رمز الموقع لعرض الطقس.",
     cond_unknown: "غير معروف",
-
     // AQI & Health Advisories
     aqi_good_advice: "جودة الهواء ممتازة؛ استمتع بالأنشطة الخارجية!",
     aqi_mod_advice: "جودة معتدلة. يجب على ذوي الحساسية تقليل المجهود البدني بالخارج.",
@@ -586,7 +717,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "شديد الخطورة",
     aqi_hazard_advice: "تحذير طوارئ: الهواء خطير للغاية. ابقَ في الداخل وأغلق النوافذ.",
     aqi_normal_advice: "جودة الهواء ملائمة للأنشطة اليومية المعتادة.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "مظلة قوية مدمجة أو معطف مطر",
     wear_acc_sunglasses: "نظارات شمسية UV400 وواقي شمس",
@@ -607,7 +737,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "قميص قطني كلاسيكي مع سترة خفيفة وبنطال تشينو.",
     wear_cas_warm: "قميص قطني خفيف، شورت كتان وحذاء رياضي مريح.",
     wear_cas_hot: "ملابس قطنية خفيفة وفاتحة اللون، شورت مريح وحماية من الشمس.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "استوديو الألوان المائية بالذكاء الاصطناعي",
     gallery_tier_label: "خطتك الحالية:",
@@ -624,7 +753,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "مثال: أضواء الغروب، انعكاسات النهر، فوانيس في {{city}}...",
     placeholder_search_city: "ابحث عن مدينة أو معلم...",
     upload_or_device_photo: "أو ارفع صورة من جهازك في الخانة {{slot}}",
-    btn_paint_with_ai: "رسم الخانة {{slot}} 🖌️",
+    btn_paint_with_ai: "رسم الخانة {{slot}} 🖌",
     btn_generate_ai: "رسم المشهد 🎨",
     btn_painting: "جارٍ الرسم... 🎨",
     btn_apply_wallpaper: "تعيين كخلفية",
@@ -662,7 +791,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "هل تريد حذف اللوحة في الخانة {{slot}}؟",
     error_generate_failed: "تعذر إنشاء الصورة. يرجى تجربة وصف آخر.",
     error_generation_generic: "فشل الإنشاء. يرجى المحاولة مرة أخرى.",
-
     // Mascot & Companions
     tap_to_chat: "انقر للتحدث معي!",
     change_mascot: "اختيار الصديق المساعد",
@@ -673,7 +801,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "مخفي",
     active: "نشط",
     unlocked: "مفتوح",
-
     // Monetization & Google Play
     google_play_prompt: "فتح دائم عبر الشراء داخل تطبيق Google Play",
     one_time: "دفع لمرة واحدة",
@@ -690,8 +817,44 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "حفلة VIP (غير محدود)",
     sun_times: "أوقات الشمس",
     seven_day_forecast: "توقعات 7 أيام",
+    // City Comparison — ADDED
+    compare_title: "مركز مقارنة المدن",
+    compare_subtitle: "قارن الطقس المباشر وجودة الهواء في وجهاتك المفضلة",
+    compare_best_weather: "☀ أفضل طقس",
+    compare_cleanest_air: "🍃 أنقى هواء",
+    compare_viewing_now: "جارٍ العرض الآن",
+    compare_view_city: "عرض الطقس",
+    compare_no_favorites: "لم تتم إضافة أي مدن مفضلة بعد",
+    compare_no_favorites_desc: "انقر على القلب ❤ في أي مدينة لمقارنة الطقس المباشر جنباً إلى جنب.",
+    compare_try_cities: "أضف مدناً شائعة بسرعة:",
+    compare_refresh: "تحديث المقارنة",
+    compare_humidity: "الرطوبة",
+    compare_wind: "الرياح",
+    compare_feels: "الشعور",
+    compare_high_low: "الأعلى / الأدنى",
+    compare_aqi: "AQI",
+    compare_unavailable: "الطقس غير متاح",
+    // Promo Codes — ADDED
+    promo_code_label: "هل لديك رمز VIP / داعم؟",
+    promo_code_input: "أدخل رمز العرض",
+    promo_empty: "الرجاء إدخال رمز العرض.",
+    promo_rate_limited: "محاولات فاشلة كثيرة جداً. يرجى الانتظار دقيقة ثم المحاولة مجدداً.",
+    promo_error_generic: "تعذر استرداد الرمز. يرجى المحاولة مجدداً.",
+    promo_already_redeemed: "تم استرداد هذا الرمز بالفعل وانتهت صلاحيته.",
+    promo_invalid: "رمز غير صالح. يرجى التحقق والمحاولة مجدداً.",
+    promo_already_unlocked: "لديك Party Pack بالفعل — لا حاجة لاستخدام هذا الرمز. شاركه مع صديق!",
+    promo_success: "تم فتح Party Pack VIP بنجاح!",
+    promo_success_burn_failed: "تم فتح Party Pack VIP! (ملاحظة: لم يتمكن هذا الجهاز من تسجيل الرمز كمستخدم — احتفظ به بأمان.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "شكراً لك!",
+    thank_you_unlocked: "تم حفظ خلفية الشكر الخاصة بك إلى الأبد على هذا الجهاز.",
+    thank_you_adfree_forever: "بلا إعلانات للأبد",
+    thank_you_adfree_days: "بلا إعلانات لمدة {{days}} يوماً — الخلفيات تبقى للأبد",
+    thank_you_message_small_root_beer_tier: "لقد فتحت خلفية شكر خاصة. هتاف!",
+    thank_you_message_medium_root_beer_tier: "لقد فتحت خلفية شكر خاصة + فن إضافي. هتاف!",
+    thank_you_message_large_root_beer_tier: "لقد فتحت مجموعة الشكر الكاملة. شكراً جزيلاً!",
+    thank_you_message_party_pack_root_beer_tier: "لقد فتحت كل شيء في Party Pack. أنت أسطوري!",
   },
-
   ko: {
     // WeatherView Actions & Header
     next_artwork: "다음 작품",
@@ -715,7 +878,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "날씨 데이터가 없습니다",
     no_weather_desc: "도시명을 검색하거나 위치 아이콘을 눌러주세요.",
     cond_unknown: "알 수 없음",
-
     // AQI & Health Advisories
     aqi_good_advice: "공기가 매우 깨끗합니다. 야외 활동을 마음껏 즐기세요!",
     aqi_mod_advice: "보통 수준의 공기질입니다. 민감군은 장시간 격렬한 운동을 자제하세요.",
@@ -724,7 +886,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "매우 위험",
     aqi_hazard_advice: "긴급 경보: 공기가 매우 위험합니다. 창문을 닫고 실내에 머무르세요.",
     aqi_normal_advice: "일상적인 활동에 무리 없는 공기질입니다.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "튼튼한 3단 우산 또는 우비",
     wear_acc_sunglasses: "UV400 선글라스 및 자외선 차단제",
@@ -745,7 +906,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "기본 면 티셔츠에 가벼운 카디건 또는 셔츠 레이어드.",
     wear_cas_warm: "통기성 좋은 반팔 티셔츠, 린넨 반바지와 스니커즈.",
     wear_cas_hot: "밝은 색상의 시원한 반팔, 반바지와 자외선 차단 모자.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "AI 수채화 스튜디오 & 세계 랜드마크",
     gallery_tier_label: "현재 이용권:",
@@ -762,7 +922,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "예: 노을빛, 강가의 반영, {{city}}의 등불 풍경...",
     placeholder_search_city: "도시나 랜드마크 검색...",
     upload_or_device_photo: "또는 기기 사진을 슬롯 {{slot}}에 업로드",
-    btn_paint_with_ai: "슬롯 {{slot}} 그리기 🖌️",
+    btn_paint_with_ai: "슬롯 {{slot}} 그리기 🖌",
     btn_generate_ai: "그림 생성 🎨",
     btn_painting: "그리는 중... 🎨",
     btn_apply_wallpaper: "배경화면으로 적용",
@@ -800,7 +960,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "슬롯 {{slot}}의 작품을 삭제하시겠습니까?",
     error_generate_failed: "이미지를 생성하지 못했습니다. 다른 묘사로 다시 시도해주세요.",
     error_generation_generic: "생성에 실패했습니다. 다시 시도해주세요.",
-
     // Mascot & Companions
     tap_to_chat: "눌러서 대화하기!",
     change_mascot: "동반자 마스코트 선택",
@@ -811,7 +970,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "숨김",
     active: "선택됨",
     unlocked: "해제됨",
-
     // Monetization & Google Play
     google_play_prompt: "Google Play 인앱 결제로 영구 잠금 해제",
     one_time: "1회 구매",
@@ -828,8 +986,44 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "파티 VIP (무제한)",
     sun_times: "일출/일몰",
     seven_day_forecast: "7일간 예보",
+    // City Comparison — ADDED
+    compare_title: "도시 비교 허브",
+    compare_subtitle: "즐겨찾는 목적지의 실시간 날씨와 대기질을 비교하세요",
+    compare_best_weather: "☀ 최고의 날씨",
+    compare_cleanest_air: "🍃 가장 깨끗한 공기",
+    compare_viewing_now: "현재 보는 중",
+    compare_view_city: "날씨 보기",
+    compare_no_favorites: "아직 즐겨찾기 도시가 없습니다",
+    compare_no_favorites_desc: "아무 도시의 하트 ❤ 를 눌러 실시간 날씨를 나란히 비교하세요.",
+    compare_try_cities: "인기 도시 빠르게 추가:",
+    compare_refresh: "비교 새로고침",
+    compare_humidity: "습도",
+    compare_wind: "바람",
+    compare_feels: "체감",
+    compare_high_low: "최고 / 최저",
+    compare_aqi: "AQI",
+    compare_unavailable: "날씨 정보 없음",
+    // Promo Codes — ADDED
+    promo_code_label: "VIP / 후원자 코드가 있나요?",
+    promo_code_input: "프로모 코드 입력",
+    promo_empty: "프로모 코드를 입력해 주세요.",
+    promo_rate_limited: "실패한 시도가 너무 많습니다. 1분 기다렸다가 다시 시도해 주세요.",
+    promo_error_generic: "코드를 사용할 수 없습니다. 다시 시도해 주세요.",
+    promo_already_redeemed: "이 코드는 이미 사용되어 만료되었습니다.",
+    promo_invalid: "잘못된 코드입니다. 확인하고 다시 시도해 주세요.",
+    promo_already_unlocked: "Party Pack이 이미 해제되어 있습니다 — 이 코드를 쓸 필요 없어요. 친구에게 나눠주세요!",
+    promo_success: "VIP Party Pack이 성공적으로 해제되었습니다!",
+    promo_success_burn_failed: "VIP Party Pack이 해제되었습니다! (참고: 이 기기에서 코드를 사용됨으로 기록하지 못했습니다 — 잘 보관해 주세요.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "감사합니다!",
+    thank_you_unlocked: "감사 배경화면이 이 기기에 영구 저장되었습니다.",
+    thank_you_adfree_forever: "영원히 광고 없음",
+    thank_you_adfree_days: "{{days}}일 동안 광고 없음 — 배경화면은 영원히 유지",
+    thank_you_message_small_root_beer_tier: "특별 감사 배경화면을 해제했습니다. 건배!",
+    thank_you_message_medium_root_beer_tier: "특별 감사 배경화면 + 추가 아트를 해제했습니다. 건배!",
+    thank_you_message_large_root_beer_tier: "감사 컬렉션 전체를 해제했습니다. 정말 감사합니다!",
+    thank_you_message_party_pack_root_beer_tier: "Party Pack의 모든 것을 해제했습니다. 당신은 전설입니다!",
   },
-
   id: {
     // WeatherView Actions & Header
     next_artwork: "Seni Berikutnya",
@@ -853,7 +1047,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "Tidak ada data cuaca",
     no_weather_desc: "Cari nama kota atau gunakan ikon pin lokasi untuk melihat cuaca.",
     cond_unknown: "Tidak Diketahui",
-
     // AQI & Health Advisories
     aqi_good_advice: "Kualitas udara sangat baik; nikmati aktivitas di luar ruangan!",
     aqi_mod_advice: "Kualitas sedang. Orang yang sangat sensitif sebaiknya mengurangi aktivitas berat di luar.",
@@ -862,7 +1055,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "Sangat Berbahaya",
     aqi_hazard_advice: "Peringatan darurat: Udara berbahaya. Tetap di dalam rumah dan tutup jendela rapat-rapat.",
     aqi_normal_advice: "Kualitas udara aman untuk aktivitas sehari-hari.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Payung lipat kokoh atau jas hujan",
     wear_acc_sunglasses: "Kacamata hitam UV400 & tabir surya SPF 50",
@@ -883,7 +1075,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "Kaos katun klasik dipadu kardigan ringan dan celana chino.",
     wear_cas_warm: "Kaos katun sejuk, celana pendek linen dan sepatu santai.",
     wear_cas_hot: "Pakaian katun tipis berwarna cerah, celana santai dan pelindung sinar matahari.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "Studio Cat Air AI & Landmark Dunia",
     gallery_tier_label: "Paket Anda:",
@@ -900,7 +1091,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "misal: cahaya senja, pantulan air sungai, lampion di {{city}}...",
     placeholder_search_city: "Cari kota atau landmark...",
     upload_or_device_photo: "Atau unggah foto dari perangkat ke Slot {{slot}}",
-    btn_paint_with_ai: "Lukis Slot {{slot}} 🖌️",
+    btn_paint_with_ai: "Lukis Slot {{slot}} 🖌",
     btn_generate_ai: "Lukis Suasana 🎨",
     btn_painting: "Sedang melukis... 🎨",
     btn_apply_wallpaper: "Jadikan Wallpaper",
@@ -938,7 +1129,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "Hapus lukisan di Slot {{slot}}?",
     error_generate_failed: "Tidak dapat membuat gambar. Coba deskripsi lainnya.",
     error_generation_generic: "Pembuatan gagal. Silakan coba lagi.",
-
     // Mascot & Companions
     tap_to_chat: "Ketuk untuk mengobrol!",
     change_mascot: "Pilih Maskot Teman",
@@ -949,7 +1139,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "Tersembunyi",
     active: "Dipilih",
     unlocked: "Terbuka",
-
     // Monetization & Google Play
     google_play_prompt: "Buka permanen dengan Google Play In-App Purchase",
     one_time: "Bayar sekali",
@@ -966,6 +1155,43 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "Pesta VIP (Tak Terbatas)",
     sun_times: "Waktu Matahari",
     seven_day_forecast: "Prakiraan 7 Hari",
+    // City Comparison — ADDED
+    compare_title: "Pusat Perbandingan Kota",
+    compare_subtitle: "Bandingkan cuaca langsung & kualitas udara di destinasi favoritmu",
+    compare_best_weather: "☀ Cuaca Terbaik",
+    compare_cleanest_air: "🍃 Udara Terbersih",
+    compare_viewing_now: "Sedang Dilihat",
+    compare_view_city: "Lihat Cuaca",
+    compare_no_favorites: "Belum Ada Kota Favorit",
+    compare_no_favorites_desc: "Ketuk hati ❤ di kota mana pun untuk membandingkan cuaca langsung berdampingan.",
+    compare_try_cities: "Tambah kota populer dengan cepat:",
+    compare_refresh: "Segarkan Perbandingan",
+    compare_humidity: "Kelembapan",
+    compare_wind: "Angin",
+    compare_feels: "Terasa",
+    compare_high_low: "Tertinggi / Terendah",
+    compare_aqi: "AQI",
+    compare_unavailable: "Cuaca Tidak Tersedia",
+    // Promo Codes — ADDED
+    promo_code_label: "Punya Kode VIP / Pendukung?",
+    promo_code_input: "Masukkan kode promo",
+    promo_empty: "Silakan masukkan kode promo.",
+    promo_rate_limited: "Terlalu banyak percobaan gagal. Tunggu sebentar lalu coba lagi.",
+    promo_error_generic: "Tidak dapat menukarkan kode. Silakan coba lagi.",
+    promo_already_redeemed: "Kode ini sudah ditukarkan dan sudah kedaluwarsa.",
+    promo_invalid: "Kode tidak valid. Periksa dan coba lagi.",
+    promo_already_unlocked: "Kamu sudah membuka Party Pack — tidak perlu memakai kode ini. Bagikan ke teman!",
+    promo_success: "VIP Party Pack berhasil dibuka!",
+    promo_success_burn_failed: "VIP Party Pack berhasil dibuka! (Catatan: perangkat ini tidak dapat mencatat kode sebagai sudah dipakai — simpan baik-baik.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "Terima Kasih!",
+    thank_you_unlocked: "Wallpaper terima kasihmu kini tersimpan selamanya di perangkat ini.",
+    thank_you_adfree_forever: "Bebas iklan selamanya",
+    thank_you_adfree_days: "Bebas iklan selama {{days}} hari — wallpaper tetap selamanya",
+    thank_you_message_small_root_beer_tier: "Kamu membuka wallpaper terima kasih spesial. Cheers!",
+    thank_you_message_medium_root_beer_tier: "Kamu membuka wallpaper terima kasih spesial + seni ekstra. Cheers!",
+    thank_you_message_large_root_beer_tier: "Kamu membuka seluruh koleksi terima kasih. Terima kasih banyak!",
+    thank_you_message_party_pack_root_beer_tier: "Kamu membuka semua yang ada di Party Pack. Kamu legendaris!",
   },
 
   vi: {
@@ -991,7 +1217,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     no_weather_title: "Không có dữ liệu thời tiết",
     no_weather_desc: "Tìm kiếm thành phố hoặc nhấn biểu tượng vị trí để xem thời tiết.",
     cond_unknown: "Không rõ",
-
     // AQI & Health Advisories
     aqi_good_advice: "Chất lượng không khí rất tốt; hãy thoải mái vận động ngoài trời!",
     aqi_mod_advice: "Chất lượng ở mức vừa phải. Người quá nhạy cảm nên hạn chế vận động gắng sức ngoài trời.",
@@ -1000,7 +1225,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     aqi_hazardous: "Nguy hại nghiêm trọng",
     aqi_hazard_advice: "Cảnh báo khẩn cấp: Không khí nguy hại. Hãy ở trong nhà và đóng kín các cửa sổ.",
     aqi_normal_advice: "Chất lượng không khí phù hợp cho sinh hoạt hằng ngày.",
-
     // What to Wear & Accessories
     wear_acc_umbrella: "Ô gập chắc chắn hoặc áo mưa",
     wear_acc_sunglasses: "Kính râm UV400 & kem chống nắng SPF 50",
@@ -1021,7 +1245,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     wear_cas_mild: "Áo thun cotton phối cardigan mỏng hoặc áo sơ mi khoác ngoài.",
     wear_cas_warm: "Áo thun thoáng mát, quần đùi kaki hoặc đũi và giày thể thao.",
     wear_cas_hot: "Trang phục cotton nhẹ sáng màu, quần ngố thoáng mát và che chắn nắng.",
-
     // AI Gallery & Wallpaper Slots Studio
     gallery_title: "Xưởng Tranh Màu Nước AI & Danh Thắng",
     gallery_tier_label: "Gói của bạn:",
@@ -1038,7 +1261,7 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     placeholder_ai_prompt: "ví dụ: ráng chiều rực rỡ, bóng nước lung linh, đèn lồng chợ nổi ở {{city}}...",
     placeholder_search_city: "Tìm kiếm thành phố hoặc danh thắng...",
     upload_or_device_photo: "Hoặc tải ảnh từ thiết bị vào Ô số {{slot}}",
-    btn_paint_with_ai: "Vẽ Ô số {{slot}} 🖌️",
+    btn_paint_with_ai: "Vẽ Ô số {{slot}} 🖌",
     btn_generate_ai: "Tạo tác phẩm 🎨",
     btn_painting: "Đang vẽ tranh... 🎨",
     btn_apply_wallpaper: "Đặt làm hình nền",
@@ -1076,7 +1299,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     confirm_delete_slot: "Bạn có chắc muốn xóa tác phẩm ở Ô số {{slot}} không?",
     error_generate_failed: "Không thể tạo ảnh. Vui lòng thử lại với lời miêu tả khác.",
     error_generation_generic: "Tạo ảnh thất bại. Xin vui lòng thử lại.",
-
     // Mascot & Companions
     tap_to_chat: "Nhấn để trò chuyện!",
     change_mascot: "Chọn linh vật đồng hành",
@@ -1087,7 +1309,6 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     hidden: "Đang ẩn",
     active: "Đang chọn",
     unlocked: "Đã mở",
-
     // Monetization & Google Play
     google_play_prompt: "Mở khóa vĩnh viễn qua cổng thanh toán Google Play",
     one_time: "Thanh toán 1 lần",
@@ -1104,5 +1325,42 @@ export const extraResourcesPart2: Record<string, Record<string, string>> = {
     tier_short_party: "Tiệc VIP (Vô hạn)",
     sun_times: "Giờ mặt trời",
     seven_day_forecast: "Dự báo 7 ngày",
+    // City Comparison — ADDED
+    compare_title: "Trung tâm so sánh thành phố",
+    compare_subtitle: "So sánh thời tiết trực tiếp & chất lượng không khí ở các điểm đến yêu thích",
+    compare_best_weather: "☀ Thời tiết đẹp nhất",
+    compare_cleanest_air: "🍃 Không khí sạch nhất",
+    compare_viewing_now: "Đang xem",
+    compare_view_city: "Xem thời tiết",
+    compare_no_favorites: "Chưa có thành phố yêu thích nào",
+    compare_no_favorites_desc: "Nhấn vào trái tim ❤ ở bất kỳ thành phố nào để so sánh thời tiết trực tiếp cạnh nhau.",
+    compare_try_cities: "Thêm nhanh các thành phố phổ biến:",
+    compare_refresh: "Làm mới so sánh",
+    compare_humidity: "Độ ẩm",
+    compare_wind: "Gió",
+    compare_feels: "Cảm giác",
+    compare_high_low: "Cao / Thấp",
+    compare_aqi: "AQI",
+    compare_unavailable: "Không có thời tiết",
+    // Promo Codes — ADDED
+    promo_code_label: "Bạn có Mã VIP / Người ủng hộ không?",
+    promo_code_input: "Nhập mã khuyến mãi",
+    promo_empty: "Vui lòng nhập mã khuyến mãi.",
+    promo_rate_limited: "Quá nhiều lần thử thất bại. Vui lòng đợi một phút rồi thử lại.",
+    promo_error_generic: "Không thể đổi mã. Vui lòng thử lại.",
+    promo_already_redeemed: "Mã này đã được đổi và đã hết hạn.",
+    promo_invalid: "Mã không hợp lệ. Vui lòng kiểm tra và thử lại.",
+    promo_already_unlocked: "Bạn đã mở Party Pack rồi — không cần dùng mã này. Hãy chia sẻ cho bạn bè!",
+    promo_success: "Mở khóa VIP Party Pack thành công!",
+    promo_success_burn_failed: "Mở khóa VIP Party Pack thành công! (Lưu ý: thiết bị này không ghi lại mã là đã dùng — hãy giữ mã cẩn thận.)",
+    // Thank You Modal — ADDED
+    thank_you_title: "Cảm ơn bạn!",
+    thank_you_unlocked: "Hình nền cảm ơn của bạn đã được lưu mãi mãi trên thiết bị này.",
+    thank_you_adfree_forever: "Không quảng cáo mãi mãi",
+    thank_you_adfree_days: "Không quảng cáo trong {{days}} ngày — hình nền giữ mãi mãi",
+    thank_you_message_small_root_beer_tier: "Bạn đã mở khóa hình nền cảm ơn đặc biệt. Cheers!",
+    thank_you_message_medium_root_beer_tier: "Bạn đã mở khóa hình nền cảm ơn đặc biệt + tranh thêm. Cheers!",
+    thank_you_message_large_root_beer_tier: "Bạn đã mở khóa toàn bộ bộ sưu tập cảm ơn. Cảm ơn bạn rất nhiều!",
+    thank_you_message_party_pack_root_beer_tier: "Bạn đã mở khóa mọi thứ trong Party Pack. Bạn thật huyền thoại!",
   },
 };
