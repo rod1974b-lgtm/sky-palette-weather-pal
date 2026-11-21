@@ -116,7 +116,6 @@ import { PaymentModal } from "@/components/PaymentModal";
 import type { Place } from "@/lib/weather";
 import {
   showRewardedAdViaMedian,
-  // FIXED BUG 1: Single source of truth for slots.
   getPaidTier,
   getTierById,
 } from "@/lib/monetization";
