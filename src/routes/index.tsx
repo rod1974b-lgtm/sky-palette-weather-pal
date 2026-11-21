@@ -163,26 +163,27 @@ export function WeatherHomePage() {
     return () => window.removeEventListener("weather:custom-bg-change", handleBgChange);
   }, []);
 
-  // Check payment return url params
+    // Listen for payment return URL params and instant tier unlock events
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const paid = params.get("paid");
-      if (paid) {
-        let tier = "small_root_beer_tier";
-        if (paid.includes("medium")) tier = "medium_root_beer_tier";
-        else if (paid.includes("large")) tier = "large_root_beer_tier";
-        else if (paid.includes("party")) tier = "party_pack_root_beer_tier";
 
-        localStorage.setItem(`thankyou_unlocked_${tier}`, "true");
-        localStorage.setItem("weather:paid_tier", tier);
-        saveThankYouBackgroundForever(tier);
-        setThankYouTier(tier);
+    // 1. Process URL return parameters (?paid=..., ?tier=..., ?unlocked=...)
+    const unlockedTier = processPaymentReturnParams(window.location.search);
+    if (unlockedTier) {
+      setThankYouTier(unlockedTier);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    } catch {}
+    // 2. Listen for in-app code redemption or purchase completions
+    const handleTriggerThankYou = (e: any) => {
+      const tier = e?.detail?.tierId;
+      if (tier) setThankYouTier(tier);
+    };
+
+    window.addEventListener("weather:trigger-tier-thankyou", handleTriggerThankYou);
+    return () => {
+      window.removeEventListener("weather:trigger-tier-thankyou", handleTriggerThankYou);
+    };
   }, []);
 
   const fetchWeatherForPlace = async (p: Place, u: WeatherUnit) => {
