@@ -1,4 +1,47 @@
 // src/components/ForecastDetailModal.tsx
+// FIXED — v2
+// WHAT WAS BROKEN — READ THIS, DO NOT REVERT:
+// BUG 1 — Condition was ALWAYS English. The modal used its own WMO_KEY_MAP with keys
+//   like "wmo_0", "wmo_1", "wmo_61". Those keys DO NOT EXIST in any locale file —
+//   not in the 256-key main files, not in any i18nExtra Part 1-4. Checked all 14
+//   languages: 0 occurrences. So t("wmo_0", "Clear sky") always fell back to the
+//   English fallback, in Thai, Japanese, German, everywhere. WeatherView does it
+//   right: it uses cond_* keys (cond_clear, cond_rain, ...) which ARE translated.
+//   FIX: Deleted WMO_KEY_MAP. Now uses describe(code, t) from @/lib/weather, which
+//   uses the same cond_* keys as WeatherView. Same words, all 14 languages.
+// BUG 2 — WMO_KEY_MAP was missing 5 codes: 56, 57 (freezing drizzle), 66, 67
+//   (freezing rain), 77 (snow grains). Those 5 fell through to describe() WITHOUT
+//   t, so they were also English-only. FIX: Gone with BUG 1 — describe(code, t)
+//   handles all of them via cond_freezing_drizzle / cond_freezing_rain / cond_snow.
+// BUG 3 — "Feels Like" was FAKED. Normalization did feels: h.temp. weather.ts
+//   hourly has NO feels field — it only fetches temperature_2m, weather_code,
+//   precipitation_probability, is_day. So the modal showed temp as "Feels Like",
+//   e.g. 32°C feels like 32°C, even when real feels was 36°C. That is wrong.
+//   FIX: Normalization no longer sets feels. UI only shows the Feels row when
+//   the caller actually provides feels (propHourlyList). If weather.ts later adds
+//   apparent_temperature to hourly, pass it through — do NOT set feels = temp.
+// BUG 4 — Sunrise/sunset copied today's sun to ALL 7 days. Normalization did
+//   sunrise: d.sunrise || weather.sun?.sunrise. weather.ts daily DOES have per-day
+//   sunrise/sunset from the API. If one day was missing, it showed TODAY's sunrise
+//   for Saturday. FIX: Use only d.sunrise / d.sunset per day. If missing, show
+//   "--:--", never today's sun for another day.
+// BUG 5 — Sunrise label used the WRONG key: t("sun", "Sunrise"). "sun" does not
+//   exist in any locale, so it always showed English "Sunrise". FIX: t("sunrise",
+//   "Sunrise") — sunrise IS in the main files, translated in all 14 languages.
+// BUG 6 — Day name could be off by one in the Americas. new Date("2026-11-21")
+//   is UTC midnight. getDay() in US timezones returns the PREVIOUS day. FIX:
+//   Parse as new Date(date + "T12:00:00") — noon, so no timezone shift.
+// BUG 7 — Background page still scrolled behind the modal. FIX: Lock body scroll
+//   while open, restore on close (same pattern as other modals).
+// IMPROVEMENT — Wind / humidity / UV were dropped and never shown. HourlyDetailItem
+//   and DailyDetailItem already had windSpeed, windDir, humidity, uv, windMax,
+//   rainSum, uvMax, but normalization dropped them and the grid never showed them.
+//   FIX: Normalization now preserves them when the caller provides them, and the
+//   grid shows them ONLY when they exist — no fake zeros, no invented data.
+// KEPT AS-IS: Props, hourly/daily list shapes, prev/next + keyboard nav, title
+//   time formatting, city + counter header, 2-column metrics grid, all other
+//   locale keys (rain_chance, swipe_tip_*, prev, next, range, spread, tomorrow,
+//   day_sun, fair — those DO exist in extras Part 3/4, so they keep working).
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { WeatherIcon } from "@/lib/weatherIcons";
@@ -45,31 +88,28 @@ export interface ForecastDetailModalProps {
   getDayLabel?: (dateStr: string, idx: number) => string;
 }
 
-const WMO_KEY_MAP: Record<number, { key: string; fallback: string }> = {
-  0: { key: "wmo_0", fallback: "Clear sky" },
-  1: { key: "wmo_1", fallback: "Mainly clear" },
-  2: { key: "wmo_2", fallback: "Partly cloudy" },
-  3: { key: "wmo_3", fallback: "Overcast" },
-  45: { key: "wmo_45", fallback: "Fog" },
-  48: { key: "wmo_48", fallback: "Depositing rime fog" },
-  51: { key: "wmo_51", fallback: "Light drizzle" },
-  53: { key: "wmo_53", fallback: "Moderate drizzle" },
-  55: { key: "wmo_55", fallback: "Dense drizzle" },
-  61: { key: "wmo_61", fallback: "Slight rain" },
-  63: { key: "wmo_63", fallback: "Moderate rain" },
-  65: { key: "wmo_65", fallback: "Heavy rain" },
-  71: { key: "wmo_71", fallback: "Slight snowfall" },
-  73: { key: "wmo_73", fallback: "Moderate snowfall" },
-  75: { key: "wmo_75", fallback: "Heavy snowfall" },
-  80: { key: "wmo_80", fallback: "Slight rain showers" },
-  81: { key: "wmo_81", fallback: "Moderate rain showers" },
-  82: { key: "wmo_82", fallback: "Violent rain showers" },
-  85: { key: "wmo_85", fallback: "Slight snow showers" },
-  86: { key: "wmo_86", fallback: "Heavy snow showers" },
-  95: { key: "wmo_95", fallback: "Thunderstorm" },
-  96: { key: "wmo_96", fallback: "Thunderstorm with slight hail" },
-  99: { key: "wmo_99", fallback: "Thunderstorm with heavy hail" },
-};
+// FIXED BUG 6: Parse a YYYY-MM-DD date at noon, not UTC midnight, so getDay()
+// does not shift to the previous day in the Americas.
+function dayOfWeekForDate(dateStr: string): number {
+  const d = new Date(`${dateStr}T12:00:00`);
+  return d.getDay();
+}
+
+// Format "2026-11-21T06:00:00" or "06:00" -> "06:00". Returns "--:--" if missing.
+function formatSunTime(value: string | undefined): string {
+  if (!value) return "--:--";
+  const afterT = value.includes("T") ? value.split("T")[1] : value;
+  if (!afterT) return value;
+  return afterT.slice(0, 5) || value;
+}
+
+// Format hourly time "2026-11-21T14:00" -> "14:00". Falls back to the raw string.
+function formatHourLabel(time: string): string {
+  if (!time) return time;
+  const sliced = time.slice(11, 16);
+  if (sliced) return sliced;
+  return time;
+}
 
 export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   isOpen,
@@ -88,34 +128,62 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   const { t } = useTranslation();
 
   // Normalize hourly items from either props or weather object
+  // FIXED BUG 3: Do NOT set feels = temp. weather.ts hourly has no feels field.
+  // If the caller provides feels (propHourlyList), it is kept. Otherwise feels
+  // stays undefined and the Feels row is hidden — never faked.
+  // FIXED IMPROVEMENT: Preserve wind/humidity/uv when the caller provides them
+  // (propHourlyList). weather.ts hourly does not provide them yet, so from
+  // weather.hourly they stay undefined and their rows stay hidden.
   const resolvedHourlyList = useMemo<HourlyDetailItem[]>(() => {
     if (propHourlyList && propHourlyList.length > 0) return propHourlyList;
     if (weather?.hourly && weather.hourly.length > 0) {
-      return weather.hourly.slice(0, 24).map((h) => ({
-        time: h.time,
-        temp: h.temp,
-        feels: h.temp,
-        code: h.code,
-        pop: h.pop ?? h.precipProb ?? 0,
-        is_day: h.is_day ?? 1,
-      }));
+      return weather.hourly.slice(0, 24).map((h) => {
+        const extra = h as unknown as Partial<HourlyDetailItem>;
+        const item: HourlyDetailItem = {
+          time: h.time,
+          temp: h.temp,
+          code: h.code,
+          pop: h.pop ?? h.precipProb ?? 0,
+          is_day: h.is_day ?? 1,
+        };
+        // Only copy feels/wind/humidity/uv if the source actually has them.
+        // Never set feels = temp, never set 0 as a fake value.
+        if (typeof extra.feels === "number") item.feels = extra.feels;
+        if (typeof extra.windSpeed === "number") item.windSpeed = extra.windSpeed;
+        if (typeof extra.windDir === "number") item.windDir = extra.windDir;
+        if (typeof extra.humidity === "number") item.humidity = extra.humidity;
+        if (typeof extra.uv === "number") item.uv = extra.uv;
+        return item;
+      });
     }
     return [];
   }, [propHourlyList, weather]);
 
   // Normalize daily items from either props or weather object
+  // FIXED BUG 4: Do NOT fall back to weather.sun?.sunrise/sunset. That is TODAY's
+  // sun. Each day uses only its own d.sunrise / d.sunset. If missing, UI shows "--:--".
+  // FIXED IMPROVEMENT: Preserve uvMax / rainSum / windMax when the caller provides
+  // them (propDailyList or future weather.ts daily). Otherwise they stay undefined
+  // and their rows stay hidden.
   const resolvedDailyList = useMemo<DailyDetailItem[]>(() => {
     if (propDailyList && propDailyList.length > 0) return propDailyList;
     if (weather?.daily && weather.daily.length > 0) {
-      return weather.daily.slice(0, 7).map((d) => ({
-        date: d.date,
-        max: d.max,
-        min: d.min,
-        code: d.code,
-        pop: d.pop ?? d.precipProbMax ?? 0,
-        sunrise: d.sunrise || weather.sun?.sunrise,
-        sunset: d.sunset || weather.sun?.sunset,
-      }));
+      return weather.daily.slice(0, 7).map((d) => {
+        const extra = d as unknown as Partial<DailyDetailItem>;
+        const item: DailyDetailItem = {
+          date: d.date,
+          max: d.max,
+          min: d.min,
+          code: d.code,
+          pop: d.pop ?? d.precipProbMax ?? 0,
+          sunrise: d.sunrise,
+          sunset: d.sunset,
+        };
+        if (typeof extra.uvMax === "number") item.uvMax = extra.uvMax;
+        if (typeof extra.rainSum === "number") item.rainSum = extra.rainSum;
+        if (typeof extra.windMax === "number") item.windMax = extra.windMax;
+        return item;
+      });
     }
     return [];
   }, [propDailyList, weather]);
@@ -135,6 +203,16 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
       setInternalIndex(0);
     }
   }, [initialIndex, selectedIndex, totalItems, isOpen]);
+
+  // FIXED BUG 7: Lock background scroll while the modal is open.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
 
   const currentIndex = Math.min(Math.max(0, internalIndex), Math.max(0, totalItems - 1));
 
@@ -169,37 +247,36 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
   if (!isOpen || totalItems === 0) return null;
 
   const tempUnitStr = unit === "imperial" ? "°F" : "°C";
+  const windUnitStr = unit === "imperial" ? "mph" : "km/h";
+  const precipUnitStr = unit === "imperial" ? "in" : "mm";
 
   const hourlyItem = isHourly ? resolvedHourlyList[currentIndex] : null;
   const dailyItem = !isHourly ? resolvedDailyList[currentIndex] : null;
 
   const currentCode = (isHourly ? hourlyItem?.code : dailyItem?.code) ?? 0;
 
-  // Resolve condition label with multilingual fallback
+  // FIXED BUG 1 + BUG 2: Use describe(code, t) — same cond_* keys as WeatherView,
+  // translated in all 14 languages. Do NOT use the old wmo_* keys (they do not exist).
+  // If the parent passes getConditionLabel, it still wins (for custom labels).
   let conditionFullText = "";
   if (getConditionLabel) {
     conditionFullText = getConditionLabel(currentCode);
   } else {
-    const entry = WMO_KEY_MAP[currentCode];
-    if (entry) {
-      conditionFullText = t(entry.key, entry.fallback);
-    } else {
-      conditionFullText = describe(currentCode)?.label || t("fair", "Fair");
-    }
+    conditionFullText = describe(currentCode, (key: string, fallback: string) => t(key, fallback)).label;
   }
 
   // Format header time/date safely
   let titleTime = "";
   if (isHourly && hourlyItem) {
     if (currentIndex === 0) {
-      titleTime = `${t("now", "Now")} (${hourlyItem.time.slice(11, 16) || hourlyItem.time})`;
+      titleTime = `${t("now", "Now")} (${formatHourLabel(hourlyItem.time)})`;
     } else {
       try {
         const d = new Date(hourlyItem.time);
         if (!isNaN(d.getTime())) {
           titleTime = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
         } else {
-          titleTime = hourlyItem.time.slice(11, 16) || hourlyItem.time;
+          titleTime = formatHourLabel(hourlyItem.time);
         }
       } catch {
         titleTime = hourlyItem.time;
@@ -213,8 +290,8 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
       else if (currentIndex === 1) titleTime = t("tomorrow", "Tomorrow");
       else {
         try {
-          const d = new Date(dailyItem.date);
-          const day = d.getDay();
+          // FIXED BUG 6: Noon parse, not UTC midnight.
+          const day = dayOfWeekForDate(dailyItem.date);
           const dayKeys = ["day_sun", "day_mon", "day_tue", "day_wed", "day_thu", "day_fri", "day_sat"];
           const dayFallbacks = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
           titleTime = t(dayKeys[day] || "", dayFallbacks[day] || dailyItem.date);
@@ -314,21 +391,53 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
               </span>
             </div>
 
-            {/* Hourly: Feels Like | Daily: Sunrise */}
-            {isHourly && hourlyItem && (
+            {/* Hourly: Feels Like — ONLY when the caller actually provides feels.
+                FIXED BUG 3: Never show temp as "Feels Like". */}
+            {isHourly && hourlyItem && typeof hourlyItem.feels === "number" && (
               <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-                <span className="text-muted-foreground font-medium">🌡️ {t("feels_like", "Feels Like")}</span>
+                <span className="text-muted-foreground font-medium">🌡 {t("feels_like", "Feels Like")}</span>
                 <span className="font-bold text-foreground">
-                  {Math.round(hourlyItem.feels ?? hourlyItem.temp)}{tempUnitStr}
+                  {Math.round(hourlyItem.feels)}{tempUnitStr}
                 </span>
               </div>
             )}
 
+            {/* Hourly: Wind — ONLY when provided. */}
+            {isHourly && hourlyItem && typeof hourlyItem.windSpeed === "number" && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">💨 {t("wind", "Wind")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(hourlyItem.windSpeed)} {windUnitStr}
+                </span>
+              </div>
+            )}
+
+            {/* Hourly: Humidity — ONLY when provided. */}
+            {isHourly && hourlyItem && typeof hourlyItem.humidity === "number" && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">💦 {t("humidity", "Humidity")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(hourlyItem.humidity)}%
+                </span>
+              </div>
+            )}
+
+            {/* Hourly: UV — ONLY when provided. */}
+            {isHourly && hourlyItem && typeof hourlyItem.uv === "number" && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">☀️ {t("uv", "UV Index")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(hourlyItem.uv)}
+                </span>
+              </div>
+            )}
+
+            {/* Daily: Sunrise — FIXED BUG 5: key is "sunrise", not "sun". */}
             {!isHourly && dailyItem && (
               <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
-                <span className="text-muted-foreground font-medium">🌅 {t("sun", "Sunrise")}</span>
+                <span className="text-muted-foreground font-medium">🌅 {t("sunrise", "Sunrise")}</span>
                 <span className="font-bold text-foreground">
-                  {dailyItem.sunrise ? dailyItem.sunrise.split("T")[1]?.slice(0, 5) || dailyItem.sunrise : "--:--"}
+                  {formatSunTime(dailyItem.sunrise)}
                 </span>
               </div>
             )}
@@ -338,7 +447,7 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
               <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
                 <span className="text-muted-foreground font-medium">🌇 {t("sunset", "Sunset")}</span>
                 <span className="font-bold text-foreground">
-                  {dailyItem.sunset ? dailyItem.sunset.split("T")[1]?.slice(0, 5) || dailyItem.sunset : "--:--"}
+                  {formatSunTime(dailyItem.sunset)}
                 </span>
               </div>
             )}
@@ -349,6 +458,36 @@ export const ForecastDetailModal: React.FC<ForecastDetailModalProps> = ({
                 <span className="text-muted-foreground font-medium">📊 {t("range", "Range")}</span>
                 <span className="font-bold text-foreground">
                   {Math.round(dailyItem.max - dailyItem.min)}° {t("spread", "spread")}
+                </span>
+              </div>
+            )}
+
+            {/* Daily: Wind Max — ONLY when provided. */}
+            {!isHourly && dailyItem && typeof dailyItem.windMax === "number" && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">💨 {t("wind", "Wind")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(dailyItem.windMax)} {windUnitStr}
+                </span>
+              </div>
+            )}
+
+            {/* Daily: UV Max — ONLY when provided. */}
+            {!isHourly && dailyItem && typeof dailyItem.uvMax === "number" && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">☀️ {t("uv", "UV Index")}</span>
+                <span className="font-bold text-foreground">
+                  {Math.round(dailyItem.uvMax)}
+                </span>
+              </div>
+            )}
+
+            {/* Daily: Precipitation total — ONLY when provided. */}
+            {!isHourly && dailyItem && typeof dailyItem.rainSum === "number" && (
+              <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">🌧 {t("precipitation", "Precipitation")}</span>
+                <span className="font-bold text-foreground">
+                  {dailyItem.rainSum} {precipUnitStr}
                 </span>
               </div>
             )}
