@@ -26,7 +26,6 @@ export const Route = createFileRoute("/privacy")({
   component: Privacy,
 });
 
-const EMAIL = "rod1974b@gmail.com";
 const ANDROID_PACKAGE = "co.median.android.odeqrey";
 
 function Privacy() {
@@ -312,15 +311,9 @@ function Privacy() {
 
         {/* Section 10 */}
         <section className="space-y-2 border-t border-border/40 pt-4">
-          <h2 className="text-lg font-semibold text-foreground">{t("privacy_s10_title", "10. Contact Us")}</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t("privacy_s10_title", "10. Closing Note")}</h2>
           <p>
-            {t("privacy_s10_body", "If you have questions, feedback, or data privacy requests regarding My Weather Pal, please reach out directly:")}
-          </p>
-          <p>
-            {t("privacy_s10_email_label", "Email:")}{" "}
-            <a className="font-medium underline hover:text-foreground" href={`mailto:${EMAIL}`}>
-              {EMAIL}
-            </a>
+            {t("privacy_s10_body", "My Weather Pal is built to be private by default. Your cities, settings, and artwork stay on your device, so there is no account to delete and no personal record to request.")}
           </p>
         </section>
       </div>
