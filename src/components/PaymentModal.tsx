@@ -1,4 +1,38 @@
 // src/components/PaymentModal.tsx
+// FIXED — v3 — promo now uses result.tierId (was hardcoded party_pack). See #3 below.
+// FIXED — v2
+// WHAT WAS BROKEN (do not revert to old keys):
+// 1. KEY COLLISION with i18nExtraPart4.ts — PaymentModal used the SAME keys as a DIFFERENT UI
+//    (the support section in Part 4), with DIFFERENT sentences:
+//      pay_perks_title:   Modal wanted "What You Unlock Forever" | Part 4 = "Support Perks"
+//      pay_or_web:        Modal wanted "Select Payment Option"    | Part 4 = "Or support directly on Web:"
+//      pay_support_via:   Modal wanted "Choose Payment Option"    | Part 4 = "Support via {{name}} ({{price}})"
+//      pay_opened_notice: Modal wanted "...{{provider}}..."          | Part 4 = "Opened {{name}} checkout page..."
+//      pay_confirm_unlock:Modal wanted "I Contributed — Unlock..."  | Part 4 = "After completing support on {{name}}..."
+//      pay_error_google_play: Modal wanted "...via Buy Me a Coffee below." | Part 4 = "Google Play ... inside Android app."
+//    Because main locales/*.json do NOT have those pay_* keys (except pay_error_link),
+//    Part 4 WON in the merge (see i18n.ts: extras before main, main only wins if it has the key).
+//    Result in the live app:
+//      - Header showed "Support Perks", not "What You Unlock Forever"
+//      - h4 showed "Support via {{name}} ({{price}})" with RAW {{name}} {{price}} placeholders,
+//        because Modal called t("pay_support_via") with NO params.
+//      - Opened-notice showed "Opened {{name}}..." with RAW {{name}}, because Modal passed
+//        { provider: ... } but Part 4 expects { name: ... }.
+//      - Confirm button showed the long Part 4 label with RAW {{name}}, not the button text.
+//    FIX: Modal now uses NEW unique keys pay_modal_* that exist NOWHERE in extras.
+//    They live in locales/*.json (see pay_modal_translations.json in this batch).
+//    Until you add them to locales, the English fallbacks below still show correctly.
+// 2. PROMO CODE: now trims + uppercases before sending. Before, " pal-xxxx " was sent raw.
+//    Still uses local redeemPromoCode() — REBUILD FIRST, server version comes after rebuild.
+//    See comment on handleRedeemPromo. Do NOT switch to server yet.
+// 3. VERIFIED against REAL promoCodes.ts (pasted 2026-11-21): redeemPromoCode() DOES return
+//    tierId: partyTierId, DOES call saveThankYouBackgroundForever(partyTierId), and ALL codes
+//    unlock Party Pack only. Hardcode was correct, but fragile. FIXED in v3: now uses
+//    result.tierId ?? "party_pack_root_beer_tier" so if promoCodes ever unlocks a different
+//    tier, this modal follows it instead of still showing Party Pack.
+// 4. ADDED: Escape key closes modal + role="dialog" aria-modal. No other behaviour changed.
+//    Manual "I Contributed" confirm is still honor-system (Buy Me a Coffee / PayPal have no webhook).
+//    That is intentional for web — do not "fix" it by removing the button without a webhook.
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -39,6 +73,15 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
   );
 
   const isAndroidMedian = typeof window !== "undefined" && isMedianAndroidApp();
+
+  // FIXED: Escape closes modal. Added for a11y, no other behaviour changed.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   // Listen for window focus to detect when user returns from checkout tab
   useEffect(() => {
@@ -97,7 +140,8 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
         setErrorMessage(
           err?.message ||
             t(
-              "pay_error_google_play",
+              // FIXED: was pay_error_google_play (collided with Part 4). Now unique.
+              "pay_modal_error_google_play",
               "Google Play purchase could not be completed. You can also support via Buy Me a Coffee below."
             )
         );
@@ -118,20 +162,26 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
 
   const handleRedeemPromo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!promoCodeInput.trim()) return;
+    // FIXED: trim + uppercase before sending. Before, " pal-xxxx " was sent raw.
+    const code = promoCodeInput.trim().toUpperCase();
+    if (!code) return;
     setRedeemLoading(true);
     setPromoError(null);
     setPromoSuccess(null);
 
-    const result = await redeemPromoCode(promoCodeInput);
+    // NOTE: Still local redeemPromoCode() for REBUILD phase. Server-verified single-use
+    // version comes AFTER rebuild (see promoCodes.server.ts plan). Do not switch yet.
+    const result = await redeemPromoCode(code);
     setRedeemLoading(false);
 
     if (result.success) {
       setPromoSuccess(result.message);
       setPromoCodeInput("");
       setTimeout(() => {
+        // FIXED v3: use result.tierId from redeemPromoCode() (verified: it returns tierId).
+        // Fallback to Party Pack if tierId is missing (old behaviour), never crash.
         if (onSuccess) {
-          onSuccess("party_pack_root_beer_tier");
+          onSuccess(result.tierId ?? "party_pack_root_beer_tier");
         } else {
           onClose();
         }
@@ -149,6 +199,9 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={tier.name}
         className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-amber-900/10 dark:border-amber-500/20 overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -174,7 +227,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
           {/* Perks Summary */}
           <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-2xl p-4 space-y-2">
             <h3 className="font-semibold text-amber-900 dark:text-amber-300 text-xs uppercase tracking-wider">
-              {t("pay_perks_title", "What You Unlock Forever")}
+              {t("pay_modal_perks_title", "What You Unlock Forever")}
             </h3>
             <ul className="space-y-1.5 text-xs text-zinc-700 dark:text-zinc-300">
               <li className="flex items-start gap-2">
@@ -203,8 +256,8 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
           <div className="space-y-2.5">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               {isAndroidMedian
-                ? t("pay_or_web", "Select Payment Option")
-                : t("pay_support_via", "Choose Payment Option")}
+                ? t("pay_modal_or_web", "Select Payment Option")
+                : t("pay_modal_support_via", "Choose Payment Option")}
             </h4>
 
             {/* Google Pay Button (Primary Option) */}
@@ -240,7 +293,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
               onClick={() => handleOpenWebPayment("paypal", "PayPal")}
               className="w-full py-2.5 px-4 rounded-xl font-medium text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 transition-all flex items-center justify-center gap-2"
             >
-              <span>🅿️</span>
+              <span>🅿</span>
               <span>PayPal ({tier.displayPrice})</span>
             </button>
           </div>
@@ -257,7 +310,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
             <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/50 rounded-2xl space-y-2 text-center animate-in fade-in duration-300">
               <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
                 {t(
-                  "pay_opened_notice",
+                  "pay_modal_opened_notice",
                   "Opened {{provider}} in your browser. Completed your contribution?",
                   {
                     provider: selectedProvider || "checkout",
@@ -269,7 +322,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
                 onClick={handleManualConfirmDonation}
                 className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all active:scale-[0.98]"
               >
-                {t("pay_confirm_unlock", "I Contributed — Unlock My Perks Now! 🎉")}
+                {t("pay_modal_confirm_unlock", "I Contributed — Unlock My Perks Now! 🎉")}
               </button>
             </div>
           )}
