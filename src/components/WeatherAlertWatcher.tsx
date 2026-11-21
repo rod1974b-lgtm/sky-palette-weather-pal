@@ -200,7 +200,10 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
         titleKey: "hazard_wind_title",
         descKey: "hazard_wind_desc",
         adviceKey: "hazard_wind_advice",
-        metricValue: `${Math.round(windKmh)} km/h`,
+        metricValue:
+          unit === "imperial"
+            ? `${Math.round(windKmh * 0.621371)} mph`
+            : `${Math.round(windKmh)} km/h`,
       });
     }
 
@@ -635,7 +638,8 @@ export const WeatherAlertWatcher: React.FC<WeatherAlertWatcherProps> = ({
                   {
                     key: "notifyWind",
                     labelKey: "settings_wind_label",
-                    defaultLabel: "Gale Winds (> 45 km/h)",
+                    defaultLabel:
+                      unit === "imperial" ? "Gale Winds (> 28 mph)" : "Gale Winds (> 45 km/h)",
                     icon: "💨",
                   },
                   {
