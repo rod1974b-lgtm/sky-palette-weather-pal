@@ -61,6 +61,29 @@ import { extraResourcesPart4 } from "./i18nExtraPart4";
 
 export const baseKeys = enJson;
 
+export type SupportedLang =
+  | "en" | "th" | "es" | "ja" | "zh" | "hi" | "fr" | "de" | "pt" | "ru" | "ar" | "ko" | "id" | "vi";
+
+const SUPPORTED_LANG_CODES: readonly string[] = [
+  "en", "th", "es", "ja", "zh", "hi", "fr", "de", "pt", "ru", "ar", "ko", "id", "vi",
+];
+
+// FIXED — Preview would not load: LanguageSelector.tsx imports
+// normalizeLangCode + SupportedLang from @/lib/i18n, but this file did
+// NOT export either one. Vite fails with "normalizeLangCode is not exported"
+// and the home page never renders, because home imports LanguageSelector.
+// This is the single owner for language codes. Do NOT define a second copy
+// in LanguageSelector or placeLocalization and let them drift.
+// Returns null for invalid / unsupported codes — caller must ignore, not set state.
+export function normalizeLangCode(input: unknown): SupportedLang | null {
+  if (typeof input !== "string") return null;
+  const code = input.toLowerCase().split("-")[0].split("_")[0].trim();
+  if (!code) return null;
+  if (SUPPORTED_LANG_CODES.includes(code)) return code as SupportedLang;
+  return null;
+}
+
+
 // Pick one key from an extra file: try this language first, fall back to English.
 function getExtra(
   bundle: Record<string, Record<string, string>>,
