@@ -8,127 +8,267 @@ export const SUPPORTED_LANGS = [
 
 export type SupportedLang = typeof SUPPORTED_LANGS[number];
 
-// Standard ISO 3166-1 alpha-2 country codes for dynamic Intl.DisplayNames localization across 190+ countries
+// Intl.DisplayNames wants BCP-47. `zh` alone is ambiguous, so map it to zh-Hans.
+const LANG_TO_BCP47: Record<SupportedLang, string> = {
+  en: "en",
+  th: "th",
+  es: "es",
+  ja: "ja",
+  zh: "zh-Hans",
+  hi: "hi",
+  fr: "fr",
+  de: "de",
+  pt: "pt",
+  ru: "ru",
+  ar: "ar",
+  ko: "ko",
+  id: "id",
+  vi: "vi",
+};
+
+function normalizeLang(lang: string | undefined): SupportedLang {
+  const clean = (lang || "en").toLowerCase().split("-")[0] as SupportedLang;
+  return (SUPPORTED_LANGS as readonly string[]).includes(clean) ? clean : "en";
+}
+
+function normalizeKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Standard ISO 3166-1 alpha-2 country codes for dynamic Intl.DisplayNames localization
 const COUNTRY_TO_ISO: Record<string, string> = {
   // Asia
-  thailand: "TH",
-  japan: "JP",
-  china: "CN",
-  "south korea": "KR",
-  korea: "KR",
-  india: "IN",
-  vietnam: "VN",
-  indonesia: "ID",
-  singapore: "SG",
-  malaysia: "MY",
-  taiwan: "TW",
-  philippines: "PH",
-  laos: "LA",
+  afghanistan: "AF",
+  armenia: "AM",
+  azerbaijan: "AZ",
+  bahrain: "BH",
+  bangladesh: "BD",
+  bhutan: "BT",
+  brunei: "BN",
   cambodia: "KH",
+  china: "CN",
+  georgia: "GE",
+  india: "IN",
+  indonesia: "ID",
+  iran: "IR",
+  iraq: "IQ",
+  israel: "IL",
+  japan: "JP",
+  jordan: "JO",
+  kazakhstan: "KZ",
+  kuwait: "KW",
+  kyrgyzstan: "KG",
+  laos: "LA",
+  lebanon: "LB",
+  malaysia: "MY",
+  maldives: "MV",
+  mongolia: "MN",
   myanmar: "MM",
   burma: "MM",
   nepal: "NP",
-  bhutan: "BT",
-  bangladesh: "BD",
-  pakistan: "PK",
-  "sri lanka": "LK",
-  maldives: "MV",
-  mongolia: "MN",
-  kazakhstan: "KZ",
-  uzbekistan: "UZ",
-
-  // Middle East
-  "united arab emirates": "AE",
-  uae: "AE",
-  "saudi arabia": "SA",
-  qatar: "QA",
-  kuwait: "KW",
-  bahrain: "BH",
+  "north korea": "KP",
   oman: "OM",
+  pakistan: "PK",
+  palestine: "PS",
+  philippines: "PH",
+  qatar: "QA",
+  "saudi arabia": "SA",
+  singapore: "SG",
+  "south korea": "KR",
+  korea: "KR",
+  "sri lanka": "LK",
+  syria: "SY",
+  taiwan: "TW",
+  tajikistan: "TJ",
+  thailand: "TH",
+  "timor-leste": "TL",
+  "east timor": "TL",
   turkey: "TR",
   türkiye: "TR",
-  israel: "IL",
-  jordan: "JO",
-  lebanon: "LB",
-  iraq: "IQ",
-  iran: "IR",
+  turkmenistan: "TM",
+  "united arab emirates": "AE",
+  uae: "AE",
+  uzbekistan: "UZ",
+  vietnam: "VN",
+  yemen: "YE",
+
+  // Middle East aliases / extra
+  "hong kong": "HK",
+  macau: "MO",
+  macao: "MO",
 
   // Europe
+  albania: "AL",
+  andorra: "AD",
+  austria: "AT",
+  belarus: "BY",
+  belgium: "BE",
+  "bosnia and herzegovina": "BA",
+  bosnia: "BA",
+  bulgaria: "BG",
+  croatia: "HR",
+  cyprus: "CY",
+  "czech republic": "CZ",
+  czechia: "CZ",
+  denmark: "DK",
+  estonia: "EE",
+  finland: "FI",
+  france: "FR",
+  germany: "DE",
+  greece: "GR",
+  hungary: "HU",
+  iceland: "IS",
+  ireland: "IE",
+  italy: "IT",
+  latvia: "LV",
+  liechtenstein: "LI",
+  lithuania: "LT",
+  luxembourg: "LU",
+  malta: "MT",
+  moldova: "MD",
+  monaco: "MC",
+  montenegro: "ME",
+  netherlands: "NL",
+  holland: "NL",
+  "north macedonia": "MK",
+  macedonia: "MK",
+  norway: "NO",
+  poland: "PL",
+  portugal: "PT",
+  romania: "RO",
+  russia: "RU",
+  "san marino": "SM",
+  serbia: "RS",
+  slovakia: "SK",
+  slovenia: "SI",
+  spain: "ES",
+  sweden: "SE",
+  switzerland: "CH",
+  ukraine: "UA",
   "united kingdom": "GB",
   uk: "GB",
   england: "GB",
   scotland: "GB",
   wales: "GB",
-  france: "FR",
-  germany: "DE",
-  italy: "IT",
-  spain: "ES",
-  switzerland: "CH",
-  netherlands: "NL",
-  holland: "NL",
-  belgium: "BE",
-  austria: "AT",
-  portugal: "PT",
-  greece: "GR",
-  ireland: "IE",
-  sweden: "SE",
-  norway: "NO",
-  denmark: "DK",
-  finland: "FI",
-  poland: "PL",
-  "czech republic": "CZ",
-  czechia: "CZ",
-  hungary: "HU",
-  romania: "RO",
-  bulgaria: "BG",
-  croatia: "HR",
-  serbia: "RS",
-  slovakia: "SK",
-  slovenia: "SI",
-  ukraine: "UA",
-  russia: "RU",
-  belarus: "BY",
-  iceland: "IS",
+  "vatican city": "VA",
+  vatican: "VA",
+  "holy see": "VA",
 
   // Americas
+  "antigua and barbuda": "AG",
+  argentina: "AR",
+  bahamas: "BS",
+  barbados: "BB",
+  belize: "BZ",
+  bolivia: "BO",
+  brazil: "BR",
+  canada: "CA",
+  chile: "CL",
+  colombia: "CO",
+  "costa rica": "CR",
+  cuba: "CU",
+  dominica: "DM",
+  "dominican republic": "DO",
+  ecuador: "EC",
+  "el salvador": "SV",
+  grenada: "GD",
+  guatemala: "GT",
+  guyana: "GY",
+  haiti: "HT",
+  honduras: "HN",
+  jamaica: "JM",
+  mexico: "MX",
+  nicaragua: "NI",
+  panama: "PA",
+  paraguay: "PY",
+  peru: "PE",
+  "puerto rico": "PR",
+  "saint kitts and nevis": "KN",
+  "saint lucia": "LC",
+  "saint vincent and the grenadines": "VC",
+  suriname: "SR",
+  "trinidad and tobago": "TT",
   "united states": "US",
   usa: "US",
   "united states of america": "US",
-  canada: "CA",
-  mexico: "MX",
-  brazil: "BR",
-  argentina: "AR",
-  chile: "CL",
-  colombia: "CO",
-  peru: "PE",
-  ecuador: "EC",
-  venezuela: "VE",
   uruguay: "UY",
-  paraguay: "PY",
-  bolivia: "BO",
-  "costa rica": "CR",
-  panama: "PA",
-  cuba: "CU",
-  jamaica: "JM",
-  dominicanrepublic: "DO",
+  venezuela: "VE",
 
   // Oceania
   australia: "AU",
-  "new zealand": "NZ",
   fiji: "FJ",
+  kiribati: "KI",
+  "marshall islands": "MH",
+  micronesia: "FM",
+  nauru: "NR",
+  "new zealand": "NZ",
+  palau: "PW",
+  "papua new guinea": "PG",
+  samoa: "WS",
+  "solomon islands": "SB",
+  tonga: "TO",
+  tuvalu: "TV",
+  vanuatu: "VU",
 
   // Africa
-  egypt: "EG",
-  "south africa": "ZA",
-  morocco: "MA",
-  kenya: "KE",
-  nigeria: "NG",
-  ethiopia: "ET",
-  ghana: "GH",
-  tanzania: "TZ",
-  uganda: "UG",
   algeria: "DZ",
+  angola: "AO",
+  benin: "BJ",
+  botswana: "BW",
+  "burkina faso": "BF",
+  burundi: "BI",
+  "cabo verde": "CV",
+  "cape verde": "CV",
+  cameroon: "CM",
+  "central african republic": "CF",
+  chad: "TD",
+  comoros: "KM",
+  congo: "CG",
+  "congo dr": "CD",
+  "democratic republic of the congo": "CD",
+  "cote d'ivoire": "CI",
+  "ivory coast": "CI",
+  djibouti: "DJ",
+  egypt: "EG",
+  "equatorial guinea": "GQ",
+  eritrea: "ER",
+  eswatini: "SZ",
+  swaziland: "SZ",
+  ethiopia: "ET",
+  gabon: "GA",
+  gambia: "GM",
+  ghana: "GH",
+  guinea: "GN",
+  "guinea-bissau": "GW",
+  kenya: "KE",
+  lesotho: "LS",
+  liberia: "LR",
+  libya: "LY",
+  madagascar: "MG",
+  malawi: "MW",
+  mali: "ML",
+  mauritania: "MR",
+  mauritius: "MU",
+  morocco: "MA",
+  mozambique: "MZ",
+  namibia: "NA",
+  niger: "NE",
+  nigeria: "NG",
+  rwanda: "RW",
+  "sao tome and principe": "ST",
+  senegal: "SN",
+  seychelles: "SC",
+  "sierra leone": "SL",
+  somalia: "SO",
+  "south africa": "ZA",
+  "south sudan": "SS",
+  sudan: "SD",
+  tanzania: "TZ",
+  togo: "TG",
   tunisia: "TN",
+  uganda: "UG",
+  zambia: "ZM",
+  zimbabwe: "ZW",
 };
 
 // Fallback country dictionary for offline environments
@@ -264,6 +404,7 @@ const COUNTRY_FALLBACKS: Record<string, Record<string, string>> = {
 };
 
 // Curated 14-language dictionary for world capitals, landmarks, and Thai provinces
+// IMPORTANT: All keys MUST be lowercase — getLocalizedCity() lowercases the input before lookup.
 const CITY_DICTIONARY: Record<string, Record<string, string>> = {
   // Thai Cities & Major Provinces
   bangkok: {
@@ -425,28 +566,70 @@ const CITY_DICTIONARY: Record<string, Record<string, string>> = {
     ko: "나콘랏차시마",
     id: "Nakhon Ratchasima",
     vi: "Nakhon Ratchasima",
-    },
-      "Vienna": {
-    en: "Vienna", th: "เวียนนา", es: "Viena", ja: "ウィーン", zh: "维也纳",
-    hi: "वियना", fr: "Vienne", de: "Wien", pt: "Viena", ru: "Вена",
-    ar: "فيينا", ko: "빈", id: "Wina", vi: "Viên"
   },
-  "Athens": {
-    en: "Athens", th: "เอเธนส์", es: "Atenas", ja: "アテネ", zh: "雅典",
-    hi: "एथेंस", fr: "Athènes", de: "Athen", pt: "Atenas", ru: "Афины",
-    ar: "أثينا", ko: "아테네", id: "Athena", vi: "Athens"
+  vienna: {
+    en: "Vienna",
+    th: "เวียนนา",
+    es: "Viena",
+    ja: "ウィーン",
+    zh: "维也纳",
+    hi: "वियना",
+    fr: "Vienne",
+    de: "Wien",
+    pt: "Viena",
+    ru: "Вена",
+    ar: "فيينا",
+    ko: "비엔나",
+    id: "Wina",
+    vi: "Vienna",
   },
-  "Skopje": {
-    en: "Skopje", th: "สโกเปีย", es: "Skopie", ja: "スコピエ", zh: "斯科普里",
-    hi: "स्कोप्जे", fr: "Skopje", de: "Skopje", pt: "Skopje", ru: "Скопье",
-    ar: "سكوبيه", ko: "스코페", id: "Skopje", vi: "Skopje"
+  athens: {
+    en: "Athens",
+    th: "เอเธนส์",
+    es: "Atenas",
+    ja: "アテネ",
+    zh: "雅典",
+    hi: "एथेंस",
+    fr: "Athènes",
+    de: "Athen",
+    pt: "Atenas",
+    ru: "Афины",
+    ar: "أثينا",
+    ko: "아테네",
+    id: "Athena",
+    vi: "Athens",
   },
-  "Chicago": {
-    en: "Chicago", th: "ชิคาโก", es: "Chicago", ja: "シカゴ", zh: "芝加哥",
-    hi: "शिकागो", fr: "Chicago", de: "Chicago", pt: "Chicago", ru: "Чикаго",
-    ar: "شيكاغو", ko: "시카고", id: "Chicago", vi: "Chicago"
+  skopje: {
+    en: "Skopje",
+    th: "สโกเปีย",
+    es: "Skopje",
+    ja: "スコピエ",
+    zh: "斯科普里",
+    hi: "स्कोप्जे",
+    fr: "Skopje",
+    de: "Skopje",
+    pt: "Skopje",
+    ru: "Скопье",
+    ar: "سكوبيه",
+    ko: "스코페",
+    id: "Skopje",
+    vi: "Skopje",
   },
-
+  chicago: {
+    en: "Chicago",
+    th: "ชิคาโก",
+    es: "Chicago",
+    ja: "シカゴ",
+    zh: "芝加哥",
+    hi: "शिकागो",
+    fr: "Chicago",
+    de: "Chicago",
+    pt: "Chicago",
+    ru: "Чикаго",
+    ar: "شيكاغو",
+    ko: "시카고",
+    id: "Chicago",
+    vi: "Chicago",
   },
 
   // Major Global Cities
@@ -998,7 +1181,7 @@ const CITY_DICTIONARY: Record<string, Record<string, string>> = {
     pt: "Cairo",
     ru: "Каир",
     ar: "القاهرة",
-    ko: "카이โร",
+    ko: "카이로",
     id: "Kairo",
     vi: "Cairo",
   },
@@ -1011,25 +1194,38 @@ const CITY_DICTIONARY: Record<string, Record<string, string>> = {
  */
 export function getLocalizedCountry(rawCountry: string | undefined, lang: string): string {
   if (!rawCountry) return "";
-  const cleanLang = (lang || "en").toLowerCase().split("-")[0] ?? "en";
-  const normalized = rawCountry.trim().toLowerCase();
+  const cleanLang = normalizeLang(lang);
+  const normalized = normalizeKey(rawCountry);
 
   // 1. Try standard Intl.DisplayNames with ISO 3166 code
-  const isoCode = COUNTRY_TO_ISO[normalized] || (normalized.length === 2 ? normalized.toUpperCase() : null);
-  if (isoCode && typeof Intl !== "undefined" && typeof (Intl as any).DisplayNames === "function") {
+  // Only treat a 2-letter input as an ISO code if it is a known code.
+  // Otherwise "xx" would be returned verbatim by Intl.
+  const knownIsoCodes = new Set(Object.values(COUNTRY_TO_ISO));
+  const isoCode =
+    COUNTRY_TO_ISO[normalized] ||
+    (normalized.length === 2 && knownIsoCodes.has(normalized.toUpperCase())
+      ? normalized.toUpperCase()
+      : null);
+
+  if (isoCode && typeof Intl !== "undefined" && typeof Intl.DisplayNames === "function") {
     try {
-      const displayNames = new Intl.DisplayNames([cleanLang, "en"], { type: "region" });
+      const displayNames = new Intl.DisplayNames([LANG_TO_BCP47[cleanLang], "en"], { type: "region" });
       const localized = displayNames.of(isoCode);
-      if (localized) return localized;
-    } catch {}
+      // Intl returns the code itself when it cannot resolve it — don't return that.
+      if (localized && localized !== isoCode) return localized;
+    } catch {
+      // Fall through to curated fallback
+    }
   }
 
   // 2. Check curated fallback country map
+  // Also try the alias form (e.g. "usa" -> "united states" is already in COUNTRY_TO_ISO,
+  // but COUNTRY_FALLBACKS only has canonical names, so map via ISO if needed)
   if (COUNTRY_FALLBACKS[normalized]?.[cleanLang]) {
     return COUNTRY_FALLBACKS[normalized][cleanLang];
   }
 
-  return rawCountry;
+  return rawCountry.trim();
 }
 
 /**
@@ -1038,21 +1234,23 @@ export function getLocalizedCountry(rawCountry: string | undefined, lang: string
  */
 export function getLocalizedCity(rawCity: string | undefined, lang: string): string {
   if (!rawCity) return "";
-  const cleanLang = (lang || "en").toLowerCase().split("-")[0] ?? "en";
+  const cleanLang = normalizeLang(lang);
 
   // Separate primary city name from subregions/admin areas
-  const parts = rawCity.split(",").map((s) => s.trim());
-  const primaryName = parts[0] ?? rawCity;
-  const primaryKey = primaryName.toLowerCase();
+  const parts = rawCity.split(",").map((s) => s.trim()).filter(Boolean);
+  const primaryName = parts[0] ?? rawCity.trim();
+  const primaryKey = normalizeKey(primaryName);
 
   if (CITY_DICTIONARY[primaryKey]?.[cleanLang]) {
     return CITY_DICTIONARY[primaryKey][cleanLang];
   }
 
-  // Try matching without spaces or punctuation
+  // Try matching without spaces or punctuation (e.g. "HoChiMinhCity", "Koh-Samui")
+  // Compare case-insensitively on both sides — the old code compared a
+  // lowercased input against mixed-case keys like "Vienna" and never matched.
   const strippedKey = primaryKey.replace(/[^a-z0-9]/g, "");
   for (const [key, translations] of Object.entries(CITY_DICTIONARY)) {
-    if (key.replace(/[^a-z0-9]/g, "") === strippedKey) {
+    if (key.toLowerCase().replace(/[^a-z0-9]/g, "") === strippedKey) {
       if (translations[cleanLang]) {
         return translations[cleanLang];
       }
