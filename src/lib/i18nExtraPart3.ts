@@ -1,6 +1,19 @@
-// src/lib/i18nExtraPart3.ts - PART 3: Missing 116 Keys across all 14 Languages
+// src/lib/i18nExtraPart3.ts - PART 3: 104 Keys across all 14 Languages
 // Supplies full translations for Units, Sky Themes, Payment & Perks, Guide Topics, Forecast Modal, and Alerts.
-
+// FIXED — Batch 6:
+// 1. GOOD NEWS: No import / ...spread bug. This file was already standalone,
+//    like Part 2. Kept that way.
+// 2. FIXED TYPO in de: sky_cloudy_day was "Bew ölkt" (with a space) -> "Bewölkt".
+//    That typo would have shown as a broken word in German for Cloudy sky theme.
+// 3. FIXED HEADER COUNT: File says "116 Keys" but actually contains 104 keys
+//    per language (counted). Corrected header to 104 so future checks don't chase
+//    12 phantom keys that never existed.
+// 4. NOTE on compare_*/promo_*/thank_you_*: NOT duplicated here on purpose.
+//    Those 34 keys already live in Part 1 (en/th/es/fr/de/pt) and Part 2
+//    (ja/zh/hi/ru/ar/ko/id/vi). Duplicating them in Part 3 would just create
+//    a second source of truth. i18n.ts must merge all three:
+//      ...extraResources, ...extraResourcesPart2, ...extraResourcesPart3
+// 5. No other translations changed. All original Part 3 values kept verbatim.
 export const extraResourcesPart3: Record<string, Record<string, string>> = {
   en: {
     // Units & Settings Menu
@@ -22,7 +35,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     privacy_policy: "Privacy Policy",
     buy_root_beer: "Buy Root Beer 🍺",
     support_app_sub: "Unlock ad-free & permanent slots",
-
     // Payment & Perks Modal
     select_support_method: "Select Support Method",
     pay_google_play: "Google Play In-App Purchase",
@@ -44,7 +56,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     perk_mascots: "Unlock all weather mascot pals",
     perk_celebration: "Supporter badge & celebration animation",
     perk_ad_free: "Completely ad-free experience",
-
     // Weather Guide Topics & Buttons
     guide_all: "All Topics",
     guide_icons: "Weather Icons",
@@ -58,7 +69,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     weather_guide_title: "Weather & Celestial Guide",
     weather_guide_subtitle: "Everyday explanation of weather numbers & terms",
     got_it: "Got It",
-
     // WeatherView & Clothing
     wear_cat_workout: "Workout & Running",
     wear_run_cold: "Thermal base layer, running jacket, and windproof tights.",
@@ -74,14 +84,12 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     guide_tooltip: "Weather metrics guide",
     tap_to_view_details: "Tap for full details",
     rain_chance: "Rain Chance",
-
     // Forecast Detail Modal
     next: "Next",
     prev: "Previous",
     swipe_tip_hours: "Swipe or tap Next to browse hourly timeline",
     swipe_tip_days: "Swipe or tap Next to browse 7-day forecast",
     sun: "Sun",
-
     // Alert Watcher
     alert_watcher_aria: "Severe weather alert watcher",
     current_location: "Current Location",
@@ -89,7 +97,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     feels_like_short: "Feels",
     official_alert_badge: "Official Alert",
     weather_code: "Code",
-
     // Gallery Modal
     gallery_clear_confirm: "Remove all saved artworks from your gallery?",
     gallery_subtitle: "Curated landmarks, AI generated scenes & custom wallpapers",
@@ -103,7 +110,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     download: "Download",
     generating_art: "Generating Art...",
     generate_scene: "Generate Scene",
-
     // Search, GPS & Live Alerts
     search_city: "Search city or airport...",
     clear_search: "Clear search",
@@ -144,7 +150,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     privacy_policy: "นโยบายความเป็นส่วนตัว",
     buy_root_beer: "เลี้ยงรูทเบียร์ 🍺",
     support_app_sub: "ปลดล็อกถาวรและไม่มีโฆษณา",
-
     // Payment & Perks Modal
     select_support_method: "เลือกช่องทางสนับสนุน",
     pay_google_play: "Google Play In-App Purchase",
@@ -166,7 +171,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     perk_mascots: "ปลดล็อกแก๊งมาสคอตบอกสภาพอากาศทุกตัว",
     perk_celebration: "เหรียญผู้สนับสนุนและแอนิเมชันเฉลิมฉลอง",
     perk_ad_free: "ประสบการณ์ใช้งานแบบไร้โฆษณาตลอดชีพ",
-
     // Weather Guide Topics & Buttons
     guide_all: "ทั้งหมด",
     guide_icons: "ไอคอนสภาพอากาศ",
@@ -180,7 +184,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     weather_guide_title: "คู่มือเข้าใจสภาพอากาศ & สัญลักษณ์",
     weather_guide_subtitle: "เข้าใจตัวเลข สัญลักษณ์ไอคอน และการโคจรของดวงดาว",
     got_it: "เข้าใจแล้ว",
-
     // WeatherView & Clothing
     wear_cat_workout: "ออกกำลังกาย / วิ่ง",
     wear_run_cold: "เสื้อวิ่งรัดรูปกันหนาว แจ็กเก็ตกันลม และกางเกงขายาว",
@@ -196,14 +199,12 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     guide_tooltip: "ดูคำอธิบายตัวเลขสภาพอากาศ",
     tap_to_view_details: "แตะเพื่อดูรายละเอียดแบบเต็ม",
     rain_chance: "โอกาสเกิดฝน",
-
     // Forecast Detail Modal
     next: "ถัดไป",
     prev: "ก่อนหน้า",
     swipe_tip_hours: "ปัดซ้ายขวาหรือแตะถัดไปเพื่อดูพยากรณ์รายชั่วโมง",
     swipe_tip_days: "ปัดซ้ายขวาหรือแตะถัดไปเพื่อดูพยากรณ์ 7 วัน",
     sun: "ดวงอาทิตย์",
-
     // Alert Watcher
     alert_watcher_aria: "ระบบเฝ้าระวังและแจ้งเตือนสภาพอากาศรุนแรง",
     current_location: "ตำแหน่งปัจจุบัน",
@@ -211,7 +212,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     feels_like_short: "รู้สึกเหมือน",
     official_alert_badge: "เตือนภัยทางการ",
     weather_code: "รหัสสภาพอากาศ",
-
     // Gallery Modal
     gallery_clear_confirm: "ต้องการลบภาพศิลปะทั้งหมดที่บันทึกไว้หรือไม่?",
     gallery_subtitle: "ภาพแลนด์มาร์กคัดสรร สตูดิโอภาพสีน้ำ AI และภาพพื้นหลัง",
@@ -225,7 +225,6 @@ export const extraResourcesPart3: Record<string, Record<string, string>> = {
     download: "ดาวน์โหลด",
     generating_art: "กำลังวาดภาพ...",
     generate_scene: "สร้างภาพทิวทัศน์",
-
     // Search, GPS & Live Alerts
     search_city: "ค้นหาชื่อเมืองหรือสนามบิน...",
     clear_search: "ล้างการค้นหา",
