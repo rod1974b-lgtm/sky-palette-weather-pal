@@ -425,6 +425,28 @@ const CITY_DICTIONARY: Record<string, Record<string, string>> = {
     ko: "나콘랏차시마",
     id: "Nakhon Ratchasima",
     vi: "Nakhon Ratchasima",
+    },
+      "Vienna": {
+    en: "Vienna", th: "เวียนนา", es: "Viena", ja: "ウィーン", zh: "维也纳",
+    hi: "वियना", fr: "Vienne", de: "Wien", pt: "Viena", ru: "Вена",
+    ar: "فيينا", ko: "빈", id: "Wina", vi: "Viên"
+  },
+  "Athens": {
+    en: "Athens", th: "เอเธนส์", es: "Atenas", ja: "アテネ", zh: "雅典",
+    hi: "एथेंस", fr: "Athènes", de: "Athen", pt: "Atenas", ru: "Афины",
+    ar: "أثينا", ko: "아테네", id: "Athena", vi: "Athens"
+  },
+  "Skopje": {
+    en: "Skopje", th: "สโกเปีย", es: "Skopie", ja: "スコピエ", zh: "斯科普里",
+    hi: "स्कोप्जे", fr: "Skopje", de: "Skopje", pt: "Skopje", ru: "Скопье",
+    ar: "سكوبيه", ko: "스코페", id: "Skopje", vi: "Skopje"
+  },
+  "Chicago": {
+    en: "Chicago", th: "ชิคาโก", es: "Chicago", ja: "シカゴ", zh: "芝加哥",
+    hi: "शिकागो", fr: "Chicago", de: "Chicago", pt: "Chicago", ru: "Чикаго",
+    ar: "شيكاغو", ko: "시카고", id: "Chicago", vi: "Chicago"
+  },
+
   },
 
   // Major Global Cities
