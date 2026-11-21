@@ -45,7 +45,7 @@ export const ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE: RootBeerTier[] = [
     perks: {
       backgrounds: "2 permanent slots for city landmark wallpapers",
       aiGenerations: "2 permanent slots for AI watercolor generator",
-      adFree: "Standard rewarded ad support",
+      adFree: "Standard rewarded ad support (+1 bonus slot / 24h)",
       celebration: "Warm supporter badge & special mascot thank-you",
     },
   },
@@ -228,13 +228,77 @@ export const getAllUnlockedThankYouBackgrounds = (): string[] => {
   ).map((t) => t.id);
 };
 
+/**
+ * Saves a purchased tier and cascades unlocks to all lower tiers so all
+ * backgrounds and mascot perks remain unlocked.
+ */
 export const saveThankYouBackgroundForever = (tierId: string) => {
   try {
-    localStorage.setItem(`weather:monetization:${tierId}`, "true");
-    localStorage.setItem(`thankyou_unlocked_${tierId}`, "true");
+    const tiersToUnlock = [tierId];
+
+    if (tierId === "party_pack_root_beer_tier") {
+      tiersToUnlock.push(
+        "large_root_beer_tier",
+        "medium_root_beer_tier",
+        "small_root_beer_tier"
+      );
+    } else if (tierId === "large_root_beer_tier") {
+      tiersToUnlock.push("medium_root_beer_tier", "small_root_beer_tier");
+    } else if (tierId === "medium_root_beer_tier") {
+      tiersToUnlock.push("small_root_beer_tier");
+    }
+
+    for (const id of tiersToUnlock) {
+      localStorage.setItem(`weather:monetization:${id}`, "true");
+      localStorage.setItem(`thankyou_unlocked_${id}`, "true");
+    }
+
+    localStorage.setItem("weather:paid_tier", tierId);
     localStorage.setItem("weather:last-unlocked-tier", tierId);
-    window.dispatchEvent(new CustomEvent("weather:monetization-updated", { detail: { tierId } }));
+    clearPendingDonationTier();
+
+    window.dispatchEvent(
+      new CustomEvent("weather:monetization-updated", { detail: { tierId } })
+    );
+    window.dispatchEvent(
+      new CustomEvent("weather:trigger-tier-thankyou", { detail: { tierId } })
+    );
   } catch {}
+};
+
+/**
+ * Processes URL query parameters on return redirects (e.g. ?paid=... or ?tier=...)
+ */
+export const processPaymentReturnParams = (
+  searchParams: URLSearchParams | string
+): string | null => {
+  try {
+    const params =
+      typeof searchParams === "string"
+        ? new URLSearchParams(searchParams)
+        : searchParams;
+
+    const paidParam = params.get("paid") || params.get("unlocked") || params.get("tier");
+    if (!paidParam) return null;
+
+    let tier = "small_root_beer_tier";
+    const lower = paidParam.toLowerCase();
+
+    if (lower.includes("party")) {
+      tier = "party_pack_root_beer_tier";
+    } else if (lower.includes("large")) {
+      tier = "large_root_beer_tier";
+    } else if (lower.includes("medium")) {
+      tier = "medium_root_beer_tier";
+    } else if (lower.includes("small") || lower.includes("rootbeer") || lower === "true") {
+      tier = "small_root_beer_tier";
+    }
+
+    saveThankYouBackgroundForever(tier);
+    return tier;
+  } catch {
+    return null;
+  }
 };
 
 // MEDIAN.CO ANDROID WRAPPER & GOOGLE PLAY BILLING BRIDGE
