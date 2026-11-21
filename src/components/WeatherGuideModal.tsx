@@ -1,5 +1,56 @@
 // src/components/WeatherGuideModal.tsx
-import React, { useState } from "react";
+// FIXED — v2
+// WHAT WAS BROKEN — READ THIS, DO NOT REVERT:
+// BUG 1 — 3 icon files did NOT exist, so those guide cards showed a broken image
+//   (hidden by onError, so the card showed no picture at all). Checked against
+//   weatherIcons.fixed.tsx (only files in that file exist in the repo):
+//   - 09d_drizzle.png  -> DOES NOT EXIST. Drizzle day uses 10d_light_rain.png.
+//   - 09d_shower_rain.png -> DOES NOT EXIST. Shower day uses 10d_light_rain.png.
+//   - 50d_fog.png -> DOES NOT EXIST. Fog uses 50d_mist.png (mist is closest).
+//   FIX: 09_drizzle day -> 10d_light_rain.png + night 09n_shower_night.png.
+//   09_shower day -> 10d_light_rain.png (night was already correct).
+//   50_fog day -> 50d_mist.png. No new file names invented.
+// BUG 2 — Count was wrong. Header comment said "28 watercolor icons" and UI said
+//   "all 28 day & night conditions" and Thai "28 รูปแบบ". The catalog actually had
+//   16 entries. weatherIcons has 24 files, not 28. FIX: Catalog now has 18 entries
+//   (added dust + smoke, see BUG 3) and all counts now say 18, not 28.
+// BUG 3 — Dust and smoke were missing. weatherIcons has 50d_dust.png and
+//   50d_smoke (haze picture). The guide had mist, fog, haze, wind, tornado, but
+//   no dust or smoke, so a user who saw a dust icon in the app could not find it
+//   in the guide. FIX: Added 50_dust (50d_dust.png) and 50_smoke
+//   (50d_haze_ratchaburi.png, same closest picture as weatherIcons) with En/Th
+//   names and descriptions in the same style as the other entries.
+// BUG 4 — Topic did not sync if the parent re-used the modal while mounted.
+//   useState(initialTopic) runs once. If WeatherView ever keeps the modal mounted
+//   and changes initialTopic (e.g. humidity -> wind without unmount), the guide
+//   would stay on the old topic. FIX: useEffect syncs topic when isOpen or
+//   initialTopic changes. In current WeatherView the modal unmounts on close,
+//   so this is a safety fix, not a visible change today.
+// BUG 5 — No Escape key, no backdrop click, no scroll lock. Other modals
+//   (ForecastDetailModal, PaymentModal) close on Escape / backdrop click and lock
+//   body scroll. This one did none of them: clicking outside did nothing, Escape
+//   did nothing, and the page behind kept scrolling. FIX: Added all three —
+//   outer backdrop onClick={onClose} + inner stopPropagation, Escape listener,
+//   and body scroll lock while open. Hooks are all BEFORE the early return,
+//   so the Rules of Hooks are not broken.
+// BUG 6 — 10_light had no night picture. weatherIcons maps night light rain to
+//   10n_rain_night.png. The guide showed only the day picture. FIX: Added
+//   nightIcon 10n_rain_night.png for 10_light.
+// KNOWN LIMIT, NOT A BUG WE CAN FIX WITHOUT TRANSLATIONS — Guide body is En/Th
+//   only. The bulk text (icon names/descriptions, moon phases, UV/AQI/pressure/
+//   humidity/wind/conditions) is hardcoded En/Th with isThai ternaries. It does
+//   NOT use t() for those strings, so German/Japanese/etc. users see English.
+//   That is the same as before. To translate the guide body to all 14 languages,
+//   those strings need real translations in the locale files — we do NOT invent
+//   12 languages of translations here. The parts that DO use t() (topic labels,
+//   title, subtitle, close, Got It) ARE translated via extras Part 3 for all
+//   14 languages, so they keep working. Do not "fix" this by converting the
+//   bulk text to t("guide_...") keys without adding the translations — that
+//   would just show English fallback for everyone and lose the Thai text.
+// KEPT AS-IS: All En/Th bulk text verbatim (no wording changed), GuideTopic
+//   type, props, topic filter UI, moon phases, UV/AQI/pressure/humidity/wind/
+//   conditions sections, layout and styling.
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 export type GuideTopic =
@@ -40,6 +91,31 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
   const { t, i18n } = useTranslation();
   const [topic, setTopic] = useState<GuideTopic>(initialTopic);
 
+  // FIXED BUG 4: Sync topic when the parent changes initialTopic while mounted.
+  useEffect(() => {
+    if (isOpen) setTopic(initialTopic);
+  }, [isOpen, initialTopic]);
+
+  // FIXED BUG 5: Lock body scroll while open.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
+  // FIXED BUG 5: Close on Escape.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const isThai = i18n.language?.startsWith("th");
@@ -48,7 +124,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     { id: "all", label: t("guide_all", isThai ? "ทั้งหมด" : "All Topics"), icon: "📚" },
     { id: "icons", label: t("guide_icons", isThai ? "ไอคอนสภาพอากาศ" : "Weather Icons"), icon: "🎨" },
     { id: "astronomy", label: t("guide_astronomy", isThai ? "ดวงอาทิตย์ & ดวงจันทร์" : "Sun & Moon Tracker"), icon: "✨" },
-    { id: "uv", label: t("guide_uv", isThai ? "ดัชนี UV" : "UV Index"), icon: "☀️" },
+    { id: "uv", label: t("guide_uv", isThai ? "ดัชนี UV" : "UV Index"), icon: "☀" },
     { id: "aqi", label: t("guide_aqi", isThai ? "คุณภาพอากาศ" : "Air Quality"), icon: "🍃" },
     { id: "pressure", label: t("guide_pressure", isThai ? "ความกดอากาศ" : "Pressure"), icon: "🧭" },
     { id: "humidity", label: t("guide_humidity", isThai ? "ความชื้นสัมพัทธ์" : "Humidity"), icon: "💧" },
@@ -56,13 +132,14 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     { id: "conditions", label: t("guide_conditions", isThai ? "สภาพอากาศ" : "Conditions"), icon: "⛅" },
   ];
 
-  // Comprehensive catalog of the app's 28 watercolor icons
+  // Comprehensive catalog of the app's 18 watercolor conditions (FIXED BUG 2: was 28, actually 16; now 18 with dust + smoke).
+  // FIXED BUG 1: 09d_drizzle.png / 09d_shower_rain.png / 50d_fog.png do not exist — replaced with closest existing files.
   const iconCatalog: IconGuideItem[] = [
     {
       code: "01",
       dayIcon: "/icons/watercolor/01d_clear_sky.png",
       nightIcon: "/icons/watercolor/01n_clear_night.png",
-      emoji: "☀️",
+      emoji: "☀",
       nameEn: "Clear Sky / Sunny",
       nameTh: "ท้องฟ้าแจ่มใส / แดดจัด",
       descEn: "Virtually zero cloud cover. Peak solar exposure during the day and rapid radiational cooling at night.",
@@ -74,7 +151,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       code: "02",
       dayIcon: "/icons/watercolor/02d_few_clouds.png",
       nightIcon: "/icons/watercolor/02n_few_clouds_night.png",
-      emoji: "🌤️",
+      emoji: "🌤",
       nameEn: "Few Clouds",
       nameTh: "มีเมฆบางส่วน (เมฆน้อย)",
       descEn: "10% to 25% cloud coverage. Bright sunshine with brief pleasant shade spells.",
@@ -98,7 +175,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       code: "04",
       dayIcon: "/icons/watercolor/04d_broken.png",
       nightIcon: "/icons/watercolor/04n_broken_night.png",
-      emoji: "☁️",
+      emoji: "☁",
       nameEn: "Broken Clouds",
       nameTh: "เมฆมากเป็นส่วนใหญ่",
       descEn: "50% to 85% cloud coverage with blue sky visible only in small gaps. Mild diffuse daylight.",
@@ -110,7 +187,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       code: "04_overcast",
       dayIcon: "/icons/watercolor/04d_overcast.png",
       nightIcon: "/icons/watercolor/04n_overcast_night.png",
-      emoji: "☁️",
+      emoji: "☁",
       nameEn: "Overcast",
       nameTh: "มืดครึ้ม / เมฆเต็มท้องฟ้า",
       descEn: "85% to 100% thick cloud ceiling. Low UV, dim daylight, and often leads to drizzle or rain.",
@@ -120,8 +197,11 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "09_drizzle",
-      dayIcon: "/icons/watercolor/09d_drizzle.png",
-      emoji: "🌦️",
+      // FIXED BUG 1: Was /icons/watercolor/09d_drizzle.png (does not exist).
+      // Closest existing day file is light rain; night is shower night (same as weatherIcons).
+      dayIcon: "/icons/watercolor/10d_light_rain.png",
+      nightIcon: "/icons/watercolor/09n_shower_night.png",
+      emoji: "🌦",
       nameEn: "Drizzle & Fine Mist Rain",
       nameTh: "ฝนละออง / ฝนพรำ",
       descEn: "Extremely fine, floating water droplets. Barely makes ripples in puddles but will slowly dampen clothes.",
@@ -131,9 +211,11 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "09_shower",
-      dayIcon: "/icons/watercolor/09d_shower_rain.png",
+      // FIXED BUG 1: Was /icons/watercolor/09d_shower_rain.png (does not exist).
+      // Closest existing day file is light rain; night was already correct.
+      dayIcon: "/icons/watercolor/10d_light_rain.png",
       nightIcon: "/icons/watercolor/09n_shower_night.png",
-      emoji: "🌧️",
+      emoji: "🌧",
       nameEn: "Shower Rain",
       nameTh: "ฝนซู่ / ฝนตกเป็นช่วงๆ",
       descEn: "Sudden bursts of rain with rapid start and stop times, frequently alternating with clear spells.",
@@ -144,6 +226,8 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     {
       code: "10_light",
       dayIcon: "/icons/watercolor/10d_light_rain.png",
+      // FIXED BUG 6: Added night picture (was missing). Night light rain is 10n_rain_night.png.
+      nightIcon: "/icons/watercolor/10n_rain_night.png",
       emoji: "💧",
       nameEn: "Light Rain",
       nameTh: "ฝนตกเล็กน้อย",
@@ -168,7 +252,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       code: "11",
       dayIcon: "/icons/watercolor/11d_thunderstorm.png",
       nightIcon: "/icons/watercolor/11n_thunderstorm_night.png",
-      emoji: "⛈️",
+      emoji: "⛈",
       nameEn: "Thunderstorm",
       nameTh: "พายุฝนฟ้าคะนอง",
       descEn: "Severe convective storm with lightning, thunder, and wind gusts. Seek safe indoor shelter immediately.",
@@ -180,7 +264,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       code: "13",
       dayIcon: "/icons/watercolor/13d_snow.png",
       nightIcon: "/icons/watercolor/13n_snow_night.png",
-      emoji: "❄️",
+      emoji: "❄",
       nameEn: "Snow & Flurries",
       nameTh: "หิมะ / หิมะตก",
       descEn: "Atmospheric freezing water vapor forming ice crystals. Risk of slick roads and black ice.",
@@ -191,7 +275,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     {
       code: "50_mist",
       dayIcon: "/icons/watercolor/50d_mist.png",
-      emoji: "🌫️",
+      emoji: "🌫",
       nameEn: "Mist / Morning Dew",
       nameTh: "หมอกแดด / ละอองหมอกบาง",
       descEn: "Light atmospheric suspension of water droplets. Visibility is over 1 km (0.6 miles).",
@@ -201,7 +285,8 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "50_fog",
-      dayIcon: "/icons/watercolor/50d_fog.png",
+      // FIXED BUG 1: Was /icons/watercolor/50d_fog.png (does not exist). Mist is closest.
+      dayIcon: "/icons/watercolor/50d_mist.png",
       emoji: "🌁",
       nameEn: "Dense Fog",
       nameTh: "หมอกหนาจัด",
@@ -222,6 +307,30 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       categoryTh: "บรรยากาศ & หมอกควัน",
     },
     {
+      code: "50_dust",
+      // FIXED BUG 3: Added — was missing, but weatherIcons has 50d_dust.png.
+      dayIcon: "/icons/watercolor/50d_dust.png",
+      emoji: "🌪",
+      nameEn: "Dust / Sand Storm",
+      nameTh: "พายุฝุ่น / ฝุ่นทราย",
+      descEn: "Fine dust and sand lifted by wind, cutting visibility and irritating eyes and lungs. Wear a mask and goggles.",
+      descTh: "ฝุ่นและทรายละเอียดที่ลมพัดฟุ้ง ทำให้ทัศนวิสัยลดลงและระคายเคืองตาและปอด ควรสวมหน้ากากและแว่นตา",
+      categoryEn: "Atmosphere",
+      categoryTh: "บรรยากาศ & หมอกควัน",
+    },
+    {
+      code: "50_smoke",
+      // FIXED BUG 3: Added — was missing. No smoke file exists; haze picture is closest (same as weatherIcons).
+      dayIcon: "/icons/watercolor/50d_haze_ratchaburi.png",
+      emoji: "😷",
+      nameEn: "Smoke / Wildfire Smoke",
+      nameTh: "ควันไฟ / ควันไฟป่า",
+      descEn: "Smoke from fires and burning, with a sharp smell. Stay indoors when thick, and wear an N95 mask outside.",
+      descTh: "ควันจากไฟไหม้และไฟป่า มีกลิ่นฉุน ควรอยู่ในอาคารเมื่อควันหนา และสวมหน้ากาก N95 เมื่อออกนอกอาคาร",
+      categoryEn: "Atmosphere",
+      categoryTh: "บรรยากาศ & หมอกควัน",
+    },
+    {
       code: "50_wind",
       dayIcon: "/icons/watercolor/50d_wind.png",
       emoji: "💨",
@@ -235,7 +344,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     {
       code: "50_tornado",
       dayIcon: "/icons/watercolor/50d_tornado.png",
-      emoji: "🌪️",
+      emoji: "🌪",
       nameEn: "Tornado / Funnel Cloud",
       nameTh: "พายุทอร์นาโด / พายุงวงช้าง",
       descEn: "Violently rotating column of air extending from storm cloud to ground. Extreme localized danger.",
@@ -314,13 +423,19 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl max-h-[88vh] flex flex-col rounded-3xl border border-white/20 bg-card text-card-foreground shadow-2xl overflow-hidden">
-        
+    // FIXED BUG 5: Backdrop click now closes (was missing). Inner panel stops propagation.
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-2xl max-h-[88vh] flex flex-col rounded-3xl border border-white/20 bg-card text-card-foreground shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border/60 px-5 py-4 bg-muted/30">
           <div className="flex items-center gap-2.5">
-            <span className="text-2xl">ℹ️</span>
+            <span className="text-2xl">ℹ</span>
             <div>
               <h2 className="text-base sm:text-lg font-black tracking-tight text-foreground">
                 {t("weather_guide_title", isThai ? "คู่มือเข้าใจสภาพอากาศ & สัญลักษณ์" : "Weather & Celestial Guide")}
@@ -361,7 +476,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
 
         {/* Content Body */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs sm:text-sm leading-relaxed">
-          
+
           {/* SECTION 1: WEATHER ICONS GLOSSARY */}
           {(topic === "all" || topic === "icons") && (
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
@@ -373,7 +488,8 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
                       {isThai ? "สารบัญไอคอนสีน้ำ (Watercolor Weather Icons)" : "Watercolor Weather Icon Guide"}
                     </h3>
                     <p className="text-[11px] text-muted-foreground">
-                      {isThai ? "รวมไอคอนสภาพอากาศกลางวันและกลางคืนทั้งหมด 28 รูปแบบในแอป" : "Visual breakdown of all 28 day & night conditions used in the app"}
+                      {/* FIXED BUG 2: Was 28, actually 16. Now 18 with dust + smoke. */}
+                      {isThai ? "รวมไอคอนสภาพอากาศกลางวันและกลางคืนทั้งหมด 18 รูปแบบในแอป" : "Visual breakdown of all 18 day & night conditions used in the app"}
                     </p>
                   </div>
                 </div>
@@ -452,7 +568,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
               {/* Sun Arc & Hours */}
               <div className="space-y-2">
                 <h4 className="font-bold text-xs uppercase tracking-wider text-amber-500">
-                  ☀️ {isThai ? "การโคจรของดวงอาทิตย์ & แสงธรรมชาติ" : "The Daylight Arc & Natural Lighting"}
+                  ☀ {isThai ? "การโคจรของดวงอาทิตย์ & แสงธรรมชาติ" : "The Daylight Arc & Natural Lighting"}
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div className="p-3 rounded-xl bg-card border border-border/60 space-y-1">
@@ -479,7 +595,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
 
                   <div className="p-3 rounded-xl bg-card border border-border/60 space-y-1">
                     <span className="font-bold text-foreground flex items-center gap-1.5">
-                      <span>☀️</span> {isThai ? "จุดสูงสุดของดวงอาทิตย์ (Solar Noon):" : "Solar Noon:"}
+                      <span>☀</span> {isThai ? "จุดสูงสุดของดวงอาทิตย์ (Solar Noon):" : "Solar Noon:"}
                     </span>
                     <p className="text-[11px] text-muted-foreground">
                       {isThai
@@ -490,7 +606,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
 
                   <div className="p-3 rounded-xl bg-card border border-border/60 space-y-1">
                     <span className="font-bold text-foreground flex items-center gap-1.5">
-                      <span>⏱️</span> {isThai ? "ระยะเวลาแสงแดด (Daylight Hours):" : "Daylight Duration:"}
+                      <span>⏱</span> {isThai ? "ระยะเวลาแสงแดด (Daylight Hours):" : "Daylight Duration:"}
                     </span>
                     <p className="text-[11px] text-muted-foreground">
                       {isThai
@@ -532,7 +648,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
           {(topic === "all" || topic === "uv") && (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2.5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">☀️</span>
+                <span className="text-xl">☀</span>
                 <h3 className="font-bold text-foreground text-sm sm:text-base">
                   {isThai ? "ดัชนีรังสี UV (0 ถึง 11+)" : "UV Index (0 to 11+)"}
                 </h3>
