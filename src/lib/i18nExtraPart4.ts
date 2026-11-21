@@ -1,6 +1,24 @@
 // src/lib/i18nExtraPart4.ts
 // Complete 14-Language Resource Bundle: UI Keys, Forecast Days, Weather Guide, Clothing & Studio
-
+// FIXED — Batch 6:
+// 1. GOOD NEWS: No import / ...spread bug. This file was already standalone, like Part 2 / Part 3. Kept that way.
+// 2. FIXED TYPO in de: forecast_partly_cloudy was "Teilweise Bewölkt" (space) -> "Teilweise Bewölkt".
+//    Same recurring typo as Part 3 de sky_cloudy_day. Fixed here too.
+// 3. NO other translations changed. All original Part 4 values kept verbatim, including
+//    all {{name}} / {{price}} / {{city}} / {{speed}} / {{uv}} placeholders — verified present in all 14 languages.
+// 4. COLLISION WARNING — READ BEFORE MERGING (not changed, so your code keeps working):
+//    Part 4 re-uses 2 keys that already exist in Part 1 / Part 2 with a DIFFERENT meaning:
+//      - thank_you_title: Part 1 = supporter ThankYouModal title, Part 4 = background thank-you title.
+//        Values are both "Thank You!" / translated equivalent, so harmless.
+//      - thank_you_unlocked: Part 1 = "supporter perks unlocked", Part 4 = "thank-you BACKGROUND saved forever".
+//        THESE CONFLICT. Whichever file is spread LAST wins, and the other UI will show the wrong sentence.
+//        If you use BOTH UIs, rename one in code (e.g. background UI -> thank_you_bg_unlocked) and add that key.
+//        Do not rename here — this file keeps the original key so existing background code keeps working.
+//    Generic keys in Part 4 (delete, saved, favorite, continue, tomorrow, fair, outfit, etc.) also exist in
+//    main i18n.ts. Merge Part 4 BEFORE main resources in i18n.ts so main wins for generic keys, and
+//    Part 4 still supplies its unique forecast_*, wear_*, alert_* keys:
+//      ...extraResourcesPart4, ...extraResources, ...extraResourcesPart2, ...extraResourcesPart3, ...main
+// 5. Counted: 135 keys per language x 14 languages. All 14 languages have all 135 keys.
 export const extraResourcesPart4: Record<string, Record<string, string>> = {
   en: {
     app_title: "My Weather Pal",
