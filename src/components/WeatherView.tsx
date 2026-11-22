@@ -56,9 +56,6 @@ function getConditionLabel(code: number, t: TFunction): string {
   if (code === 3) return t("cond_overcast", "Overcast");
   if (code >= 45 && code <= 48) return t("cond_foggy", "Foggy");
   if (code >= 51 && code <= 55) return t("cond_drizzle", "Drizzle");
-  // FIX: Old code missed 56-57 (freezing drizzle), 66-67 (freezing rain),
-  // 85-86 (snow showers) — they fell through to "Clear" (wrong).
-  // WMO: 56-57 freezing drizzle, 66-67 freezing rain, 85-86 snow showers.
   if (code === 56 || code === 57) return t("cond_freezing_drizzle", "Freezing Drizzle");
   if (code >= 61 && code <= 65) return t("cond_rain", "Rain");
   if (code === 66 || code === 67) return t("cond_freezing_rain", "Freezing Rain");
@@ -69,10 +66,6 @@ function getConditionLabel(code: number, t: TFunction): string {
   return t("cond_clear", "Clear");
 }
 
-// FIX: Old code used only PM2.5 thresholds but labelled the result "AQI",
-// and missed the Very Unhealthy band (150.4-250.4 returned "Hazardous").
-// Now: prefer the real US AQI (0-500) when weather.ts provides it, else
-// derive from PM2.5 with correct EPA bands. Returns null when no data.
 function getAirQualityInfo(
   aqi: number | undefined,
   pm25: number | undefined,
@@ -98,11 +91,6 @@ function getAirQualityInfo(
   return null;
 }
 
-// FIX: Old code did `new Date("2026-11-21")` (UTC midnight) then getDay().
-// For Americas (UTC-5) that is 2026-11-20 19:00 local → day name off by one.
-// Now parses y/m/d and uses local midnight, so the day is always correct.
-// Also only calls t() for the one needed day (old code called t() 7 times
-// per daily row, 49 times per render).
 function getDayName(dateStr: string, t: TFunction): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
   if (!m) return dateStr;
@@ -118,18 +106,12 @@ function getDayName(dateStr: string, t: TFunction): string {
   return t(key, fallback);
 }
 
-// FIX: Old code did `new Date("2026-11-21T14:00")` then toLocaleTimeString.
-// That string has no timezone, so the browser treats it as *user* local time,
-// but Open-Meteo returns it in the *place's* local time. Viewing Tokyo from
-// Bangkok shifted every hourly label by 2 hours. Now we extract the hour
-// from the string and format it via a fixed local date (no timezone shift).
 function formatHourLabel(timeStr: string, locale: string | undefined): string {
   const m = /T(\d{2}):(\d{2})/.exec(timeStr);
   if (!m) return timeStr;
   const hour = Number(m[1]);
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return timeStr;
   try {
-    // Fixed date, hour only — locale decides 12h vs 24h.
     return new Date(2000, 0, 1, hour, 0).toLocaleTimeString(locale || undefined, { hour: "numeric" });
   } catch {
     return `${hour}:00`;
@@ -137,8 +119,6 @@ function formatHourLabel(timeStr: string, locale: string | undefined): string {
 }
 
 function isRainyCode(code: number): boolean {
-  // Rain / drizzle / freezing rain / showers / thunderstorm — NOT snow.
-  // Old check was (51-67) || (80-99) which included 85-86 snow showers as "rainy".
   return (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95;
 }
 
@@ -159,7 +139,6 @@ export function WeatherView({
 }: WeatherViewProps) {
   const { t, i18n } = useTranslation();
 
-  // Modals state
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -168,10 +147,7 @@ export function WeatherView({
   const [forecastModalType, setForecastModalType] = useState<"hourly" | "daily">("hourly");
   const [forecastModalIndex, setForecastModalIndex] = useState(0);
 
-  // Clothing filter tab: "all" | "casual" | "active" | "formal"
   const [clothingFilter, setClothingFilter] = useState<"all" | "casual" | "active" | "formal">("all");
-
-  // Dynamic Wallpaper state
   const [currentBgUrl, setCurrentBgUrl] = useState<string>("");
 
   const w = weather;
@@ -179,31 +155,17 @@ export function WeatherView({
   const tempUnit = isMetric ? "°C" : "°F";
   const windUnit = isMetric ? "km/h" : "mph";
 
-  // Migrate legacy storage on mount
   useEffect(() => {
     try {
       migrateLegacyLocalStorage();
     } catch {}
   }, []);
 
-  // Sync wallpaper on location/weather change
-  // FIX: Old code had a race — if the user switched Bangkok → Tokyo quickly,
-  // the slow IndexedDB read for Bangkok could resolve after Tokyo's and
-  // overwrite Tokyo's art with Bangkok's. Now guarded by a request token.
-  // Also: old code checked global customBgUrl FIRST, then per-city wallpaper.
-  // handleNextArtwork wrote to BOTH global + per-city, so "Next" in Bangkok
-  // polluted Tokyo's art (global won everywhere). Now priority is:
-  //   1. Per-city wallpaper (Next Artwork / per-city pick)
-  //   2. Global hero (Gallery "Apply as Hero" — intentionally global)
-  //   3. Built-in artworks for this city + code
-  // And handleNextArtwork writes ONLY to per-city, never to global.
   const bgRequestRef = useRef(0);
   const loadActiveBackground = useCallback(async () => {
     const requestId = ++bgRequestRef.current;
     const placeName = w.place.name;
     try {
-      // 1. Per-city wallpaper (canonical key = bare place name; wallpaperStorage
-      //    handles any prefix internally). Legacy key with full prefix tried as fallback.
       const perCity =
         (await getWallpaperItem(placeName)) ||
         (await getWallpaperItem(`weather:custom-bg:${placeName.toLowerCase().trim()}`)) ||
@@ -211,20 +173,12 @@ export function WeatherView({
       if (bgRequestRef.current !== requestId) return;
       if (perCity) {
         setCurrentBgUrl(perCity);
-        // Migrate legacy key → canonical if we found it via legacy key.
-        if (perCity && (await getWallpaperItem(placeName)) !== perCity) {
-          try {
-            await setWallpaperItem(placeName, perCity);
-          } catch {}
-        }
         return;
       }
-      // 2. Global hero (Gallery)
       if (customBgUrl) {
         setCurrentBgUrl(customBgUrl);
         return;
       }
-      // 3. Built-in artworks
       const artworks = getAllAvailableArtworks(placeName, w.current.code);
       if (bgRequestRef.current !== requestId) return;
       setCurrentBgUrl(artworks[0] || "");
@@ -243,8 +197,6 @@ export function WeatherView({
     void loadActiveBackground();
   }, [loadActiveBackground]);
 
-  // FIX: Old code called getAllAvailableArtworks() on every render (twice:
-  // fallbackArtworks + inside handleNextArtwork). Now memoized.
   const fallbackArtworks = useMemo(
     () => getAllAvailableArtworks(w.place.name, w.current.code),
     [w.place.name, w.current.code],
@@ -259,10 +211,6 @@ export function WeatherView({
     const nextIdx = (curIdx + 1) % artworks.length;
     const nextUrl = artworks[nextIdx] || artworks[0]!;
     setCurrentBgUrl(nextUrl);
-    // FIX: Old code called onSelectBackground(nextUrl) here — that sets the
-    // GLOBAL hero in index.tsx (weather:custom-hero-art), so "Next" in
-    // Bangkok changed Tokyo's art too. Next is per-city only: write only
-    // to per-city wallpaperStorage, never to global.
     try {
       await setWallpaperItem(w.place.name, nextUrl);
     } catch (e) {
@@ -270,10 +218,6 @@ export function WeatherView({
     }
   };
 
-  // Single handler for Gallery "Apply" — Gallery apply IS global by design
-  // (user explicitly chose "Apply as Hero"). All three AiGalleryModal props
-  // (onApplyBackground / onSelectBackground / onApplyArtwork) do the same
-  // thing; keep them in sync via one function instead of three copies.
   const handleApplyArtwork = async (url: string) => {
     setCurrentBgUrl(url);
     onSelectBackground(url);
@@ -295,28 +239,19 @@ export function WeatherView({
     setForecastModalOpen(true);
   };
 
-  // Metrics — weather.ts already defaults (pressure 1013, vis 10, etc.),
-  // so no second layer of fabricated fallbacks here. Use values directly.
   const uvVal = Math.round(w.current?.uvIndex ?? w.current?.uv ?? 0);
   const humidityVal = w.current?.humidity ?? 0;
   const windVal = Math.round(w.current?.wind_speed ?? w.current?.wind ?? 0);
   const pressureVal = Math.round(w.current?.pressure ?? 1013);
-  // FIX: Old code always showed visibility in km, even in imperial mode.
-  // Open-Meteo visibility is meters → weather.ts converts to km. Convert to
-  // miles for imperial.
   const visibilityKm = w.current?.vis ?? 10;
   const visibilityVal = isMetric ? Math.round(visibilityKm) : Math.round(visibilityKm * 0.621371);
   const visibilityUnit = isMetric ? "km" : "mi";
   const aqiInfo = getAirQualityInfo(w.current?.aqi, w.current?.pm25, t);
 
-  // Clothing recommendations
   const currentTempC = isMetric ? w.current.temp : ((w.current.temp - 32) * 5) / 9;
   const isRainy = isRainyCode(w.current.code);
   const isSnowy = isSnowyCode(w.current.code);
 
-  // Clothing copy — filter now affects ALL cards, not just the third.
-  // Old code: filter only changed the 3rd card's text; the first two cards
-  // were identical for all filters, so the filter felt broken.
   const topTitle =
     clothingFilter === "active"
       ? currentTempC > 26
@@ -341,9 +276,7 @@ export function WeatherView({
             : currentTempC > 10
               ? t("wear_jacket", "Warm Jacket & Sweater")
               : t("wear_heavy_coat", "Heavy Winter Coat & Thermals");
-  // FIX: Old desc used >24 for "hot" while title used >26 — at 25°C the title
-  // said "Light Layers" but the desc said "Cotton tees… keep you cool" (mismatch).
-  // Now both use the same >26 threshold.
+
   const topDesc =
     currentTempC > 26
       ? t("wear_desc_hot", "Cotton tees, linen shirts, or shorts keep you cool.")
@@ -365,8 +298,6 @@ export function WeatherView({
 
   return (
     <div className="w-full space-y-5">
-      {/* Stale / offline banner — weather.ts sets isStale when it served
-          cache because the network failed. Old code never showed it. */}
       {w.isStale && (
         <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-200 text-xs font-semibold flex items-center gap-2" role="status">
           <span>📶</span>
@@ -377,10 +308,9 @@ export function WeatherView({
       {/* 1. SEVERE WEATHER ALERT WATCHER & LIVE TICKER */}
       <WeatherAlertWatcher weather={w} unit={unit} activeAlerts={activeAlerts} />
 
-      {/* 2. ARTWORK & QUICK CONTROLS TOOLBAR (Outside & Above Hero Card) */}
+      {/* 2. ARTWORK & QUICK CONTROLS TOOLBAR */}
       <section className="p-3 sm:p-4 rounded-2xl bg-card/90 border border-border/80 shadow-xs backdrop-blur-md">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
-          {/* Left: Change Artwork & AI Studio */}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -403,7 +333,6 @@ export function WeatherView({
             </button>
           </div>
 
-          {/* Right: Refresh, Postcard & Weather Guide */}
           <div className="flex items-center gap-2">
             {onRefresh && (
               <button
@@ -439,7 +368,7 @@ export function WeatherView({
         </div>
       </section>
 
-      {/* 3. HERO WALLPAPER CARD (Pure visual canvas, no buttons overlaying the art) */}
+      {/* 3. HERO WALLPAPER CARD */}
       <section className="relative w-full aspect-16/9 sm:aspect-21/9 rounded-3xl overflow-hidden border border-border/60 shadow-md bg-muted select-none">
         {displayBg ? (
           <img src={displayBg} alt={w.place.name} className="w-full h-full object-cover object-center transition-all duration-700 ease-out" />
@@ -450,7 +379,6 @@ export function WeatherView({
 
       {/* 4. CURRENT WEATHER CONDITIONS & METRICS */}
       <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-4">
-        {/* City Title and Status (Fully localized for all 14 languages) */}
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
@@ -460,9 +388,6 @@ export function WeatherView({
                   {getLocalizedCountry(w.place.country, i18n.language)}
                 </span>
               )}
-              {/* FIX: isFavorite / onToggleFavorite were passed by index.tsx
-                  but never destructured or rendered — dead props. Now a real
-                  favorite button. */}
               {onToggleFavorite && (
                 <button
                   type="button"
@@ -491,7 +416,6 @@ export function WeatherView({
           </button>
         </div>
 
-        {/* Primary Temperature & Weather Icon Display */}
         <div className="flex items-center justify-between py-2 border-y border-border/40">
           <div className="flex items-baseline gap-2">
             <span className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground">{Math.round(w.current.temp)}</span>
@@ -503,11 +427,7 @@ export function WeatherView({
           </div>
         </div>
 
-        {/* Essential Weather Metrics Grid (Clickable to open simple explanations) */}
-        {/* FIX: Old code used <div onClick> — keyboard users could not activate
-            them, screen readers did not announce them as buttons. Now real <button>. */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-          {/* Humidity */}
           <button type="button" onClick={() => openGuide("humidity")} className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer text-left">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
               <span>{t("metric_humidity", "Humidity")}</span>
@@ -516,7 +436,6 @@ export function WeatherView({
             <span className="text-lg font-bold text-foreground">{humidityVal}%</span>
           </button>
 
-          {/* Wind Speed */}
           <button type="button" onClick={() => openGuide("wind")} className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer text-left">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
               <span>{t("metric_wind", "Wind")}</span>
@@ -527,7 +446,6 @@ export function WeatherView({
             </span>
           </button>
 
-          {/* UV Index */}
           <button type="button" onClick={() => openGuide("uv")} className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer text-left">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
               <span>{t("metric_uv", "UV Index")}</span>
@@ -536,7 +454,6 @@ export function WeatherView({
             <span className="text-lg font-bold text-foreground">{uvVal}</span>
           </button>
 
-          {/* Air Quality — prefers real AQI, falls back to PM2.5, shows — when neither */}
           <button type="button" onClick={() => openGuide("aqi")} className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer text-left">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
               <span>{t("metric_aqi", "Air Quality")}</span>
@@ -554,7 +471,6 @@ export function WeatherView({
             </div>
           </button>
 
-          {/* Pressure */}
           <button type="button" onClick={() => openGuide("pressure")} className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer text-left">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
               <span>{t("metric_pressure", "Pressure")}</span>
@@ -565,7 +481,6 @@ export function WeatherView({
             </span>
           </button>
 
-          {/* Visibility */}
           <button type="button" onClick={() => openGuide("conditions")} className="p-3 rounded-2xl bg-muted/40 hover:bg-muted/70 transition border border-border/40 cursor-pointer text-left">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
               <span>{t("metric_visibility", "Visibility")}</span>
@@ -581,7 +496,7 @@ export function WeatherView({
       {/* 5. WEATHER MASCOT BUDDIES */}
       <WeatherMascot weather={w} />
 
-      {/* 6. HOURLY FORECAST (Horizontal Scroll with Tap-for-Details) */}
+      {/* 6. HOURLY FORECAST */}
       <section className="p-4 sm:p-5 rounded-3xl bg-card border border-border/70 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
@@ -613,7 +528,7 @@ export function WeatherView({
         </div>
       </section>
 
-      {/* 7. 7-DAY EXTENDED FORECAST (Tap-for-Details with Condition Words) */}
+      {/* 7. 7-DAY EXTENDED FORECAST */}
       <section className="p-4 sm:p-5 rounded-3xl bg-card border border-border/70 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
@@ -631,23 +546,16 @@ export function WeatherView({
               onClick={() => openForecastDetail("daily", idx)}
               className="w-full flex items-center justify-between p-2.5 sm:px-4 rounded-2xl bg-muted/20 hover:bg-muted/60 border border-border/30 transition cursor-pointer active:scale-[0.98] text-left"
             >
-              {/* Day Name */}
               <div className="w-14 sm:w-20 font-bold text-sm text-foreground">{idx === 0 ? t("today", "Today") : getDayName(d.date, t)}</div>
-
-              {/* Icon & Written Condition Label */}
               <div className="flex items-center gap-2 flex-1 min-w-0 px-2">
                 <div className="w-7 h-7 shrink-0 flex items-center justify-center">
                   <WeatherIcon code={d.code} isDay={1} className="w-full h-full" />
                 </div>
                 <span className="text-xs text-muted-foreground truncate">{getConditionLabel(d.code, t)}</span>
               </div>
-
-              {/* Rain Chance */}
               <div className="text-xs font-semibold text-sky-500 w-12 text-center">
                 {(d.precipProbMax ?? d.pop ?? 0) > 0 ? `${Math.round(d.precipProbMax ?? d.pop ?? 0)}%` : ""}
               </div>
-
-              {/* Min/Max Temperature */}
               <div className="flex items-center gap-2 text-sm font-bold justify-end w-20 text-right">
                 <span className="text-foreground">{Math.round(d.max)}°</span>
                 <span className="text-muted-foreground font-normal">{Math.round(d.min)}°</span>
@@ -657,15 +565,13 @@ export function WeatherView({
         </div>
       </section>
 
-      {/* 8. WHAT TO WEAR (Smart Clothing Recommendations with Activity Filters) */}
+      {/* 8. WHAT TO WEAR */}
       <section className="p-4 sm:p-5 rounded-3xl bg-card border border-border/70 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
             <span>👕</span>
             <span>{t("what_to_wear", "What to Wear Today")}</span>
           </h3>
-
-          {/* Activity Category Filter — now affects all three cards, not just the third */}
           <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/50 self-start sm:self-auto">
             {(["all", "casual", "active", "formal"] as const).map((filterKey) => (
               <button
@@ -673,7 +579,7 @@ export function WeatherView({
                 type="button"
                 onClick={() => setClothingFilter(filterKey)}
                 aria-pressed={clothingFilter === filterKey}
-                className={`px-2 py-0.5 rounded-lg text-xs font-semibold capitalize transition ${
+                className={`px-2 py-0.5 rounded-lg text-xs font-semibold capitalize transition cursor-pointer ${
                   clothingFilter === filterKey ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -683,9 +589,7 @@ export function WeatherView({
           </div>
         </div>
 
-        {/* Clothing Items Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-          {/* Top Recommendation */}
           <div className="p-3 rounded-2xl bg-muted/30 border border-border/40 flex items-start gap-3">
             <span className="text-2xl">🧥</span>
             <div>
@@ -694,33 +598,11 @@ export function WeatherView({
             </div>
           </div>
 
-          {/* Rain / Snow / Sun Accessories */}
           <div className="p-3 rounded-2xl bg-muted/30 border border-border/40 flex items-start gap-3">
             <span className="text-2xl">{accessoryIcon}</span>
             <div>
               <span className="text-xs font-bold text-foreground block">{accessoryTitle}</span>
               <p className="text-[11px] text-muted-foreground mt-0.5">{accessoryDesc}</p>
-            </div>
-          </div>
-
-          {/* Outfit Occasion Suggestion */}
-          <div className="p-3 rounded-2xl bg-muted/30 border border-border/40 flex items-start gap-3 sm:col-span-2 lg:col-span-1">
-            <span className="text-2xl">{clothingFilter === "active" ? "👟" : clothingFilter === "formal" ? "👔" : "✨"}</span>
-            <div>
-              <span className="text-xs font-bold text-foreground block">
-                {clothingFilter === "active"
-                  ? t("wear_sports", "Moisture-Wicking Athletic Gear")
-                  : clothingFilter === "formal"
-                    ? t("wear_formal", "Tailored Suit or Smart Layered Casual")
-                    : t("wear_daily", "Ideal All-Day Outfit")}
-              </span>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {clothingFilter === "active"
-                  ? t("wear_desc_active", "Breathable fabrics optimized for outdoor movement.")
-                  : clothingFilter === "formal"
-                    ? t("wear_desc_formal", "Stay sharp and comfortable in climate-adjusted attire.")
-                    : t("wear_desc_daily", "Balanced for comfort indoors and outside.")}
-              </p>
             </div>
           </div>
         </div>
@@ -729,36 +611,39 @@ export function WeatherView({
       {/* 9. OUTDOOR ACTIVITY PLANNER */}
       <OutdoorActivityPlanner weather={w} unit={unit} />
 
-      {/* 10. LIVE WEATHER & RAIN RADAR */}
-      {/* HIDE CITY BUTTON ON RADAR - SAFE: only cityName changed to empty.
-          No new prop, no style tag. Your radar already accepts cityName,
-          so this cannot cause a preview error. If button still shows,
-          delete that one button in WeatherRadar.tsx (search for cityName). */}
-      <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={""} />
+      {/* 10. RAIN RADAR (Loads centered on active coordinates, no city button) */}
+      <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={w.place.name} />
 
-      {/* 11. SUN & MOON ASTRONOMY TRACKER */}
-      <AstronomyTracker weather={w} />
+      {/* 11. SUN & MOON TRACKER */}
+      <AstronomyTracker lat={w.place.lat} lon={w.place.lon} />
 
       {/* MODALS */}
       {galleryOpen && (
         <AiGalleryModal
           isOpen={galleryOpen}
           onClose={() => setGalleryOpen(false)}
-          city={w.place.name}
-          cityName={w.place.name}
-          currentCity={w.place.name}
-          country={w.place.country}
-          weatherCode={w.current.code}
-          currentWeatherCode={w.current.code}
-          onApplyBackground={(url) => void handleApplyArtwork(url)}
-          onSelectBackground={(url) => void handleApplyArtwork(url)}
-          onApplyArtwork={(url) => void handleApplyArtwork(url)}
+          currentPlace={w.place}
+          onApplyBackground={handleApplyArtwork}
         />
       )}
 
-      {postcardOpen && <WeatherPostcardModal isOpen={postcardOpen} onClose={() => setPostcardOpen(false)} weather={w} unit={unit} backgroundUrl={displayBg} />}
+      {postcardOpen && (
+        <WeatherPostcardModal
+          isOpen={postcardOpen}
+          onClose={() => setPostcardOpen(false)}
+          weather={w}
+          unit={unit}
+          backgroundUrl={displayBg}
+        />
+      )}
 
-      {guideOpen && <WeatherGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} initialTopic={guideTopic} />}
+      {guideOpen && (
+        <WeatherGuideModal
+          isOpen={guideOpen}
+          onClose={() => setGuideOpen(false)}
+          initialTopic={guideTopic}
+        />
+      )}
 
       {forecastModalOpen && (
         <ForecastDetailModal
@@ -769,6 +654,7 @@ export function WeatherView({
           unit={unit}
           type={forecastModalType}
           initialIndex={forecastModalIndex}
+          onTypeChange={(nextType) => setForecastModalType(nextType)}
         />
       )}
     </div>
