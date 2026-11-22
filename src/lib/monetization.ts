@@ -423,6 +423,27 @@ export const processPaymentReturnParams = (
   }
 };
 
+const AD_BONUS_KEY = "weather_pal_ad_slot_bonus_until";
+
+export function triggerAdSlotBonus(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+    localStorage.setItem(AD_BONUS_KEY, String(expiresAt));
+  } catch {}
+}
+
+export function hasActiveAdSlotBonus(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = localStorage.getItem(AD_BONUS_KEY);
+    if (!raw) return false;
+    return Number(raw) > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 export const isMedianAndroidApp = (): boolean => {
   if (typeof window === "undefined") return false;
   const w = window as unknown as {
