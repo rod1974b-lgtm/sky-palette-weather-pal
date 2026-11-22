@@ -7,15 +7,11 @@ import {
   type SavedItem,
   getSavedArtworks,
   saveSavedArtworks,
-  clearAllArtworksFromDB,
   applyCustomWallpaper,
   migrateLegacyLocalStorage,
 } from "@/lib/wallpaperStorage";
 import {
-  LANDMARK_WATERCOLORS,
-  LANDMARK_TITLES,
   saveCustomArtChoice,
-  getAllAvailableArtworks,
   compressImageFile,
 } from "@/lib/aiWatercolorGenerator";
 import { generateWatercolorFn } from "@/lib/aiWatercolor.functions";
@@ -26,7 +22,6 @@ import {
   showRewardedAdViaMedian,
   getPaidTier,
   getTierById,
-  isAdFreeActive,
   triggerAdSlotBonus,
   hasActiveAdSlotBonus,
 } from "@/lib/monetization";
@@ -40,7 +35,12 @@ export function ArtGalleryPage() {
   const navigate = useNavigate();
 
   const [savedArtworks, setSavedArtworks] = useState<SavedItem[]>([]);
-  const [currentPlace, setCurrentPlace] = useState<Place>({ name: "Bangkok", lat: 13.7563, lon: 100.5018, country: "Thailand" });
+  const [currentPlace, setCurrentPlace] = useState<Place>({
+    name: "Bangkok",
+    lat: 13.7563,
+    lon: 100.5018,
+    country: "Thailand",
+  });
   const [activeTab, setActiveTab] = useState<"slots" | "studio">("slots");
   const [paymentModalTier, setPaymentModalTier] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -105,13 +105,15 @@ export function ArtGalleryPage() {
     setGenerationError(null);
     try {
       const city = currentPlace.name === "Your Location" ? "Bangkok" : currentPlace.name;
-      const res = await generateWatercolorFn({ data: { city, prompt: aiPrompt.slice(0, 200) } });
-      if (!res?.url) {
-        throw new Error(res?.error || "Generation failed");
+      const res = await generateWatercolorFn({
+        data: { city, userPrompt: aiPrompt.slice(0, 200) },
+      });
+      if (!res?.imageUrl) {
+        throw new Error("Generation failed");
       }
       const newArt: SavedItem = {
         id: `ai-${Date.now()}`,
-        url: res.url,
+        url: res.imageUrl,
         title: aiPrompt ? aiPrompt.slice(0, 30) : `${city} AI Art`,
         city,
         timestamp: Date.now(),
