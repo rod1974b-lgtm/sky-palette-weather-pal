@@ -1,5 +1,5 @@
 // src/components/WeatherView.tsx
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type Weather,
@@ -7,8 +7,6 @@ import {
   describe,
   uvCategory,
   aqiCategory,
-  getWeatherAlert,
-  type WeatherAlert,
 } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
@@ -33,7 +31,8 @@ export interface TickerAlertItem {
 export interface WeatherViewProps {
   weather: Weather;
   unit: WeatherUnit;
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
+  isRefreshing?: boolean;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   activeAlerts?: TickerAlertItem[];
@@ -45,13 +44,15 @@ export interface WeatherViewProps {
 }
 
 function getConditionLabel(code: number, t: (k: string, fallback: string) => string): string {
-  return describe(code, t);
+  const res = describe(code, t);
+  return typeof res === "string" ? res : res.label;
 }
 
 export function WeatherView({
   weather: w,
   unit,
   onRefresh,
+  isRefreshing,
   isFavorite = false,
   onToggleFavorite,
   activeAlerts = [],
@@ -169,7 +170,10 @@ export function WeatherView({
           <button
             type="button"
             onClick={onRefresh}
-            className="h-8 w-8 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center justify-center shrink-0 cursor-pointer"
+            disabled={isRefreshing}
+            className={`h-8 w-8 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center justify-center shrink-0 cursor-pointer ${
+              isRefreshing ? "opacity-60 animate-spin" : ""
+            }`}
             title={t("refresh", "Refresh Weather")}
           >
             🔄
@@ -190,7 +194,7 @@ export function WeatherView({
         )}
       </section>
 
-      {/* 4. CURRENT WEATHER CONDITIONS & METRICS (Fixed Mobile Overflow) */}
+      {/* 4. CURRENT WEATHER CONDITIONS & METRICS */}
       <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3 min-w-0">
           <div className="min-w-0 flex-1">
@@ -223,7 +227,7 @@ export function WeatherView({
 
           <button
             type="button"
-            onClick={() => openGuide("all")}
+            onClick={() => openGuide("conditions")}
             className="px-2.5 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition border border-border/50 cursor-pointer flex items-center gap-1 shrink-0"
           >
             <span>💡</span>
@@ -254,7 +258,7 @@ export function WeatherView({
         {/* 6 Key Weather Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 text-xs pt-2">
           <div
-            onClick={() => openGuide("temp")}
+            onClick={() => openGuide("conditions")}
             className="p-3 rounded-2xl bg-muted/40 border border-border/50 cursor-pointer hover:bg-muted/70 transition"
           >
             <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1">
@@ -309,7 +313,9 @@ export function WeatherView({
               🍃 {t("aqi", "Air Quality")}
             </span>
             <p className="text-sm sm:text-base font-bold text-foreground mt-0.5">
-              AQI {w.current.aqi ?? "--"} ({aqiCategory(w.current.aqi, t)})
+              {w.current.aqi !== undefined
+                ? `AQI ${w.current.aqi} (${aqiCategory(w.current.aqi, t).label})`
+                : "AQI --"}
             </p>
           </div>
 
@@ -474,7 +480,7 @@ export function WeatherView({
       {/* 9. RAIN RADAR (Centered on city coordinates) */}
       <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={w.place.name} />
 
-      {/* 10. SUN & MOON TRACKER (Corrected prop passing) */}
+      {/* 10. SUN & MOON TRACKER */}
       <AstronomyTracker weather={w} />
 
       {/* MODALS */}
@@ -493,6 +499,7 @@ export function WeatherView({
           onClose={() => setPostcardOpen(false)}
           weather={w}
           unit={unit}
+          backgroundUrl={displayBg || ""}
         />
       )}
 
@@ -501,7 +508,6 @@ export function WeatherView({
           isOpen={guideOpen}
           onClose={() => setGuideOpen(false)}
           initialTopic={guideTopic}
-          unit={unit}
         />
       )}
 
