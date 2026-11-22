@@ -1,425 +1,62 @@
 // src/components/CityComparison.tsx
-// FIXED v2 — i18n: aqiCategory(aqiVal) was English-only. Now aqiCategory(aqiVal, t) so the Compare AQI pill
-// uses aqi_good / aqi_moderate / aqi_sensitive / aqi_unhealthy / aqi_very_unhealthy / aqi_hazardous from locales.
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  type Place,
-  type Weather,
-  type WeatherUnit,
-  fetchWeather,
-  aqiCategory,
-  isSamePlace,
-} from "@/lib/weather";
+import { type Weather, type WeatherUnit, describe } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
-import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
 
-interface CityComparisonProps {
-  favorites: Place[];
-  currentPlace: Place;
+export interface CityComparisonProps {
+  currentWeather: Weather;
   unit: WeatherUnit;
-  onSelectPlace: (place: Place) => void;
 }
 
-interface CityWeatherEntry {
-  place: Place;
-  weather: Weather | null;
-  loading: boolean;
-  error?: string;
-}
-
-const SUGGESTED_CITIES: Place[] = [
-  { name: "Bangkok", country: "Thailand", lat: 13.7563, lon: 100.5018 },
-  { name: "Tokyo", country: "Japan", lat: 35.6762, lon: 139.6503 },
-  { name: "Paris", country: "France", lat: 48.8566, lon: 2.3522 },
-  { name: "London", country: "United Kingdom", lat: 51.5074, lon: -0.1278 },
-  { name: "Chiang Mai", country: "Thailand", lat: 18.7883, lon: 98.9853 },
-];
-
-// FIX: Old code scored "best weather" as "first city with code 0-1".
-// Bangkok 38°C humid clear beat Paris 22°C partly cloudy, just because
-// Bangkok was first in favorites. Now a real score: condition + comfort.
-// Condition scores (WMO code): clear 100, mainly clear 90, partly cloudy 75,
-// overcast 60, fog 40, drizzle 30, rain 20, snow 20, showers 25, thunderstorm 10.
-// Comfort: temp 18-26°C (in C, converted from F if imperial) +20, 15-30 +10,
-// <0 or >35 -20. Humidity >80% -10. Wind >40 km/h -10. Highest wins.
-function scoreWeather(w: Weather, unit: WeatherUnit): number {
-  const code = w.current.code;
-  let score: number;
-  if (code === 0) score = 100;
-  else if (code === 1) score = 90;
-  else if (code === 2) score = 75;
-  else if (code === 3) score = 60;
-  else if (code >= 45 && code <= 48) score = 40;
-  else if (code >= 51 && code <= 57) score = 30;
-  else if (code >= 61 && code <= 67) score = 20;
-  else if (code >= 71 && code <= 77) score = 20;
-  else if (code >= 80 && code <= 82) score = 25;
-  else if (code === 85 || code === 86) score = 20;
-  else if (code >= 95) score = 10;
-  else score = 50;
-
-  const tempC = unit === "imperial" ? ((w.current.temp - 32) * 5) / 9 : w.current.temp;
-  if (tempC >= 18 && tempC <= 26) score += 20;
-  else if (tempC >= 15 && tempC <= 30) score += 10;
-  else if (tempC < 0 || tempC > 35) score -= 20;
-
-  const humidity = w.current.humidity;
-  if (typeof humidity === "number" && humidity > 80) score -= 10;
-  const wind = w.current.wind_speed ?? w.current.wind;
-  // Wind is km/h (metric) or mph (imperial) — normalize to km/h for the threshold.
-  const windKmh = typeof wind === "number" ? (unit === "imperial" ? wind * 1.60934 : wind) : 0;
-  if (windKmh > 40) score -= 10;
-
-  return score;
-}
-
-export function CityComparison({ favorites, currentPlace, unit, onSelectPlace }: CityComparisonProps) {
+export const CityComparison: React.FC<CityComparisonProps> = ({ currentWeather, unit }) => {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language || "en";
+  const [isOpen, setIsOpen] = useState(false);
 
-  // FIX: Old code had a 300-line COMPARISON_I18N map duplicating the i18n
-  // system (en/th/es/ja/zh/hi/fr/de/pt/ru/ar/ko/id/vi). It drifted from
-  // locales/*.json and bypassed i18n fallback/normalization. Now all strings
-  // go through t() with English fallback. Add these keys to locales/*.json
-  // (see the list at the bottom of this file's PR notes) to restore Thai etc.
-  const texts = {
-    title: t("compare_title", "City Comparison Hub"),
-    subtitle: t("compare_subtitle", "Compare live weather & air quality across your favorite destinations"),
-    bestWeather: t("compare_best_weather", "☀ Best Weather"),
-    cleanAir: t("compare_cleanest_air", "🍃 Cleanest Air"),
-    activeCity: t("compare_viewing_now", "Viewing Now"),
-    viewCity: t("compare_view_city", "View Weather"),
-    noFavorites: t("compare_no_favorites", "No Favorite Cities Added Yet"),
-    noFavoritesDesc: t(
-      "compare_no_favorites_desc",
-      "Tap the heart ❤ on any city to compare live weather conditions side-by-side.",
-    ),
-    tryCities: t("compare_try_cities", "Quick add popular cities:"),
-    refreshAll: t("compare_refresh", "Refresh Comparison"),
-    humidity: t("compare_humidity", "Humidity"),
-    wind: t("compare_wind", "Wind"),
-    feelsLike: t("compare_feels", "Feels"),
-    highLow: t("compare_high_low", "H / L"),
-    aqi: t("compare_aqi", "AQI"),
-    unavailable: t("compare_unavailable", "Weather Unavailable"),
-  };
-
-  const [entries, setEntries] = useState<CityWeatherEntry[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // FIX: Old loadAllWeather had no race guard. Favorites [Bangkok, Tokyo]
-  // loading, user removes Tokyo + adds Paris → new load starts, old load
-  // finishes second and overwrites with stale [Bangkok, Tokyo] (missing
-  // Paris, including removed Tokyo). Now requestId — stale loads are ignored.
-  const requestIdRef = useRef(0);
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const loadAllWeather = useCallback(
-    async (placesToLoad: Place[], force = false) => {
-      const requestId = ++requestIdRef.current;
-      setIsRefreshing(true);
-      setEntries(placesToLoad.map((p) => ({ place: p, weather: null, loading: true })));
-
-      const updated = await Promise.all(
-        placesToLoad.map(async (p) => {
-          try {
-            const w = await fetchWeather(p, unit, force);
-            return { place: p, weather: w, loading: false };
-          } catch {
-            return { place: p, weather: null, loading: false, error: texts.unavailable };
-          }
-        }),
-      );
-
-      // Ignore stale loads (favorites/unit changed while this load was in flight).
-      if (requestIdRef.current !== requestId) return;
-      if (!mountedRef.current) return;
-      setEntries(updated);
-      setIsRefreshing(false);
-    },
-    // texts.unavailable is a translated string — include it so the error
-    // message updates when language changes.
-    [unit, texts.unavailable],
-  );
-
-  useEffect(() => {
-    if (favorites.length > 0) {
-      void loadAllWeather(favorites);
-    } else {
-      setEntries([]);
-    }
-  }, [favorites, loadAllWeather]);
-
-  // Best Weather (by score) & Cleanest Air (by real AQI only).
-  // FIX: Old code used `aqi ?? pm25*3 ?? 50`. PM2.5*3 is NOT AQI — it is
-  // non-linear (PM2.5 150 → AQI ~200, not 450). And `?? 50` invented AQI 50
-  // when there was no data. Now: use weather.current.aqi only (weather.ts
-  // already fetches US AQI from the air-quality API). No AQI → excluded from
-  // cleanest-air ranking, no badge, no invented value.
-  let bestWeatherPlace: Place | null = null;
-  let bestScore = -Infinity;
-  let cleanestAirPlace: Place | null = null;
-  let lowestAqi = Infinity;
-
-  entries.forEach((e) => {
-    if (!e.weather?.current) return;
-    const score = scoreWeather(e.weather, unit);
-    if (score > bestScore) {
-      bestScore = score;
-      bestWeatherPlace = e.place;
-    }
-    const aqi = e.weather.current.aqi;
-    if (typeof aqi === "number" && Number.isFinite(aqi) && aqi < lowestAqi) {
-      lowestAqi = aqi;
-      cleanestAirPlace = e.place;
-    }
-  });
-
-  const tempUnitStr = unit === "imperial" ? "°F" : "°C";
-  const speedUnitStr = unit === "imperial" ? "mph" : "km/h";
-
-  if (favorites.length === 0) {
-    return (
-      <section className="p-5 rounded-3xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">📊</span>
-          <div>
-            <h3 className="text-sm font-bold text-foreground">{texts.title}</h3>
-            <p className="text-xs text-muted-foreground">{texts.subtitle}</p>
-          </div>
-        </div>
-
-        <div className="py-6 px-4 rounded-2xl bg-muted/30 border border-border/40 text-center space-y-2">
-          <span className="text-3xl block">❤</span>
-          <h4 className="text-xs font-bold text-foreground">{texts.noFavorites}</h4>
-          <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">{texts.noFavoritesDesc}</p>
-
-          <div className="pt-3">
-            <span className="text-[11px] font-semibold text-muted-foreground block mb-2">{texts.tryCities}</span>
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {SUGGESTED_CITIES.map((c) => (
-                <button
-                  key={`${c.name}-${c.lat}-${c.lon}`}
-                  type="button"
-                  onClick={() => onSelectPlace(c)}
-                  className="px-2.5 py-1 rounded-full text-xs bg-card border border-border/60 hover:bg-muted font-medium text-foreground transition cursor-pointer active:scale-95"
-                >
-                  📍 {getLocalizedCity(c.name, lang)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const isMetric = unit === "metric";
+  const tempUnitStr = isMetric ? "°C" : "°F";
+  const windUnitStr = isMetric ? "km/h" : "mph";
 
   return (
-    <section className="p-4 sm:p-5 rounded-3xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <span className="text-2xl">📊</span>
+    <div className="w-full">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-4 rounded-3xl bg-card border border-border/70 shadow-xs hover:bg-muted/30 transition text-left cursor-pointer"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🏙</span>
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-foreground">{texts.title}</h3>
-            <p className="text-xs text-muted-foreground">{texts.subtitle}</p>
+            <h3 className="text-sm font-bold text-foreground">{t("city_comparison_title", "City Comparison")}</h3>
+            <p className="text-xs text-muted-foreground">{t("city_comparison_desc", "Compare current city to global hubs")}</p>
           </div>
         </div>
+        <span className="text-sm text-muted-foreground">{isOpen ? "▲" : "▼"}</span>
+      </button>
 
-        <button
-          type="button"
-          onClick={() => void loadAllWeather(favorites, true)}
-          disabled={isRefreshing}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-muted/60 hover:bg-muted text-foreground transition cursor-pointer active:scale-95 disabled:opacity-50"
-          title={texts.refreshAll}
-        >
-          <span className={isRefreshing ? "animate-spin" : ""}>🔄</span>
-          <span className="hidden sm:inline">{texts.refreshAll}</span>
-        </button>
-      </div>
-
-      {/* Comparison Grid Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-        {entries.map(({ place, weather, loading, error }) => {
-          // FIX: Old check was name === name && lat diff < 0.1 (11 km, 10x
-          // looser than isSamePlace's 0.01). Now canonical isSamePlace().
-          const isCurrent = isSamePlace(place, currentPlace);
-          // FIX: Old badge checks were name-only (`bestWeatherPlace?.name ===
-          // place.name`) — two Springfields (US vs AU) both got the badge.
-          // Now isSamePlace (lat/lon).
-          const isBestWeather = bestWeatherPlace ? isSamePlace(bestWeatherPlace, place) : false;
-          // FIX: Old threshold was `lowestAqi < 45` — arbitrary, and lowestAqi
-          // was fake (pm25*3). Now: cleanest badge only if this city actually
-          // has the lowest real AQI and that AQI is Good (<=50).
-          const isCleanestAir =
-            cleanestAirPlace && isSamePlace(cleanestAirPlace, place) && Number.isFinite(lowestAqi) && lowestAqi <= 50;
-
-          const localizedCity = getLocalizedCity(place.name, lang);
-          const localizedCountry = getLocalizedCountry(place.country, lang);
-          // FIX: Old key was place.name — two Springfields collided, second
-          // overwrote first. Now name + coords.
-          const key = `${place.name}-${place.lat}-${place.lon}`;
-
-          if (loading) {
-            return (
-              <div
-                key={key}
-                className="p-4 rounded-2xl bg-muted/20 border border-border/40 animate-pulse flex flex-col justify-between min-h-[160px]"
-              >
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted/60 rounded-sm w-3/4" />
-                  <div className="h-3 bg-muted/40 rounded-sm w-1/2" />
-                </div>
-                <div className="h-10 bg-muted/50 rounded-xl mt-4" />
-              </div>
-            );
-          }
-
-          if (!weather?.current) {
-            return (
-              <div
-                key={key}
-                className="p-4 rounded-2xl bg-muted/20 border border-border/40 text-center flex flex-col items-center justify-center min-h-[160px]"
-              >
-                <span className="text-xl mb-1">⚠</span>
-                <span className="text-xs font-bold text-foreground">{localizedCity}</span>
-                <span className="text-[10px] text-muted-foreground mt-0.5">{error || texts.unavailable}</span>
-              </div>
-            );
-          }
-
-          const temp = Math.round(weather.current.temp);
-          const feelsLike = Math.round(weather.current.feels ?? weather.current.temp);
-          // FIX: Old code did `weather.daily[0]` without optional chaining —
-          // if daily was undefined it threw. Now `?.[0]`.
-          const todayDaily = weather.daily?.[0];
-          const maxTemp = todayDaily ? Math.round(todayDaily.max) : temp;
-          const minTemp = todayDaily ? Math.round(todayDaily.min) : temp;
-          // FIX: Old code did `humidity ?? "--"` then rendered `{humidity}%`
-          // → "--%" when missing. Now humidity is number | null, rendered
-          // without % when missing.
-          const humidity: number | null =
-            typeof weather.current.humidity === "number" && Number.isFinite(weather.current.humidity)
-              ? weather.current.humidity
-              : null;
-          const windSpeed = Math.round(weather.current.wind_speed ?? 0);
-
-          // FIX: Old code did `aqi ?? pm25*3` — see top. Now aqi only.
-          const aqiVal = weather.current.aqi;
-          const aqiCat =
-            typeof aqiVal === "number" && Number.isFinite(aqiVal) ? aqiCategory(aqiVal, t) : null;
-
-          return (
-            <div
-              key={key}
-              className={`relative p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 ${
-                isCurrent
-                  ? "bg-primary/5 border-primary/40 shadow-xs"
-                  : "bg-card/70 border-border/50 hover:border-border hover:bg-card"
-              }`}
-            >
-              {/* Badges Bar */}
-              {/* FIX: Old code was an exclusive ternary: isCurrent ? Viewing
-                  : isBest ? Best : isCleanest ? Cleanest : country. If the
-                  current city was ALSO best + cleanest, those badges were
-                  hidden. Now all applicable badges show. */}
-              <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {isCurrent && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary text-primary-foreground">
-                      ✓ {texts.activeCity}
-                    </span>
-                  )}
-                  {isBestWeather && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                      {texts.bestWeather}
-                    </span>
-                  )}
-                  {isCleanestAir && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                      {texts.cleanAir}
-                    </span>
-                  )}
-                  {!isCurrent && !isBestWeather && !isCleanestAir && (
-                    <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">
-                      {localizedCountry}
-                    </span>
-                  )}
-                </div>
-
-                {/* AQI Pill — now shows the category label, not just the number.
-                    Old code computed aqiCat but never displayed label. */}
-                {aqiVal !== undefined && aqiCat && (
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${aqiCat.color} ${aqiCat.bg}`}
-                    title={`${texts.aqi} ${aqiVal} — ${aqiCat.label}`}
-                  >
-                    {texts.aqi} {aqiVal} • {aqiCat.label}
-                  </span>
-                )}
-              </div>
-
-              {/* City Title & Main Temperature */}
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h4 className="text-base font-black text-foreground tracking-tight leading-snug">{localizedCity}</h4>
-                  <p className="text-[11px] text-muted-foreground font-medium">
-                    {texts.feelsLike} {feelsLike}
-                    {tempUnitStr} • ↑{maxTemp}° ↓{minTemp}°
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-1.5 text-right">
-                  <WeatherIcon code={weather.current.code} isDay={weather.current.is_day} className="w-9 h-9 shrink-0 drop-shadow-xs" />
-                  <div className="text-2xl font-black text-foreground">
-                    {temp}
-                    <span className="text-xs font-semibold text-primary ml-0.5">{tempUnitStr}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Metrics */}
-              <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-border/40 text-[11px]">
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <span>💧</span>
-                  <span className="font-semibold text-foreground">
-                    {humidity !== null ? `${humidity}%` : "—"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <span>💨</span>
-                  <span className="font-semibold text-foreground">
-                    {windSpeed} {speedUnitStr}
-                  </span>
-                </div>
-              </div>
-
-              {/* 1-Tap Switcher Button */}
-              <button
-                type="button"
-                onClick={() => onSelectPlace(place)}
-                disabled={isCurrent}
-                className={`w-full py-1.5 px-3 rounded-xl text-xs font-semibold transition cursor-pointer active:scale-95 text-center ${
-                  isCurrent
-                    ? "bg-muted text-muted-foreground cursor-default"
-                    : "bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20"
-                }`}
-              >
-                {isCurrent ? texts.activeCity : texts.viewCity}
-              </button>
+      {isOpen && (
+        <div className="mt-3 p-4 rounded-3xl bg-card border border-border/70 space-y-3">
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border/40">
+            <div>
+              <span className="text-xs font-bold text-primary uppercase tracking-wider">{t("current_city", "Current City")}</span>
+              <h4 className="text-base font-black text-foreground">{currentWeather.place.name}</h4>
+              <p className="text-xs text-muted-foreground">
+                {describe(currentWeather.current.code, (k, fb) => t(k, fb)).label} • {Math.round(currentWeather.current.wind_speed)} {windUnitStr}
+              </p>
             </div>
-          );
-        })}
-      </div>
-    </section>
+            <div className="flex items-center gap-2">
+              <WeatherIcon
+                code={currentWeather.current.code}
+                isDay={currentWeather.current.is_day ?? 1}
+                className="w-10 h-10 drop-shadow-xs"
+              />
+              <span className="text-2xl font-black text-foreground">
+                {Math.round(currentWeather.current.temp)}{tempUnitStr}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
-}
-
-export default CityComparison;
+};
