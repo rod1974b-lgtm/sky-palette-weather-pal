@@ -4,27 +4,32 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { applyPersistedLanguage } from "@/lib/i18n";
 import {
-  type SavedArtwork,
+  type SavedItem,
   getSavedArtworks,
-  saveArtworkToDB,
-  deleteArtworkFromDB,
+  saveSavedArtworks,
+  clearAllArtworksFromDB,
+  applyCustomWallpaper,
   migrateLegacyLocalStorage,
 } from "@/lib/wallpaperStorage";
 import {
-  generateAiWatercolor,
-  isAiGenerationConfigured,
-  compressImage,
+  LANDMARK_WATERCOLORS,
+  LANDMARK_TITLES,
+  saveCustomArtChoice,
+  getAllAvailableArtworks,
+  compressImageFile,
 } from "@/lib/aiWatercolorGenerator";
+import { generateWatercolorFn } from "@/lib/aiWatercolor.functions";
+import { PaymentModal } from "@/components/PaymentModal";
+import { getLocalizedCity } from "@/lib/placeLocalization";
+import { loadLastPlace, saveLastPlace, type Place } from "@/lib/weather";
 import {
+  showRewardedAdViaMedian,
   getPaidTier,
   getTierById,
   isAdFreeActive,
   triggerAdSlotBonus,
   hasActiveAdSlotBonus,
 } from "@/lib/monetization";
-import { PaymentModal } from "@/components/PaymentModal";
-import { getLocalizedCity } from "@/lib/placeLocalization";
-import { loadLastPlace, saveLastPlace, type Place } from "@/lib/weather";
 
 export const Route = createFileRoute("/gallery")({
   component: ArtGalleryPage,
@@ -34,7 +39,7 @@ export function ArtGalleryPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
-  const [savedArtworks, setSavedArtworks] = useState<SavedArtwork[]>([]);
+  const [savedArtworks, setSavedArtworks] = useState<SavedItem[]>([]);
   const [currentPlace, setCurrentPlace] = useState<Place>({ name: "Bangkok", lat: 13.7563, lon: 100.5018, country: "Thailand" });
   const [activeTab, setActiveTab] = useState<"slots" | "studio">("slots");
   const [paymentModalTier, setPaymentModalTier] = useState<string | null>(null);
@@ -65,21 +70,29 @@ export function ArtGalleryPage() {
   }, [tierConfig, adBonus]);
 
   const handleWatchAd = () => {
-    triggerAdSlotBonus();
-    alert(t("ad_bonus_unlocked", "Bonus slot unlocked for 24 hours!"));
+    showRewardedAdViaMedian(
+      () => {
+        triggerAdSlotBonus();
+        alert(t("ad_bonus_unlocked", "Bonus slot unlocked for 24 hours!"));
+      },
+      (err) => {
+        alert(err.message || "Could not show rewarded ad.");
+      }
+    );
   };
 
-  const handleApplyArt = async (art: SavedArtwork) => {
-    localStorage.setItem("weather:custom-hero-art", art.url);
+  const handleApplyArt = async (art: SavedItem) => {
+    await applyCustomWallpaper(currentPlace.name, art.url);
+    saveCustomArtChoice(currentPlace.name, art.url);
     saveLastPlace(currentPlace);
     alert(t("wallpaper_applied", "Artwork applied to weather screen!"));
     void navigate({ to: "/" });
   };
 
   const handleDeleteArt = async (id: string) => {
-    await deleteArtworkFromDB(id);
-    const updated = await getSavedArtworks();
-    setSavedArtworks(updated);
+    const remaining = savedArtworks.filter((a) => a.id !== id);
+    await saveSavedArtworks(remaining);
+    setSavedArtworks(remaining);
   };
 
   const handleGenerateAi = async () => {
@@ -92,20 +105,19 @@ export function ArtGalleryPage() {
     setGenerationError(null);
     try {
       const city = currentPlace.name === "Your Location" ? "Bangkok" : currentPlace.name;
-      const res = await generateAiWatercolor(city, 0, aiPrompt.slice(0, 200));
-      if (!res.success || !res.url) {
-        throw new Error(res.error || "Generation failed");
+      const res = await generateWatercolorFn({ data: { city, prompt: aiPrompt.slice(0, 200) } });
+      if (!res?.url) {
+        throw new Error(res?.error || "Generation failed");
       }
-      const newArt: SavedArtwork = {
+      const newArt: SavedItem = {
         id: `ai-${Date.now()}`,
         url: res.url,
         title: aiPrompt ? aiPrompt.slice(0, 30) : `${city} AI Art`,
         city,
-        createdAt: Date.now(),
-        type: "ai",
+        timestamp: Date.now(),
       };
-      await saveArtworkToDB(newArt);
-      const updated = await getSavedArtworks();
+      const updated = [newArt, ...savedArtworks];
+      await saveSavedArtworks(updated);
       setSavedArtworks(updated);
       setAiPrompt("");
       setActiveTab("slots");
@@ -131,24 +143,17 @@ export function ArtGalleryPage() {
     }
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const rawUrl = ev.target?.result as string;
-        if (!rawUrl) return;
-        const compressed = await compressImage(rawUrl, 1024, 0.82);
-        const newArt: SavedArtwork = {
-          id: `upload-${Date.now()}`,
-          url: compressed,
-          title: file.name.slice(0, 30),
-          city: currentPlace.name,
-          createdAt: Date.now(),
-          type: "custom",
-        };
-        await saveArtworkToDB(newArt);
-        const updated = await getSavedArtworks();
-        setSavedArtworks(updated);
+      const compressed = await compressImageFile(file, 1024, 0.82);
+      const newArt: SavedItem = {
+        id: `upload-${Date.now()}`,
+        url: compressed,
+        title: file.name.slice(0, 30),
+        city: currentPlace.name,
+        timestamp: Date.now(),
       };
-      reader.readAsDataURL(file);
+      const updated = [newArt, ...savedArtworks];
+      await saveSavedArtworks(updated);
+      setSavedArtworks(updated);
     } catch {
       alert("Failed to process uploaded photo.");
     } finally {
@@ -170,13 +175,12 @@ export function ArtGalleryPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Tier Status Banner */}
         <section className="p-4 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xl">🏆</span>
               <h2 className="text-base font-bold text-foreground">
-                {tierConfig ? tierConfig.tierKey.toUpperCase() + " VIP" : t("tier_free", "Free Tier")}
+                {tierConfig ? tierConfig.name : t("tier_free", "Free Tier")}
               </h2>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -205,7 +209,6 @@ export function ArtGalleryPage() {
           </div>
         </section>
 
-        {/* Tab Controls */}
         <div className="flex items-center gap-2 border-b border-border/50 pb-2">
           <button
             type="button"
