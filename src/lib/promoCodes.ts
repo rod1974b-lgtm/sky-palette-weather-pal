@@ -1,811 +1,133 @@
-// src/lib/weather.ts
-// FIXED v2 — i18n: describe / uvCategory / aqiCategory / getWeatherAlert now take an optional translate function.
-// Before: they returned hardcoded English ("Clear", "Good", "Severe thunderstorm warning...").
-//   WeatherView had its own translated copies, but CityComparison used aqiCategory() directly,
-//   so its AQI pill was English-only. Any future caller of describe()/getWeatherAlert() would also be English-only.
-// After: pass t from useTranslation(), e.g. describe(code, t), aqiCategory(aqi, t), getWeatherAlert(w, t).
-//   Without t, they still fall back to the same English strings, so old callers keep working.
-//   Callers that pass t get fully translated labels from locales/*.json (256 keys).
-// New locale keys used here (all in main files, so they win over extras):
-//   cond_*, aqi_*, uv_*, alert_thunderstorm_warning, alert_rain_slick, alert_snow_slick
+// src/lib/promoCodes.ts
+import { saveThankYouBackgroundForever } from "@/lib/monetization";
 
-export type TranslateFn = (key: string, fallback: string) => string;
-function tr(t: TranslateFn | undefined, key: string, fallback: string): string {
-  try {
-    return t ? t(key, fallback) : fallback;
-  } catch {
-    return fallback;
+const REDEEMED_CODES_KEY = "weather:redeemed-promo-codes";
+
+/**
+ * SHA-256 Hashes of the 20 single-use master codes.
+ * The raw codes are never stored in plain text in the codebase.
+ */
+const VAULT_CODE_HASHES = new Set<string>([
+  "0c0aada6d38255ee2e72e4cffc5a15d55421fab4c02faf7ce078e829fbab153b", // PAL-JGUW-ZY7N
+  "c2e600c025e432ed7ce36a03f12116c61b742573b7086987559066c95dc176b1", // PAL-RMDF-EJ43
+  "eb12240b2c9eaeacd589b2f94e4506a453a4b25f5f89d8dc550e62288a768fed", // PAL-EEP7-WL8W
+  "413a04fee2ba4a8db649f8ba7fbefb766e662fadcaaaab9f60972f6eeeb924d8", // PAL-VJEZ-YGCG
+  "264a5de763c5095be4d20fb553a81bd9298f3933feea62091291bbcf258432cf", // PAL-LHTP-ETQN
+  "29473928c1a98325884bc5292a4d1d42cf686c63f6ada41ec5d3f666e5de3a79", // PAL-EEKU-P36Z
+  "5ec7a7522297940700e6535a069f066b76f82131ec4247ef450c692ff2d0958f", // PAL-ARQW-PK8Z
+  "a5e9f9c9cfd6604ae01da60fbe018bac26fd189f7ef74c626005cda3f3ad6c48", // PAL-5HXA-Z5YH
+  "c1bb79c97a530b886bb72c6cd1ce368f7f81859db45850e24f59187a177392d6", // PAL-KKE4-AZ8K
+  "9762d617d2d8cbcb07fca614fee459198d3243042b0aec27f84ef5d8511ced14", // PAL-VN53-55ZK
+  "c027bf8c239486504ef37ad7cb1a6b907fafb10ca5b077914150eb9a51c2542e", // PAL-JGAK-UECS
+  "4785a959483c64f54634bc663d783e8df3d79c2956571e09c5f038ffbabf5cae", // PAL-MWCL-3TLL
+  "44d4f10f10e2a348781d54f49263f80b5f64e1213511add4fd241315553780f3", // PAL-762X-T9G4
+  "67c9b1647eff54d9be70842af4c162364e37329356d969fa0fec0efae87c76d8", // PAL-UUJ5-TJ7G
+  "69c35090fa14194d4144b0bd4102d0416f1cad14e8fdecb26aa09f1a1d36b74e", // PAL-LMZL-BTAT
+  "ea3869a31f45a40741ef500d33bcd36049e7a95201669576834dabc06ce78c62", // PAL-HG6C-R9VC
+  "037b1ba23a5d7e3a574deac36f21cc451dd1f5407325839806a25b183e2394ca", // PAL-A8US-T234
+  "423a480d0177f5ebbe3a42ab2c5ad6d53206e6c08f6557ff9a894ad6f4d688be", // PAL-22VB-TUBJ
+  "36b78a00db5ecc790efab783dedb7e46e009a4fe510bac010316f231cc165c5e", // PAL-E4KE-UFZX
+  "36eb8e964f80dc6e6df0e58490d1ea38195d4ef089058c70cd2144f7bcf5d07d", // PAL-VW3N-BY8Y
+]);
+
+/**
+ * Browser-native SHA-256 hasher using Web Crypto API.
+ */
+async function computeSha256(str: string): Promise<string> {
+  const enc = new TextEncoder();
+  const buf = await window.crypto.subtle.digest("SHA-256", enc.encode(str));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Standardize code string: remove whitespace, convert to uppercase,
+ * format consistently as PAL-XXXX-XXXX if prefixes were omitted.
+ */
+export function normalizePromoCode(raw: string): string {
+  let cleaned = raw.trim().toUpperCase().replace(/\s+/g, "");
+  if (!cleaned.startsWith("PAL-") && cleaned.length === 8) {
+    cleaned = `PAL-${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
   }
+  return cleaned;
 }
 
-// src/lib/weather.ts
-export type Place = {
-  name: string;
-  country?: string;
-  // Admin region (state / province) from geocoding, e.g. "Chon Buri".
-  // Kept SEPARATE from `name` — see searchCity() fix below.
-  admin1?: string;
-  lat: number;
-  lon: number;
-};
-
-export type WeatherUnit = "metric" | "imperial";
-
-export type Weather = {
-  place: Place;
-  fetchedAt: number;
-  unit: WeatherUnit;
-  /** True when this came from cache because the network failed. UI can show "Offline — cached". */
-  isStale?: boolean;
-  current: {
-    temp: number;
-    code: number;
-    wind: number;
-    wind_speed: number;
-    wind_dir?: number;
-    feels: number;
-    humidity: number;
-    uv: number;
-    uvIndex: number;
-    precipitation: number;
-    pressure: number;
-    vis: number; // visibility in km
-    aqi?: number | undefined; // US AQI (0-500)
-    pm25?: number | undefined; // PM2.5 in µg/m³
-    pm10?: number | undefined; // PM10 in µg/m³
-    is_day?: number;
-  };
-  sun: {
-    sunrise: string;
-    sunset: string;
-  };
-  hourly: {
-    time: string;
-    temp: number;
-    code: number;
-    precipProb: number;
-    pop: number;
-    is_day?: number;
-  }[];
-  daily: {
-    date: string;
-    max: number;
-    min: number;
-    code: number;
-    precipProbMax: number;
-    pop: number;
-    sunrise?: string;
-    sunset?: string;
-  }[];
-};
-
-export const BANGKOK_DEFAULT: Place = {
-  name: "Bangkok",
-  country: "Thailand",
-  lat: 13.7563,
-  lon: 100.5018,
-};
-
-const LEGACY_CACHE_KEY = "weather:last";
-const UNIT_KEY = "weather:unit-pref";
-const LAST_PLACE_KEY = "weather:last-place";
-// FIX: index.tsx used "weather:favorites:v1" while this file used
-// "weather:favorites". Two separate favorites lists that never synced.
-// Unified to a single key. index.tsx v3 must import this constant.
-// (Exported so callers cannot drift again.)
-export const FAVORITES_KEY = "weather:favorites:v1";
-const CACHE_PREFIX = "weather:cache:v2:";
-
-// Cache Time-To-Live Windows
-const FRESH_TTL_MS = 10 * 60 * 1000; // 10 minutes: serve instantly without network
-const MAX_OFFLINE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours: keep available for offline
-const MAX_CACHE_ENTRIES = 20; // localStorage eviction cap — old code never evicted
-
-// In-flight deduplication registry
-const inFlightRequests = new Map<string, Promise<Weather>>();
-
-// In-memory geocoding search cache
-const searchCache = new Map<string, { timestamp: number; results: Place[] }>();
-const SEARCH_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-// [STRIPPED 77 bytes] Validation — every Place coming from localStorage / URL / API
-// must pass through here, otherwise a tampered value (NaN, 999, null)
-// propagates into a fetch for invalid coords and a broken UI.
-// [STRIPPED 75 bytes]
-
-function isFiniteLatLon(lat: unknown, lon: unknown): lat is number {
-  return (
-    typeof lat === "number" &&
-    typeof lon === "number" &&
-    Number.isFinite(lat) &&
-    Number.isFinite(lon) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lon >= -180 &&
-    lon <= 180
-  );
-}
-
-export function isValidPlace(p: unknown): p is Place {
-  if (!p || typeof p !== "object") return false;
-  const place = p as Partial<Place>;
-  return (
-    typeof place.name === "string" &&
-    place.name.trim().length > 0 &&
-    isFiniteLatLon(place.lat, place.lon) &&
-    (place.country === undefined || typeof place.country === "string") &&
-    (place.admin1 === undefined || typeof place.admin1 === "string")
-  );
-}
-
-function normalizePlace(p: Place): Place {
-  const out: Place = { name: p.name.trim(), lat: p.lat, lon: p.lon };
-  if (typeof p.country === "string" && p.country) out.country = p.country;
-  if (typeof p.admin1 === "string" && p.admin1) out.admin1 = p.admin1;
-  return out;
-}
-
-export function loadUnitPref(): WeatherUnit {
+export function getRedeemedHashes(): string[] {
+  if (typeof window === "undefined") return [];
   try {
-    const saved = localStorage.getItem(UNIT_KEY);
-    return saved === "imperial" ? "imperial" : "metric";
-  } catch {
-    return "metric";
-  }
-}
-
-export function saveUnitPref(unit: WeatherUnit): void {
-  // FIX: Old code saved any string passed in. Now only metric/imperial.
-  if (unit !== "metric" && unit !== "imperial") return;
-  try {
-    localStorage.setItem(UNIT_KEY, unit);
-  } catch {}
-}
-
-export function loadLastPlace(): Place | null {
-  try {
-    const raw = localStorage.getItem(LAST_PLACE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isValidPlace(parsed)) return null;
-    return normalizePlace(parsed as Place);
-  } catch {
-    return null;
-  }
-}
-
-export function saveLastPlace(place: Place): void {
-  // FIX: Old code saved any Place, including NaN / 999 coords from a bad GPS
-  // fix. That poisoned the next load. Now invalid places are rejected.
-  if (!isValidPlace(place)) return;
-  try {
-    localStorage.setItem(LAST_PLACE_KEY, JSON.stringify(normalizePlace(place)));
-  } catch {}
-}
-
-export function loadFavorites(): Place[] {
-  try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidPlace).map((p) => normalizePlace(p as Place));
+    const raw = localStorage.getItem(REDEEMED_CODES_KEY);
+    return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-export function saveFavorites(favorites: Place[]): void {
+export function markHashRedeemed(hash: string): void {
+  if (typeof window === "undefined") return;
   try {
-    const valid = Array.isArray(favorites)
-      ? favorites.filter(isValidPlace).map((p) => normalizePlace(p as Place))
-      : [];
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(valid));
-  } catch {}
-}
-
-export function isSamePlace(a: Place | null | undefined, b: Place | null | undefined): boolean {
-  // FIX: Old code was `(lat/lon close) || a.name === b.name`.
-  // That made "Springfield, US" === "Springfield, AU", and "Bangkok"
-  // (Bangkok, Thailand) === any other place also named Bangkok.
-  // It also broke fetchWeather's legacy fallback: a cached place with the
-  // same name but different coords was returned as if it were the same city.
-  // index.tsx already used lat/lon-only — this file now matches it.
-  if (!a || !b) return false;
-  if (!isFiniteLatLon(a.lat, a.lon) || !isFiniteLatLon(b.lat, b.lon)) return false;
-  return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01;
-}
-
-export function isFavorite(favorites: Place[], place: Place): boolean {
-  if (!Array.isArray(favorites) || !place) return false;
-  return favorites.some((f) => isSamePlace(f, place));
-}
-
-function formatSunTime(iso?: string): string {
-  if (!iso) return "--:--";
-  try {
-    const d = new Date(iso);
-    return isNaN(d.getTime())
-      ? "--:--"
-      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "--:--";
-  }
-}
-
-function buildCacheKey(lat: number, lon: number, unit: WeatherUnit): string {
-  // Normalize -0.00 -> 0.00 so (-0.001, 0.001) near equator / prime meridian
-  // don't create duplicate cache entries for the same grid cell.
-  const rLat = Math.round(lat * 100) / 100;
-  const rLon = Math.round(lon * 100) / 100;
-  const normLat = Object.is(rLat, -0) ? 0 : rLat;
-  const normLon = Object.is(rLon, -0) ? 0 : rLon;
-  return `${CACHE_PREFIX}${normLat.toFixed(2)}_${normLon.toFixed(2)}_${unit}`;
-}
-
-function getCachedWeather(key: string): { weather: Weather; isFresh: boolean } | null {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    // FIX: Old code only checked parsed?.current + fetchedAt. A corrupted
-    // cache with missing hourly/daily would pass and crash WeatherView.
-    if (!parsed || typeof parsed !== "object") return null;
-    const w = parsed as Partial<Weather>;
-    if (!w.current || typeof w.fetchedAt !== "number") return null;
-    if (typeof w.current.temp !== "number" || !Number.isFinite(w.current.temp)) return null;
-    if (!Array.isArray(w.hourly) || !Array.isArray(w.daily)) return null;
-    if (!isValidPlace(w.place)) return null;
-
-    const age = Date.now() - w.fetchedAt;
-    if (age > MAX_OFFLINE_AGE_MS) return null;
-
-    return {
-      weather: w as Weather,
-      isFresh: age < FRESH_TTL_MS,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function evictOldCacheEntries(): void {
-  try {
-    const keys: { key: string; fetchedAt: number }[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(CACHE_PREFIX)) {
-        let fetchedAt = 0;
-        try {
-          const raw = localStorage.getItem(k);
-          if (raw) fetchedAt = (JSON.parse(raw) as Partial<Weather>).fetchedAt ?? 0;
-        } catch {}
-        keys.push({ key: k, fetchedAt });
-      }
-    }
-    if (keys.length <= MAX_CACHE_ENTRIES) return;
-    keys.sort((a, b) => a.fetchedAt - b.fetchedAt);
-    const toDelete = keys.slice(0, keys.length - MAX_CACHE_ENTRIES);
-    for (const { key } of toDelete) {
-      try {
-        localStorage.removeItem(key);
-      } catch {}
+    const redeemed = getRedeemedHashes();
+    if (!redeemed.includes(hash)) {
+      redeemed.push(hash);
+      localStorage.setItem(REDEEMED_CODES_KEY, JSON.stringify(redeemed));
     }
   } catch {}
 }
 
-function setCachedWeather(key: string, weather: Weather): void {
-  try {
-    const payload = JSON.stringify(weather);
-    try {
-      localStorage.setItem(key, payload);
-    } catch (e) {
-      // QuotaExceeded — evict oldest cache entries and retry once.
-      // Old code never evicted, so after ~20 places localStorage filled up
-      // and ALL saves (cache, last place, favorites) started failing.
-      if (e instanceof DOMException && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED")) {
-        evictOldCacheEntries();
-        try {
-          localStorage.setItem(key, payload);
-        } catch {}
-      }
-    }
-    try {
-      localStorage.setItem(LEGACY_CACHE_KEY, payload);
-    } catch {}
-  } catch {}
+export interface PromoRedeemResult {
+  success: boolean;
+  message: string;
+  tierId?: string;
 }
 
 /**
- * Robust fetch with exponential backoff for HTTP 429 and transient 5xx errors.
- * Adds a 15s timeout when the caller did not provide a signal.
+ * Validates the entered code against the cryptographic vault.
+ * Burns and expires the code upon successful single-use redemption.
  */
-async function fetchWithRetry(
-  url: string,
-  retries = 2,
-  delayMs = 600,
-  signal?: AbortSignal
-): Promise<Response> {
-  // Timeout: if caller gave no signal, create one that aborts after 15s.
-  // Otherwise a hung Open-Meteo request would hang fetchWeather forever.
-  const timeoutSignal =
-    !signal && typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
-      ? AbortSignal.timeout(15000)
-      : undefined;
-  const effectiveSignal = signal ?? timeoutSignal;
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    if (effectiveSignal?.aborted) {
-      throw new DOMException("Aborted", "AbortError");
-    }
-    try {
-      const res = await fetch(url, { signal: effectiveSignal ?? null });
-      if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
-        if (attempt < retries) {
-          await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt) + Math.random() * 200));
-          continue;
-        }
-      }
-      return res;
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") throw err;
-      if (err instanceof Error && (err as Error & { name?: string }).name === "AbortError") throw err;
-      if (attempt === retries) throw err;
-      // Don't sleep past an abort — check signal before retrying.
-      if (effectiveSignal?.aborted) throw err;
-      await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt)));
-    }
-  }
-  throw new Error("Network request failed after retries");
-}
-
-export async function searchCity(
-  q: string,
-  lang: string = "en",
-  signal?: AbortSignal
-): Promise<Place[]> {
-  const query = q.trim().toLowerCase();
-  if (!query) return [];
-
-  // FIX: Old code passed `language=${cleanLang}` where cleanLang came from
-  // the caller (often i18n.language = "th"). Open-Meteo then returned Thai
-  // names ("กรุงเทพมหานคร"), which getLocalizedCity() can never map —
-  // CITY_DICTIONARY keys are English ("bangkok"). Localization silently failed
-  // for every city where the user searched in a non-English UI language.
-  // Always request English from Open-Meteo. The `lang` param is kept for
-  // backward compat but intentionally ignored for the API call.
-  void lang;
-  const apiLang = "en";
-  const cacheKey = `${query}:${apiLang}`;
-
-  const cached = searchCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_TTL_MS) {
-    // Return a copy — caller mutation must not poison the cache.
-    return cached.results.map((p) => ({ ...p }));
+export async function redeemPromoCode(inputCode: string): Promise<PromoRedeemResult> {
+  const normalized = normalizePromoCode(inputCode);
+  if (!normalized) {
+    return { success: false, message: "Please enter a promo code." };
   }
 
-  // FIX: Old code used plain fetch() with no retry, so a single 429 failed
-  // the whole search. Now uses fetchWithRetry.
-  const r = await fetchWithRetry(
-    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&format=json&language=${apiLang}`,
-    2,
-    600,
-    signal
-  );
+  const hash = await computeSha256(normalized);
 
-  if (!r.ok) throw new Error("Search failed");
-  const j: unknown = await r.json();
-  const resultsRaw = (j as { results?: unknown }).results;
-  const resultsList = Array.isArray(resultsRaw) ? resultsRaw : [];
-
-  // FIX: Old code did `name: "${x.name}, ${x.admin1}"` when admin1 differed.
-  // That produced "Pattaya, Chon Buri" as the city NAME, which
-  // getLocalizedCity("Pattaya, Chon Buri") can never map (key is "pattaya").
-  // Favorites then stored the combined string, so localization broke for
-  // every city where admin1 != name. Now name is pure city, admin1 is separate.
-  const results: Place[] = resultsList
-    .map((x) => {
-      const rec = x as Record<string, unknown>;
-      const name = typeof rec["name"] === "string" ? rec["name"] : "";
-      const lat = rec["latitude"];
-      const lon = rec["longitude"];
-      if (!name || !isFiniteLatLon(lat, lon)) return null;
-      const place: Place = {
-        name,
-        lat: lat as number,
-        lon: lon as number,
-      };
-      if (typeof rec["country"] === "string" && rec["country"]) place.country = rec["country"] as string;
-      if (typeof rec["admin1"] === "string" && rec["admin1"]) place.admin1 = rec["admin1"] as string;
-      return place;
-    })
-    .filter((p): p is Place => p !== null);
-
-  if (searchCache.size >= 40) {
-    const oldestKey = searchCache.keys().next().value;
-    if (oldestKey) searchCache.delete(oldestKey);
-  }
-  searchCache.set(cacheKey, {
-    timestamp: Date.now(),
-    results: results.map((p) => ({ ...p })),
-  });
-
-  return results.map((p) => ({ ...p }));
-}
-
-export async function fetchWeather(
-  place: Place,
-  unit: WeatherUnit = "metric",
-  forceRefresh = false,
-  signal?: AbortSignal
-): Promise<Weather> {
-  // FIX: Old code fell back to Bangkok coords but kept the original (possibly
-  // null / invalid) `place` object in the returned Weather, so UI would show
-  // Bangkok weather with a broken place name. Now invalid places become
-  // the full Bangkok default.
-  const safePlace: Place = isValidPlace(place) ? normalizePlace(place) : { ...BANGKOK_DEFAULT };
-  const safeLat = safePlace.lat;
-  const safeLon = safePlace.lon;
-
-  const cacheKey = buildCacheKey(safeLat, safeLon, unit);
-
-  // 1. Instant Cache Return if not force-refreshed and data is fresh (< 10 min)
-  if (!forceRefresh) {
-    const cachedEntry = getCachedWeather(cacheKey);
-    if (cachedEntry && cachedEntry.isFresh) {
-      return { ...cachedEntry.weather, place: safePlace, isStale: false };
-    }
-  }
-
-  // 2. In-flight promise deduplication (prevent concurrent twin calls)
-  const existingInFlight = inFlightRequests.get(cacheKey);
-  if (existingInFlight && !forceRefresh) {
-    return existingInFlight;
-  }
-
-  const fetchPromise = (async (): Promise<Weather> => {
-    const tempUnit = unit === "imperial" ? "fahrenheit" : "celsius";
-    const windUnit = unit === "imperial" ? "mph" : "kmh";
-    const precipUnit = unit === "imperial" ? "inch" : "mm";
-
-    const weatherUrl =
-      `https://api.open-meteo.com/v1/forecast?latitude=${safeLat}&longitude=${safeLon}` +
-      `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,uv_index,precipitation,is_day,surface_pressure,visibility` +
-      `&hourly=temperature_2m,weather_code,precipitation_probability,is_day` +
-      `&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max` +
-      `&temperature_unit=${tempUnit}&wind_speed_unit=${windUnit}&precipitation_unit=${precipUnit}` +
-      `&timezone=auto&forecast_days=7`;
-
-    const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${safeLat}&longitude=${safeLon}&current=us_aqi,pm2_5,pm10`;
-
-    try {
-      // FIX: Old code called fetchWithRetry without a signal, so fetchWeather
-      // could never be cancelled. Now the caller's AbortSignal is forwarded,
-      // so a rapid city switch can abort the stale request instead of letting
-      // it resolve later and overwrite the new city's weather (race).
-      const [weatherRes, aqiRes] = await Promise.allSettled([
-        fetchWithRetry(weatherUrl, 2, 600, signal).then((r) => {
-          if (!r.ok) throw new Error("Weather request failed");
-          return r.json() as Promise<Record<string, unknown>>;
-        }),
-        fetchWithRetry(aqiUrl, 2, 600, signal).then((r) => (r.ok ? (r.json() as Promise<Record<string, unknown>>) : null)),
-      ]);
-
-      if (weatherRes.status === "rejected") {
-        throw new Error("Weather request failed");
-      }
-
-      const j = weatherRes.value as {
-        current?: Record<string, unknown>;
-        hourly?: { time?: string[]; temperature_2m?: number[]; weather_code?: number[]; precipitation_probability?: number[]; is_day?: number[] };
-        daily?: {
-          time?: string[];
-          temperature_2m_max?: number[];
-          temperature_2m_min?: number[];
-          weather_code?: number[];
-          precipitation_probability_max?: number[];
-          sunrise?: string[];
-          sunset?: string[];
-        };
-      };
-
-      let aqi: number | undefined;
-      let pm25: number | undefined;
-      let pm10: number | undefined;
-
-      if (aqiRes.status === "fulfilled" && aqiRes.value) {
-        const curAqi = (aqiRes.value as { current?: Record<string, unknown> }).current;
-        if (curAqi && typeof curAqi["us_aqi"] === "number" && !isNaN(curAqi["us_aqi"] as number)) {
-          aqi = Math.round(curAqi["us_aqi"] as number);
-        }
-        if (curAqi && typeof curAqi["pm2_5"] === "number" && !isNaN(curAqi["pm2_5"] as number)) {
-          pm25 = Math.round((curAqi["pm2_5"] as number) * 10) / 10;
-        }
-        if (curAqi && typeof curAqi["pm10"] === "number" && !isNaN(curAqi["pm10"] as number)) {
-          pm10 = Math.round((curAqi["pm10"] as number) * 10) / 10;
-        }
-      }
-
-      const current = j.current ?? {};
-      const hourlyData = j.hourly ?? {};
-      const dailyData = j.daily ?? {};
-
-      const currentHourIso =
-        typeof current["time"] === "string" ? (current["time"] as string).slice(0, 13) + ":00" : "";
-      const hourlyTimes = Array.isArray(hourlyData.time) ? hourlyData.time : [];
-      let startIdx = currentHourIso ? hourlyTimes.findIndex((t) => t >= currentHourIso) : 0;
-      // FIX: Old code set startIdx = 0 when findIndex returned -1 (current time
-      // past last hourly time). That showed hours from 7 days ago. Now show
-      // the last available hour instead.
-      if (startIdx === -1) startIdx = Math.max(0, hourlyTimes.length - 1);
-      if (startIdx < 0) startIdx = 0;
-
-      const totalHours = hourlyTimes.length;
-      const count = Math.min(24, Math.max(0, totalHours - startIdx));
-      const hourly: Weather["hourly"] = [];
-
-      for (let idx = 0; idx < count; idx++) {
-        const dataIdx = startIdx + idx;
-        const prob = hourlyData.precipitation_probability?.[dataIdx] ?? 0;
-        hourly.push({
-          time: hourlyTimes[dataIdx] ?? "",
-          temp:
-            idx === 0 && typeof current["temperature_2m"] === "number"
-              ? (current["temperature_2m"] as number)
-              : hourlyData.temperature_2m?.[dataIdx] ?? 0,
-          code:
-            idx === 0 && typeof current["weather_code"] === "number"
-              ? (current["weather_code"] as number)
-              : hourlyData.weather_code?.[dataIdx] ?? 0,
-          precipProb: prob,
-          pop: prob,
-          is_day:
-            idx === 0 && typeof current["is_day"] === "number"
-              ? (current["is_day"] as number)
-              : hourlyData.is_day?.[dataIdx] ?? 1,
-        });
-      }
-
-      const sunrise = formatSunTime(dailyData.sunrise?.[0]);
-      const sunset = formatSunTime(dailyData.sunset?.[0]);
-
-      const windSpeed = typeof current["wind_speed_10m"] === "number" ? (current["wind_speed_10m"] as number) : 0;
-      const uvVal = typeof current["uv_index"] === "number" ? (current["uv_index"] as number) : 0;
-      const visibilityKm =
-        typeof current["visibility"] === "number" ? (current["visibility"] as number) / 1000 : 10;
-      const pressureHpa =
-        typeof current["surface_pressure"] === "number" ? (current["surface_pressure"] as number) : 1013;
-
-      const w: Weather = {
-        place: safePlace,
-        fetchedAt: Date.now(),
-        unit,
-        isStale: false,
-        current: {
-          temp: typeof current["temperature_2m"] === "number" ? (current["temperature_2m"] as number) : 0,
-          feels:
-            typeof current["apparent_temperature"] === "number"
-              ? (current["apparent_temperature"] as number)
-              : typeof current["temperature_2m"] === "number"
-                ? (current["temperature_2m"] as number)
-                : 0,
-          code: typeof current["weather_code"] === "number" ? (current["weather_code"] as number) : 0,
-          wind: windSpeed,
-          wind_speed: windSpeed,
-          wind_dir: typeof current["wind_direction_10m"] === "number" ? (current["wind_direction_10m"] as number) : 0,
-          humidity: typeof current["relative_humidity_2m"] === "number" ? (current["relative_humidity_2m"] as number) : 0,
-          uv: uvVal,
-          uvIndex: Math.round(uvVal),
-          precipitation: typeof current["precipitation"] === "number" ? (current["precipitation"] as number) : 0,
-          pressure: pressureHpa,
-          vis: visibilityKm,
-          aqi,
-          pm25,
-          pm10,
-          is_day: typeof current["is_day"] === "number" ? (current["is_day"] as number) : 1,
-        },
-        sun: { sunrise, sunset },
-        hourly,
-        daily: (dailyData.time ?? []).map((d: string, i: number) => {
-          const pop = dailyData.precipitation_probability_max?.[i] ?? 0;
-          return {
-            date: d,
-            max: dailyData.temperature_2m_max?.[i] ?? 0,
-            min: dailyData.temperature_2m_min?.[i] ?? 0,
-            code: dailyData.weather_code?.[i] ?? 0,
-            precipProbMax: pop,
-            pop,
-            // FIX: Old code left daily sunrise/sunset as raw ISO ("2026-11-21T06:15")
-            // while sun.sunrise/sunset were formatted ("06:15"). UI showing both
-            // got inconsistent formats. Now both are formatted.
-            sunrise: dailyData.sunrise?.[i] ? formatSunTime(dailyData.sunrise[i]) : undefined,
-            sunset: dailyData.sunset?.[i] ? formatSunTime(dailyData.sunset[i]) : undefined,
-          };
-        }),
-      };
-
-      setCachedWeather(cacheKey, w);
-      return w;
-    } catch (err) {
-      // Abort: do NOT fall back to cache — the caller cancelled this request
-      // because a newer city was selected. Returning stale data here would
-      // overwrite the new city's weather (race).
-      if (err instanceof DOMException && err.name === "AbortError") throw err;
-      if (err instanceof Error && (err as Error & { name?: string }).name === "AbortError") throw err;
-      if (signal?.aborted) throw err;
-
-      // 3. Fallback to location-specific cached forecast on network or rate-limit error
-      const cached = getCachedWeather(cacheKey);
-      if (cached?.weather?.current) {
-        // Mark as stale so UI can show "Offline — cached".
-        return { ...cached.weather, place: safePlace, isStale: true };
-      }
-
-      // Legacy fallback — guard against missing place (old code crashed here
-      // when parsed.place was undefined: isSamePlace(undefined, place)).
-      try {
-        const legacyRaw = localStorage.getItem(LEGACY_CACHE_KEY);
-        if (legacyRaw) {
-          const parsed: unknown = JSON.parse(legacyRaw);
-          if (
-            parsed &&
-            typeof parsed === "object" &&
-            (parsed as Partial<Weather>).current &&
-            isValidPlace((parsed as Partial<Weather>).place) &&
-            isSamePlace((parsed as Weather).place, safePlace)
-          ) {
-            return { ...(parsed as Weather), place: safePlace, isStale: true };
-          }
-        }
-      } catch {}
-
-      throw err;
-    } finally {
-      // FIX: Old code did unconditional delete(cacheKey). With forceRefresh,
-      // a newer fetch could have overwritten the map entry, and the older
-      // promise's finally would delete the newer entry, breaking dedup.
-      // Only delete if this promise is still the current entry.
-      if (inFlightRequests.get(cacheKey) === fetchPromise) {
-        inFlightRequests.delete(cacheKey);
-      }
-    }
-  })();
-
-  inFlightRequests.set(cacheKey, fetchPromise);
-  return fetchPromise;
-}
-
-export const getWeather = fetchWeather;
-
-export function describe(code: number, t?: TranslateFn): { label: string; icon: string; labelKey: string } {
-  // Explicit WMO ranges — old chained `<=` checks misclassified 78/79/83/84.
-  // FIXED: labels now go through t(). Keys match WeatherView.getConditionLabel() + locales/*.json.
-  // 56-57 freezing drizzle and 66-67 freezing rain were missing before — now in locales (256 keys).
-  if (code === 0) return { label: tr(t, "cond_clear", "Clear Sky"), icon: "☀", labelKey: "cond_clear" };
-  if (code === 1) return { label: tr(t, "cond_mostly_clear", "Mostly Clear"), icon: "🌤", labelKey: "cond_mostly_clear" };
-  if (code === 2) return { label: tr(t, "cond_partly_cloudy", "Partly Cloudy"), icon: "⛅", labelKey: "cond_partly_cloudy" };
-  if (code === 3) return { label: tr(t, "cond_overcast", "Overcast"), icon: "☁", labelKey: "cond_overcast" };
-  if (code === 45 || code === 48) return { label: tr(t, "cond_foggy", "Foggy"), icon: "🌫", labelKey: "cond_foggy" };
-  if (code === 56 || code === 57) return { label: tr(t, "cond_freezing_drizzle", "Freezing Drizzle"), icon: "🌦", labelKey: "cond_freezing_drizzle" };
-  if (code >= 51 && code <= 55) return { label: tr(t, "cond_drizzle", "Drizzle"), icon: "🌦", labelKey: "cond_drizzle" };
-  if (code === 66 || code === 67) return { label: tr(t, "cond_freezing_rain", "Freezing Rain"), icon: "🌧", labelKey: "cond_freezing_rain" };
-  if (code === 61 || code === 63 || code === 65) return { label: tr(t, "cond_rain", "Rain"), icon: "🌧", labelKey: "cond_rain" };
-  if (code === 71 || code === 73 || code === 75 || code === 76 || code === 77) return { label: tr(t, "cond_snow", "Snow"), icon: "🌨", labelKey: "cond_snow" };
-  if (code === 80 || code === 81 || code === 82) return { label: tr(t, "cond_showers", "Rain Showers"), icon: "🌧", labelKey: "cond_showers" };
-  if (code === 85 || code === 86) return { label: tr(t, "cond_snow_showers", "Snow Showers"), icon: "🌨", labelKey: "cond_snow_showers" };
-  if (code === 95 || code === 96 || code === 99) return { label: tr(t, "cond_thunderstorm", "Thunderstorm"), icon: "⛈", labelKey: "cond_thunderstorm" };
-  // Unknown / unassigned codes (4, 78, 79, 83, 84, etc.) — don't guess Rain/Snow.
-  return { label: tr(t, "cond_unknown", "Unknown"), icon: "🌡", labelKey: "cond_unknown" };
-}
-
-export function uvCategory(uv: number, t?: TranslateFn): string {
-  // FIX: NaN comparisons are all false, so NaN used to fall through to "Extreme".
-  // FIXED i18n: was hardcoded English. Now uses uv_* keys from locales/*.json.
-  if (!Number.isFinite(uv) || uv < 0) return tr(t, "uv_low", "Low");
-  if (uv <= 2) return tr(t, "uv_low", "Low");
-  if (uv <= 5) return tr(t, "uv_moderate", "Moderate");
-  if (uv <= 7) return tr(t, "uv_high", "High");
-  if (uv <= 10) return tr(t, "uv_very_high", "Very High");
-  return tr(t, "uv_extreme", "Extreme");
-}
-
-// FIXED i18n: was hardcoded English. Now uses aqi_* keys. Key is aqi_sensitive (not aqi_unhealthy_sensitive) to match WeatherView + extras.
-// aqi_sensitive / aqi_very_unhealthy are now also in main locales (256 keys).
-export function aqiCategory(aqi: number, t?: TranslateFn): {
-  label: string;
-  color: string;
-  bg: string;
-  level: "good" | "moderate" | "sensitive" | "unhealthy" | "very_unhealthy" | "hazardous";
-} {
-  // FIX: Same NaN bug — NaN fell through to "Hazardous". Now treated as Good
-  // (no data) instead of alarming the user with Hazardous on a missing value.
-  // Callers should still check `aqi == null` before showing a badge.
-  if (!Number.isFinite(aqi) || aqi < 0) {
+  // 1. Check if the code was already burned/redeemed
+  const redeemed = getRedeemedHashes();
+  if (redeemed.includes(hash)) {
     return {
-      label: tr(t, "aqi_good", "Good"),
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10 border-emerald-500/30",
-      level: "good",
+      success: false,
+      message: "This code has already been redeemed and has expired.",
     };
   }
-  if (aqi <= 50) {
+
+  // 2. Validate against vault
+  if (!VAULT_CODE_HASHES.has(hash)) {
     return {
-      label: tr(t, "aqi_good", "Good"),
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10 border-emerald-500/30",
-      level: "good",
+      success: false,
+      message: "Invalid code. Please check and try again.",
     };
   }
-  if (aqi <= 100) {
-    return {
-      label: tr(t, "aqi_moderate", "Moderate"),
-      color: "text-amber-500",
-      bg: "bg-amber-500/10 border-amber-500/30",
-      level: "moderate",
-    };
+
+  // 3. Mark code as burned forever on this device
+  markHashRedeemed(hash);
+
+  // 4. Activate Party Pack ($10 Lifetime VIP)
+  const partyTierId = "party_pack_root_beer_tier";
+  saveThankYouBackgroundForever(partyTierId);
+
+  // Notify listeners to update UI instantly
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("weather:trigger-tier-thankyou", {
+        detail: { tierId: partyTierId },
+      })
+    );
   }
-  if (aqi <= 150) {
-    return {
-      label: tr(t, "aqi_sensitive", "Unhealthy for Sensitive Groups"),
-      color: "text-orange-500",
-      bg: "bg-orange-500/10 border-orange-500/30",
-      level: "sensitive",
-    };
-  }
-  if (aqi <= 200) {
-    return {
-      label: tr(t, "aqi_unhealthy", "Unhealthy"),
-      color: "text-rose-500",
-      bg: "bg-rose-500/10 border-rose-500/30",
-      level: "unhealthy",
-    };
-  }
-  if (aqi <= 300) {
-    return {
-      label: tr(t, "aqi_very_unhealthy", "Very Unhealthy"),
-      color: "text-purple-500",
-      bg: "bg-purple-500/10 border-purple-500/30",
-      level: "very_unhealthy",
-    };
-  }
+
   return {
-    label: tr(t, "aqi_hazardous", "Hazardous"),
-    color: "text-rose-900 dark:text-rose-400",
-    bg: "bg-rose-950/25 border-rose-900/40",
-    level: "hazardous",
+    success: true,
+    message: "VIP Party Pack successfully unlocked!",
+    tierId: partyTierId,
   };
-}
-
-export type SkyKey =
-  | "clear-day"
-  | "clear-night"
-  | "cloudy-day"
-  | "cloudy-night"
-  | "fog"
-  | "rain"
-  | "snow"
-  | "storm";
-
-export function skyKey(code: number, isDay: number = 1): SkyKey {
-  const night = isDay === 0;
-  if (code === 0 || code === 1) return night ? "clear-night" : "clear-day";
-  if (code === 2 || code === 3) return night ? "cloudy-night" : "cloudy-day";
-  if (code === 45 || code === 48) return "fog";
-  if ((code >= 51 && code <= 67) || code === 80 || code === 81 || code === 82) return "rain";
-  if (code === 71 || code === 73 || code === 75 || code === 76 || code === 77 || code === 85 || code === 86) return "snow";
-  return "storm";
-}
-
-export function getWeatherAlert(w: Weather, t?: TranslateFn): { icon: string; message: string; severity: "info" | "warning" } | null {
-  if (w.current.code >= 95) {
-    return { icon: "⛈", message: tr(t, "alert_thunderstorm_warning", "Severe thunderstorm warning in this area."), severity: "warning" };
-  }
-  // FIX: Old check `code >= 51 && code <= 82` classified snow (71-77) as rain:
-  // "Rain currently falling" on a snowy day. Now snow is excluded.
-  if ((w.current.code >= 51 && w.current.code <= 67) || (w.current.code >= 80 && w.current.code <= 82)) {
-    return { icon: "🌧", message: tr(t, "alert_rain_slick", "Rain currently falling. Roads may be slick."), severity: "info" };
-  }
-  if ((w.current.code >= 71 && w.current.code <= 77) || w.current.code === 85 || w.current.code === 86) {
-    return { icon: "🌨", message: tr(t, "alert_snow_slick", "Snow currently falling. Roads may be slick."), severity: "info" };
-  }
-  return null;
 }
