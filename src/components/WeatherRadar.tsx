@@ -1,5 +1,5 @@
 // src/components/WeatherRadar.tsx
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { Weather } from "@/lib/weather";
 import {
@@ -15,6 +15,7 @@ import {
   RADAR_EN,
   type RadarKey,
 } from "@/lib/rainViewer";
+import { describe } from "@/lib/weather";
 
 export interface WeatherRadarProps {
   weather?: Weather | null;
@@ -29,7 +30,7 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({
   lon: propLon,
   cityName: propCityName,
 }) => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language || "en";
   const texts: Record<RadarKey, string> = { ...RADAR_EN, ...(RADAR_I18N[lang] ?? {}) };
 
@@ -42,6 +43,7 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({
   const [zoom, setZoom] = useState<number>(7);
   const [centerOffset, setCenterOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [opacity, setOpacity] = useState<number>(0.75);
+  const [showPin, setShowPin] = useState<boolean>(true);
 
   // Radar data state
   const [metadata, setMetadata] = useState<RainViewerData | null>(null);
@@ -184,9 +186,55 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({
   const markerX = centerTileX * tileSize - viewLeft;
   const markerY = centerTileY * tileSize - viewTop;
 
+  const pinButtonText = showPin
+    ? (lang === "th" ? "ซ่อนหมุด" : "Hide Pin")
+    : (lang === "th" ? "แสดงหมุด" : "Show Pin");
+
+  // Future precipitation forecast from weather model (Next 6 Hours)
+  const futureHours = useMemo(() => {
+    if (!weather?.hourly || weather.hourly.length === 0) return [];
+    return weather.hourly.slice(0, 6);
+  }, [weather?.hourly]);
+
+  // Analyze upcoming rain within next 6 hours
+  const upcomingRainInsight = useMemo(() => {
+    if (futureHours.length === 0) return null;
+
+    const rainHourIndex = futureHours.findIndex(
+      (h) => h.precipProb >= 35 || (h.code >= 51 && h.code <= 67) || (h.code >= 80 && h.code <= 82) || h.code >= 95
+    );
+
+    if (rainHourIndex === -1) {
+      return {
+        hasRain: false,
+        label: lang === "th"
+          ? "ไม่มีฝนตกในอีก 6 ชั่วโมงข้างหน้า"
+          : "No rain expected in the next 6 hours",
+        badge: lang === "th" ? "แห้ง/แจ่มใส" : "Clear Outlook",
+      };
+    }
+
+    const rainHour = futureHours[rainHourIndex];
+    if (!rainHour) return null;
+
+    const hourLabel = rainHourIndex === 0
+      ? (lang === "th" ? "ในชั่วโมงนี้" : "this hour")
+      : (lang === "th" ? `ในอีก ${rainHourIndex + 1} ชั่วโมง` : `in ${rainHourIndex + 1} hours`);
+
+    return {
+      hasRain: true,
+      label: lang === "th"
+        ? `คาดว่าฝนจะตก ${hourLabel} (โอกาส ${rainHour.precipProb}%)`
+        : `Rain expected ${hourLabel} (${rainHour.precipProb}% chance)`,
+      badge: rainHour.precipProb >= 70
+        ? (lang === "th" ? "โอกาสฝนสูง" : "High Chance")
+        : (lang === "th" ? "ฝนปานกลาง" : "Moderate Rain"),
+    };
+  }, [futureHours, lang]);
+
   return (
     <section className="p-4 rounded-2xl bg-card border border-border/70 shadow-xs text-card-foreground space-y-3">
-      {/* Header with Title & Live Pulse */}
+      {/* Header with Title & Action Controls */}
       <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2.5">
         <div className="flex items-center gap-2">
           <span className="text-base">📡</span>
@@ -204,16 +252,33 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({
           </div>
         </div>
 
-        {/* Recenter Button */}
-        <button
-          type="button"
-          onClick={handleRecenter}
-          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-foreground border border-border/50 transition cursor-pointer active:scale-95 flex items-center gap-1"
-          title={texts.recenter}
-        >
-          <span>🎯</span>
-          <span className="hidden sm:inline">{texts.recenter}</span>
-        </button>
+        {/* Action Controls: Hide/Show Pin & Recenter */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowPin((prev) => !prev)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition cursor-pointer active:scale-95 flex items-center gap-1 ${
+              showPin
+                ? "bg-muted/60 hover:bg-muted text-foreground border-border/50"
+                : "bg-primary/10 text-primary border-primary/30"
+            }`}
+            title={pinButtonText}
+            aria-label={pinButtonText}
+          >
+            <span>{showPin ? "📍" : "📍⃠"}</span>
+            <span className="hidden sm:inline">{pinButtonText}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRecenter}
+            className="text-xs font-medium px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-foreground border border-border/50 transition cursor-pointer active:scale-95 flex items-center gap-1"
+            title={texts.recenter}
+          >
+            <span>🎯</span>
+            <span className="hidden sm:inline">{texts.recenter}</span>
+          </button>
+        </div>
       </div>
 
       {/* Interactive Map Viewport Container */}
@@ -265,8 +330,8 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({
           </div>
         )}
 
-        {/* City Location Pin Marker */}
-        {markerX >= 0 && markerX <= containerW && markerY >= 0 && markerY <= containerH && (
+        {/* City Location Pin Marker (Togglable) */}
+        {showPin && markerX >= 0 && markerX <= containerW && markerY >= 0 && markerY <= containerH && (
           <div
             className="absolute z-20 -translate-x-1/2 -translate-y-full pointer-events-none flex flex-col items-center"
             style={{ left: `${markerX}px`, top: `${markerY}px` }}
@@ -373,6 +438,85 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({
           />
         </div>
       </div>
+
+      {/* EXTENDED FUTURE RAIN TIMELINE (Option 1) */}
+      {futureHours.length > 0 && (
+        <div className="p-3 rounded-xl bg-muted/30 border border-border/50 space-y-2">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1.5 font-semibold text-foreground">
+              <span>⏱</span>
+              <span>{lang === "th" ? "พยากรณ์ฝนล่วงหน้า (6 ชั่วโมงถัดไป)" : "Future Rain Timeline (Next 6 Hours)"}</span>
+            </div>
+            {upcomingRainInsight && (
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  upcomingRainInsight.hasRain
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
+                }`}
+              >
+                {upcomingRainInsight.badge}
+              </span>
+            )}
+          </div>
+
+          {upcomingRainInsight && (
+            <p className="text-[11px] text-muted-foreground">
+              {upcomingRainInsight.label}
+            </p>
+          )}
+
+          {/* 6-Hour Horizontal Pill Strip */}
+          <div className="grid grid-cols-6 gap-1.5 pt-1">
+            {futureHours.map((hour, idx) => {
+              const displayTime = hour.time
+                ? hour.time.includes("T")
+                  ? hour.time.split("T")[1]?.slice(0, 5) ?? `+${idx + 1}h`
+                  : hour.time
+                : `+${idx + 1}h`;
+
+              const prob = hour.precipProb ?? 0;
+              const probColor =
+                prob >= 75
+                  ? "bg-rose-500"
+                  : prob >= 50
+                  ? "bg-amber-500"
+                  : prob >= 25
+                  ? "bg-emerald-500"
+                  : "bg-blue-400/40";
+
+              const { icon } = describe(hour.code, t);
+
+              return (
+                <div
+                  key={`future-${idx}-${hour.time}`}
+                  className="p-1.5 rounded-lg bg-background/70 border border-border/60 flex flex-col items-center justify-between text-center gap-1 shadow-2xs"
+                >
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {idx === 0 ? (lang === "th" ? "ตอนนี้" : "Now") : displayTime}
+                  </span>
+                  <span className="text-sm">{icon}</span>
+                  <span className="text-[11px] font-bold text-foreground">
+                    {Math.round(hour.temp)}°
+                  </span>
+                  {/* Probability Bar */}
+                  <div className="w-full space-y-0.5">
+                    <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${probColor} transition-all duration-300`}
+                        style={{ width: `${Math.max(8, prob)}%` }}
+                      />
+                    </div>
+                    <span className="text-[9px] font-semibold text-muted-foreground block">
+                      {prob}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Color Intensity Scale Legend */}
       <div className="pt-2 border-t border-border/40 flex flex-wrap items-center justify-between gap-2 text-[10px]">
