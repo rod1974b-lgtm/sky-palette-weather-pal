@@ -8,115 +8,95 @@ export interface WeatherIconProps {
   size?: number;
 }
 
-const WMO_TO_ICON: Record<number, { day: string; night: string }> = {
-  0: { day: "01d", night: "01n" },
-  1: { day: "01d", night: "01n" },
-  2: { day: "02d", night: "02n" },
-  3: { day: "04d", night: "04n" },
-  45: { day: "50d", night: "50n" },
-  48: { day: "50d", night: "50n" },
-  51: { day: "10d", night: "10n" },
-  53: { day: "10d", night: "10n" },
-  55: { day: "10d", night: "10n" },
-  56: { day: "13d", night: "13n" },
-  57: { day: "13d", night: "13n" },
-  61: { day: "10d", night: "10n" },
-  63: { day: "10d", night: "10n" },
-  65: { day: "10d", night: "10n" },
-  66: { day: "13d", night: "13n" },
-  67: { day: "13d", night: "13n" },
-  71: { day: "13d", night: "13n" },
-  73: { day: "13d", night: "13n" },
-  75: { day: "13d", night: "13n" },
-  77: { day: "13d", night: "13n" },
-  80: { day: "09d", night: "09n" },
-  81: { day: "09d", night: "09n" },
-  82: { day: "09d", night: "09n" },
-  85: { day: "13d", night: "13n" },
-  86: { day: "13d", night: "13n" },
-  95: { day: "11d", night: "11n" },
-  96: { day: "11d", night: "11n" },
-  99: { day: "11d", night: "11n" },
+// Maps WMO weather code to the actual watercolor PNG files in /public/icons/watercolor/
+const WMO_TO_ICON_FILE: Record<number, { day: string; night: string }> = {
+  // Clear Sky
+  0: { day: "01d_clear_sky.png", night: "01n_clear_night.png" },
+  // Mainly Clear
+  1: { day: "01d_clear_sky.png", night: "01n_clear_night.png" },
+  // Partly Cloudy
+  2: { day: "02d_few_clouds.png", night: "02n_few_clouds_night.png" },
+  // Overcast
+  3: { day: "04d_overcast.png", night: "04n_overcast_night.png" },
+  // Fog & Depositing Rime Fog
+  45: { day: "50d_fog.png", night: "50d_mist.png" },
+  48: { day: "50d_fog.png", night: "50d_mist.png" },
+  // Drizzle (light, moderate, dense)
+  51: { day: "09d_drizzle.png", night: "09n_shower_night.png" },
+  53: { day: "09d_drizzle.png", night: "09n_shower_night.png" },
+  55: { day: "09d_drizzle.png", night: "09n_shower_night.png" },
+  // Freezing Drizzle
+  56: { day: "09d_drizzle.png", night: "09n_shower_night.png" },
+  57: { day: "09d_drizzle.png", night: "09n_shower_night.png" },
+  // Rain (slight, moderate, heavy)
+  61: { day: "10d_light_rain.png", night: "10n_rain_night.png" },
+  63: { day: "10d_light_rain.png", night: "10n_rain_night.png" },
+  65: { day: "10d_heavy_rain.png", night: "10n_rain_night.png" },
+  // Freezing Rain
+  66: { day: "10d_light_rain.png", night: "10n_rain_night.png" },
+  67: { day: "10d_heavy_rain.png", night: "10n_rain_night.png" },
+  // Snow fall
+  71: { day: "13d_snow.png", night: "13n_snow_night.png" },
+  73: { day: "13d_snow.png", night: "13n_snow_night.png" },
+  75: { day: "13d_snow.png", night: "13n_snow_night.png" },
+  77: { day: "13d_snow.png", night: "13n_snow_night.png" },
+  // Rain Showers
+  80: { day: "09d_shower_rain.png", night: "09n_shower_night.png" },
+  81: { day: "09d_shower_rain.png", night: "09n_shower_night.png" },
+  82: { day: "10d_heavy_rain.png", night: "10n_rain_night.png" },
+  // Snow Showers
+  85: { day: "13d_snow.png", night: "13n_snow_night.png" },
+  86: { day: "13d_snow.png", night: "13n_snow_night.png" },
+  // Thunderstorm
+  95: { day: "11d_thunderstorm.png", night: "11n_thunderstorm_night.png" },
+  96: { day: "11d_thunderstorm.png", night: "11n_thunderstorm_night.png" },
+  99: { day: "11d_thunderstorm.png", night: "11n_thunderstorm_night.png" },
 };
 
-const AVAILABLE_WATERCOLOR_ICONS = new Set([
-  "01d", "01n",
-  "02d", "02n",
-  "03d", "03n",
-  "04d", "04n",
-  "09d", "09n",
-  "10d", "10n",
-  "11d", "11n",
-  "13d", "13n",
-  "50d", "50n",
-  "02d_few", "02n_few",
-  "03d_scattered", "03n_scattered",
-  "04d_broken", "04n_broken",
-  "09d_shower", "09n_shower",
-  "10d_rain", "10n_rain",
-  "11d_thunderstorm", "11n_thunderstorm",
-  "13d_snow", "13n_snow",
-  "50d_mist", "50n_mist",
-]);
-
-function toDayCode(code: string): string {
-  if (code.includes("_")) {
-    const parts = code.split("_");
-    const prefix = parts[0] ?? "";
-    const dayPrefix = prefix.replace(/n$/, "d");
-    return [dayPrefix, ...parts.slice(1)].join("_");
-  }
-  return code.replace(/n$/, "d");
-}
-
-function toNightCode(code: string): string {
-  if (code.includes("_")) {
-    const parts = code.split("_");
-    const prefix = parts[0] ?? "";
-    const nightPrefix = prefix.replace(/d$/, "n");
-    return [nightPrefix, ...parts.slice(1)].join("_");
-  }
-  return code.replace(/d$/, "n");
-}
-
-export function getWeatherIcon(iconCode: string, description?: string): string {
-  const code = (iconCode || "01d").toLowerCase();
-  const desc = (description || "").toLowerCase();
-
-  if (AVAILABLE_WATERCOLOR_ICONS.has(code)) {
-    return `/icons/watercolor/${code}.png`;
-  }
-
-  const baseCode = code.replace(/([0-9]{2}[dn]).*/, "$1");
-  if (AVAILABLE_WATERCOLOR_ICONS.has(baseCode)) {
-    return `/icons/watercolor/${baseCode}.png`;
-  }
-
-  const isNight = code.endsWith("n");
-  if (desc.includes("thunder") || desc.includes("storm")) {
-    return `/icons/watercolor/${isNight ? "11n" : "11d"}.png`;
-  }
-  if (desc.includes("snow") || desc.includes("sleet") || desc.includes("hail") || desc.includes("ice")) {
-    return `/icons/watercolor/${isNight ? "13n" : "13d"}.png`;
-  }
-  if (desc.includes("rain") || desc.includes("drizzle") || desc.includes("shower")) {
-    return `/icons/watercolor/${isNight ? "10n" : "10d"}.png`;
-  }
-  if (desc.includes("fog") || desc.includes("mist") || desc.includes("haze")) {
-    return `/icons/watercolor/${isNight ? "50n" : "50d"}.png`;
-  }
-  if (desc.includes("overcast") || desc.includes("cloud")) {
-    return `/icons/watercolor/${isNight ? "04n" : "04d"}.png`;
-  }
-
-  return `/icons/watercolor/${isNight ? "01n" : "01d"}.png`;
-}
+const DEFAULT_FALLBACK_ICON = "01d_clear_sky.png";
 
 export function getWmoIconPath(wmoCode: number, isDay: number | boolean = 1): string {
   const day = typeof isDay === "boolean" ? isDay : isDay === 1;
-  const match = WMO_TO_ICON[wmoCode] || { day: "01d", night: "01n" };
-  const baseKey = day ? match.day : match.night;
-  return getWeatherIcon(baseKey);
+  const match = WMO_TO_ICON_FILE[wmoCode] || {
+    day: "01d_clear_sky.png",
+    night: "01n_clear_night.png",
+  };
+  const fileName = day ? match.day : match.night;
+  return `/icons/watercolor/${fileName}`;
+}
+
+export function getWeatherIcon(iconCode: string, description?: string): string {
+  const code = (iconCode || "01d").toLowerCase().trim();
+  const desc = (description || "").toLowerCase();
+  const isNight = code.endsWith("n");
+
+  if (code.includes("01")) return `/icons/watercolor/${isNight ? "01n_clear_night.png" : "01d_clear_sky.png"}`;
+  if (code.includes("02")) return `/icons/watercolor/${isNight ? "02n_few_clouds_night.png" : "02d_few_clouds.png"}`;
+  if (code.includes("03")) return `/icons/watercolor/${isNight ? "03n_scattered_night.png" : "03d_scattered.png"}`;
+  if (code.includes("04")) return `/icons/watercolor/${isNight ? "04n_overcast_night.png" : "04d_overcast.png"}`;
+  if (code.includes("09")) return `/icons/watercolor/${isNight ? "09n_shower_night.png" : "09d_shower_rain.png"}`;
+  if (code.includes("10")) return `/icons/watercolor/${isNight ? "10n_rain_night.png" : "10d_light_rain.png"}`;
+  if (code.includes("11")) return `/icons/watercolor/${isNight ? "11n_thunderstorm_night.png" : "11d_thunderstorm.png"}`;
+  if (code.includes("13")) return `/icons/watercolor/${isNight ? "13n_snow_night.png" : "13d_snow.png"}`;
+  if (code.includes("50")) return `/icons/watercolor/${isNight ? "50d_mist.png" : "50d_fog.png"}`;
+
+  if (desc.includes("thunder") || desc.includes("storm")) {
+    return `/icons/watercolor/${isNight ? "11n_thunderstorm_night.png" : "11d_thunderstorm.png"}`;
+  }
+  if (desc.includes("snow") || desc.includes("sleet") || desc.includes("ice")) {
+    return `/icons/watercolor/${isNight ? "13n_snow_night.png" : "13d_snow.png"}`;
+  }
+  if (desc.includes("rain") || desc.includes("drizzle") || desc.includes("shower")) {
+    return `/icons/watercolor/${isNight ? "10n_rain_night.png" : "10d_light_rain.png"}`;
+  }
+  if (desc.includes("fog") || desc.includes("mist") || desc.includes("haze")) {
+    return `/icons/watercolor/${isNight ? "50d_mist.png" : "50d_fog.png"}`;
+  }
+  if (desc.includes("cloud") || desc.includes("overcast")) {
+    return `/icons/watercolor/${isNight ? "04n_overcast_night.png" : "04d_overcast.png"}`;
+  }
+
+  return `/icons/watercolor/${isNight ? "01n_clear_night.png" : "01d_clear_sky.png"}`;
 }
 
 export const WeatherIcon: React.FC<WeatherIconProps> = ({
@@ -137,8 +117,8 @@ export const WeatherIcon: React.FC<WeatherIconProps> = ({
       loading="lazy"
       onError={(e) => {
         const target = e.currentTarget;
-        if (!target.src.endsWith("/01d.png")) {
-          target.src = "/icons/watercolor/01d.png";
+        if (!target.src.endsWith(DEFAULT_FALLBACK_ICON)) {
+          target.src = `/icons/watercolor/${DEFAULT_FALLBACK_ICON}`;
         }
       }}
     />
