@@ -391,7 +391,7 @@ export async function fetchWeather(
     return existingInFlight;
   }
 
-  let fetchPromise: Promise<Weather>;
+  let fetchPromise: Promise<Weather> | null = null;
   fetchPromise = (async (): Promise<Weather> => {
     const tempUnit = unit === "imperial" ? "fahrenheit" : "celsius";
     const windUnit = unit === "imperial" ? "mph" : "kmh";
@@ -576,13 +576,15 @@ export async function fetchWeather(
 
       throw err;
     } finally {
-      if (inFlightRequests.get(cacheKey) === fetchPromise) {
+      if (fetchPromise && inFlightRequests.get(cacheKey) === fetchPromise) {
         inFlightRequests.delete(cacheKey);
       }
     }
   })();
 
-  inFlightRequests.set(cacheKey, fetchPromise);
+  if (fetchPromise) {
+    inFlightRequests.set(cacheKey, fetchPromise);
+  }
   return fetchPromise;
 }
 
