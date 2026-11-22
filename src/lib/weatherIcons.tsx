@@ -3,7 +3,7 @@ import React from "react";
 
 export interface WeatherIconProps {
   code: number;
-  isDay?: number | boolean;
+  isDay?: number | boolean | undefined;
   className?: string;
   size?: number;
 }
