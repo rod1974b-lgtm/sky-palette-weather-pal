@@ -8,6 +8,7 @@ import {
   getSavedArtworks,
   saveSavedArtworks,
   applyCustomWallpaper,
+  saveArtImageToDevice,
   migrateLegacyLocalStorage,
 } from "@/lib/wallpaperStorage";
 import {
@@ -106,7 +107,7 @@ export function ArtGalleryPage() {
 
   const handleDeleteArt = async (slotIdx: number) => {
     const updated = [...savedArtworks];
-    updated.splice(slotIdx, 1);
+    delete updated[slotIdx];
     await saveSavedArtworks(updated);
     setSavedArtworks(updated);
   };
@@ -116,6 +117,12 @@ export function ArtGalleryPage() {
     updated[slotIdx] = item;
     await saveSavedArtworks(updated);
     setSavedArtworks(updated);
+  };
+
+  const handleDownloadSlotArt = async (item: SavedItem, slotIndex: number) => {
+    const filename = `${currentPlace.name.toLowerCase().replace(/\s+/g, "-")}-slot-${slotIndex + 1}`;
+    const title = `${currentPlace.name} Artwork`;
+    await saveArtImageToDevice(item.url, filename, title);
   };
 
   const handleGenerateAi = async () => {
@@ -224,7 +231,7 @@ export function ArtGalleryPage() {
                 {currentPlace.country ? `, ${getLocalizedCountry(currentPlace.country, i18n.language)}` : ""}
               </span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold">
-                {savedArtworks.length} / {maxSlots} Slots Unlocked
+                {savedArtworks.filter(Boolean).length} / {maxSlots} Slots Unlocked
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -261,7 +268,7 @@ export function ArtGalleryPage() {
               activeTab === "slots" ? "border-primary text-primary" : "border-transparent text-muted-foreground"
             }`}
           >
-            🖼️ Your Slots ({savedArtworks.length}/6)
+            🖼️ Your Slots ({savedArtworks.filter(Boolean).length}/6)
           </button>
           <button
             type="button"
@@ -331,28 +338,42 @@ export function ArtGalleryPage() {
 
                   <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-1 text-xs">
                     {item?.url ? (
-                      <>
+                      <div className="flex items-center justify-between w-full gap-1">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleApplyArt(item.url);
+                            void handleApplyArt(item.url);
                           }}
                           className="px-3 py-1 rounded-lg bg-primary text-primary-foreground font-bold"
                         >
                           ✓ Apply
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteArt(idx);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-bold"
-                        >
-                          🗑️
-                        </button>
-                      </>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDownloadSlotArt(item, idx);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-muted text-foreground font-bold hover:bg-muted/80"
+                            title={t("btn_download", "Download")}
+                          >
+                            💾
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteArt(idx);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-bold hover:bg-destructive/20"
+                            title={t("btn_delete", "Delete")}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
                     ) : isUnlocked ? (
                       <button
                         type="button"
