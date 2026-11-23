@@ -13,11 +13,13 @@ import {
 import {
   saveCustomArtChoice,
   compressImageFile,
+  LANDMARK_WATERCOLORS,
+  getAllAvailableArtworks,
 } from "@/lib/aiWatercolorGenerator";
 import { generateWatercolorFn } from "@/lib/aiWatercolor.functions";
 import { PaymentModal } from "@/components/PaymentModal";
-import { getLocalizedCity } from "@/lib/placeLocalization";
-import { loadLastPlace, saveLastPlace, type Place } from "@/lib/weather";
+import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
+import { loadLastPlace, type Place } from "@/lib/weather";
 import {
   showRewardedAdViaMedian,
   getPaidTier,
@@ -26,7 +28,20 @@ import {
   hasActiveAdSlotBonus,
 } from "@/lib/monetization";
 
+const DESC =
+  "Explore curated city landmark watercolors, create custom AI scenes, and personalize your forecast wallpaper.";
+
 export const Route = createFileRoute("/gallery")({
+  head: () => ({
+    meta: [
+      { title: "Art Gallery — My Weather Pal" },
+      { name: "description", content: DESC },
+      { property: "og:title", content: "Art Gallery — My Weather Pal" },
+      { property: "og:description", content: DESC },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: ArtGalleryPage,
 });
 
@@ -41,7 +56,8 @@ export function ArtGalleryPage() {
     lon: 100.5018,
     country: "Thailand",
   });
-  const [activeTab, setActiveTab] = useState<"slots" | "studio">("slots");
+  const [activeTab, setActiveTab] = useState<"slots" | "curated" | "studio">("slots");
+  const [targetSlot, setTargetSlot] = useState<number>(0);
   const [paymentModalTier, setPaymentModalTier] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -81,22 +97,29 @@ export function ArtGalleryPage() {
     );
   };
 
-  const handleApplyArt = async (art: SavedItem) => {
-    await applyCustomWallpaper(currentPlace.name, art.url);
-    saveCustomArtChoice(currentPlace.name, art.url);
-    saveLastPlace(currentPlace);
+  const handleApplyArt = async (artUrl: string) => {
+    await applyCustomWallpaper(currentPlace.name, artUrl);
+    saveCustomArtChoice(currentPlace.name, artUrl);
     alert(t("wallpaper_applied", "Artwork applied to weather screen!"));
     void navigate({ to: "/" });
   };
 
-  const handleDeleteArt = async (id: string) => {
-    const remaining = savedArtworks.filter((a) => a.id !== id);
-    await saveSavedArtworks(remaining);
-    setSavedArtworks(remaining);
+  const handleDeleteArt = async (slotIdx: number) => {
+    const updated = [...savedArtworks];
+    updated.splice(slotIdx, 1);
+    await saveSavedArtworks(updated);
+    setSavedArtworks(updated);
+  };
+
+  const handleSaveToSlot = async (slotIdx: number, item: SavedItem) => {
+    const updated = [...savedArtworks];
+    updated[slotIdx] = item;
+    await saveSavedArtworks(updated);
+    setSavedArtworks(updated);
   };
 
   const handleGenerateAi = async () => {
-    if (savedArtworks.length >= maxSlots) {
+    if (targetSlot >= maxSlots) {
       alert(t("slot_limit_reached", "Slot limit reached! Unlock more slots with supporter tiers or rewarded ads."));
       return;
     }
@@ -118,11 +141,13 @@ export function ArtGalleryPage() {
         city,
         timestamp: Date.now(),
       };
-      const updated = [newArt, ...savedArtworks];
+      const updated = [...savedArtworks];
+      updated[targetSlot] = newArt;
       await saveSavedArtworks(updated);
       setSavedArtworks(updated);
       setAiPrompt("");
       setActiveTab("slots");
+      await handleApplyArt(res.imageUrl);
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : "Error generating art");
     } finally {
@@ -139,7 +164,7 @@ export function ArtGalleryPage() {
       return;
     }
 
-    if (savedArtworks.length >= maxSlots) {
+    if (targetSlot >= maxSlots) {
       alert(t("slot_limit_reached", "Slot limit reached! Unlock more slots with supporter tiers or rewarded ads."));
       return;
     }
@@ -153,15 +178,28 @@ export function ArtGalleryPage() {
         city: currentPlace.name,
         timestamp: Date.now(),
       };
-      const updated = [newArt, ...savedArtworks];
+      const updated = [...savedArtworks];
+      updated[targetSlot] = newArt;
       await saveSavedArtworks(updated);
       setSavedArtworks(updated);
+      await handleApplyArt(compressed);
     } catch {
       alert("Failed to process uploaded photo.");
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
+
+  const curatedList = useMemo(() => {
+    const raw = getAllAvailableArtworks(currentPlace.name, 0, "clear", currentPlace.country);
+    return (raw || []).map((u, i) => ({
+      id: `curated-${i}`,
+      url: typeof u === "string" ? u : (u as any)?.url || "",
+      title: `${currentPlace.name} Landmark ${i + 1}`,
+      city: currentPlace.name,
+      timestamp: Date.now(),
+    }));
+  }, [currentPlace]);
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-12">
@@ -177,194 +215,235 @@ export function ArtGalleryPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* Slot Limits & Status Header */}
         <section className="p-4 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl">🏆</span>
-              <h2 className="text-base font-bold text-foreground">
-                {tierConfig ? tierConfig.name : t("tier_free", "Free Tier")}
-              </h2>
+              <span className="text-sm font-bold text-foreground">
+                📍 {getLocalizedCity(currentPlace.name, i18n.language)}
+                {currentPlace.country ? `, ${getLocalizedCountry(currentPlace.country, i18n.language)}` : ""}
+              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold">
+                {savedArtworks.length} / {maxSlots} Slots Unlocked
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {savedArtworks.length} / {maxSlots} {t("slots_used", "Slots Used")}
-              {adBonus && ` • ${t("ad_bonus_active", "24h Ad Bonus Active")}`}
+            <p className="text-xs text-muted-foreground mt-1">
+              {tierConfig ? tierConfig.name : "Free Tier (1 Permanent Slot + 1 Bonus Ad Slot)"}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {!adBonus && (
+            {!adBonus && maxSlots < 6 && (
               <button
                 type="button"
                 onClick={handleWatchAd}
-                className="px-3 py-1.5 rounded-xl bg-muted text-foreground text-xs font-semibold hover:bg-muted/80 transition cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition cursor-pointer"
               >
-                📺 +1 {t("bonus_slot_ad", "Slot (24h Ad)")}
+                📺 Watch Ad (+1 Slot / 24h)
               </button>
             )}
             <button
               type="button"
-              onClick={() => setPaymentModalTier("party_pack_root_beer_tier")}
-              className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold hover:brightness-105 transition shadow-xs cursor-pointer"
+              onClick={() => setPaymentModalTier("small_root_beer_tier")}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold transition hover:brightness-105 cursor-pointer"
             >
-              ⭐ {t("upgrade_tier", "Unlock All Slots")}
+              ⚡ Supporter Tiers
             </button>
           </div>
         </section>
 
-        <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-border/60 text-xs font-bold">
           <button
             type="button"
             onClick={() => setActiveTab("slots")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "slots" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            className={`py-2 px-4 border-b-2 transition cursor-pointer ${
+              activeTab === "slots" ? "border-primary text-primary" : "border-transparent text-muted-foreground"
             }`}
           >
-            🖼 {t("my_slots", "My Artwork Slots")} ({savedArtworks.length}/{maxSlots})
+            🖼️ Your Slots ({savedArtworks.length}/6)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("curated")}
+            className={`py-2 px-4 border-b-2 transition cursor-pointer ${
+              activeTab === "curated" ? "border-primary text-primary" : "border-transparent text-muted-foreground"
+            }`}
+          >
+            🏛️ Curated Landmarks
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("studio")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "studio" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            className={`py-2 px-4 border-b-2 transition cursor-pointer ${
+              activeTab === "studio" ? "border-primary text-primary" : "border-transparent text-muted-foreground"
             }`}
           >
-            ✨ {t("ai_generator", "AI Scene Generator")}
+            ✨ AI Studio (Target: Slot {targetSlot + 1})
           </button>
         </div>
 
+        {/* TAB 1: SLOTS */}
         {activeTab === "slots" && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-foreground">
-                {t("saved_paintings", "Saved Artwork Collection")}
-              </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[0, 1, 2, 3, 4, 5].map((idx) => {
+              const isUnlocked = idx < maxSlots;
+              const item = savedArtworks[idx];
+              const isTarget = targetSlot === idx;
+
+              return (
+                <div
+                  key={idx}
+                  onClick={() => isUnlocked && setTargetSlot(idx)}
+                  className={`rounded-2xl border p-3 flex flex-col justify-between transition cursor-pointer ${
+                    isTarget && isUnlocked
+                      ? "ring-2 ring-primary border-primary bg-primary/5"
+                      : isUnlocked
+                      ? "border-border/80 bg-card hover:border-border"
+                      : "border-border/40 bg-muted/20 opacity-70"
+                  }`}
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-border/50 text-xs font-bold">
+                    <span>{isUnlocked ? "🎨" : "🔒"} Slot {idx + 1}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {isUnlocked ? (isTarget ? "Target" : "Unlocked") : "Locked"}
+                    </span>
+                  </div>
+
+                  <div className="py-3 flex-1 flex flex-col items-center justify-center min-h-[140px]">
+                    {item?.url ? (
+                      <div className="w-full space-y-1">
+                        <img src={item.url} alt={item.title} className="w-full aspect-video object-cover rounded-xl" />
+                        <p className="text-xs font-semibold truncate">{item.title}</p>
+                      </div>
+                    ) : isUnlocked ? (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <span className="text-2xl font-bold">+</span>
+                        <p className="text-xs font-medium">Empty Slot</p>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <span className="text-2xl">🔒</span>
+                        <p className="text-xs">Supporter Slot</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-1 text-xs">
+                    {item?.url ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApplyArt(item.url);
+                          }}
+                          className="px-3 py-1 rounded-lg bg-primary text-primary-foreground font-bold"
+                        >
+                          ✓ Apply
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteArt(idx);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-bold"
+                        >
+                          🗑️
+                        </button>
+                      </>
+                    ) : isUnlocked ? (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("studio")}
+                        className="w-full py-1 rounded-lg bg-muted font-bold"
+                      >
+                        + Paint with AI
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setPaymentModalTier("small_root_beer_tier")}
+                        className="w-full py-1 rounded-lg bg-amber-500/10 text-amber-600 font-bold"
+                      >
+                        ⚡ Unlock
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* TAB 2: CURATED */}
+        {activeTab === "curated" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {curatedList.map((art) => (
+              <div key={art.id} className="rounded-2xl border border-border/70 overflow-hidden bg-card p-3 space-y-2">
+                <img src={art.url} alt={art.title} className="w-full aspect-video object-cover rounded-xl" />
+                <h4 className="text-xs font-bold truncate">{art.title}</h4>
+                <div className="flex gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyArt(art.url)}
+                    className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-bold"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveToSlot(targetSlot, art)}
+                    className="px-2.5 py-1 rounded-lg bg-muted text-xs font-bold"
+                  >
+                    💾 Slot {targetSlot + 1}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* TAB 3: STUDIO */}
+        {activeTab === "studio" && (
+          <div className="rounded-3xl border border-border p-5 bg-card space-y-4 max-w-xl mx-auto">
+            <h3 className="text-sm font-bold">✨ Paint with AI for Slot {targetSlot + 1}</h3>
+            {generationError && (
+              <p className="text-xs text-destructive font-semibold">{generationError}</p>
+            )}
+            <textarea
+              rows={3}
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="Describe scenery, landmarks, mist, or lighting..."
+              className="w-full text-xs rounded-xl border p-2.5 bg-background"
+            />
+            <div className="flex justify-between items-center pt-2">
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold border border-border/50 transition cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl bg-muted text-xs font-semibold"
               >
-                <span>📷</span>
-                <span>{t("upload_photo", "Upload Photo")}</span>
+                📁 Upload Photo
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoUpload}
-                className="hidden"
-              />
+              <button
+                type="button"
+                disabled={isGenerating || !aiPrompt.trim()}
+                onClick={handleGenerateAi}
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50"
+              >
+                {isGenerating ? "⏳ Painting..." : "✨ Paint Artwork"}
+              </button>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, idx) => {
-                const art = savedArtworks[idx];
-                const isUnlocked = idx < maxSlots;
-
-                if (art) {
-                  return (
-                    <div key={art.id} className="group relative rounded-2xl overflow-hidden border border-border/60 bg-muted aspect-16/10 flex flex-col justify-end p-3 shadow-xs">
-                      <img src={art.url} alt={art.title} className="absolute inset-0 w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-                      <div className="relative z-10 space-y-1">
-                        <span className="text-xs font-bold text-white block truncate">{art.title}</span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleApplyArt(art)}
-                            className="px-2 py-1 rounded-lg bg-primary text-primary-foreground text-[10px] font-bold hover:opacity-90 transition cursor-pointer"
-                          >
-                            {t("apply_wallpaper", "Apply")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteArt(art.id)}
-                            className="px-2 py-1 rounded-lg bg-rose-500/80 text-white text-[10px] font-bold hover:bg-rose-600 transition cursor-pointer"
-                          >
-                            {t("delete", "Delete")}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div
-                    key={`slot-${idx}`}
-                    className={`rounded-2xl border aspect-16/10 flex flex-col items-center justify-center p-4 text-center transition ${
-                      isUnlocked
-                        ? "border-dashed border-border/80 bg-muted/20 hover:bg-muted/40 cursor-pointer"
-                        : "border-border/30 bg-muted/10 opacity-60"
-                    }`}
-                    onClick={() => {
-                      if (isUnlocked) setActiveTab("studio");
-                      else setPaymentModalTier("small_root_beer_tier");
-                    }}
-                  >
-                    <span className="text-2xl mb-1">{isUnlocked ? "➕" : "🔒"}</span>
-                    <span className="text-xs font-semibold text-foreground">
-                      {isUnlocked ? t("empty_slot", "Empty Slot") : t("locked_slot", "Locked Slot")}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground mt-0.5">
-                      {isUnlocked ? t("tap_to_create", "Tap to create art") : t("tap_to_unlock", "Tap to unlock")}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {activeTab === "studio" && (
-          <section className="p-5 rounded-3xl bg-card border border-border/70 space-y-4">
-            <div>
-              <h3 className="text-base font-bold text-foreground">
-                {t("ai_scene_studio", "AI Scene Synthesizer")}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {t("ai_scene_desc", "Generate watercolor weather scenes for")} <strong>{getLocalizedCity(currentPlace.name, i18n.language)}</strong>
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <textarea
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder={t("ai_prompt_placeholder", "e.g., Grand Palace with golden spires in morning sunlight...")}
-                rows={3}
-                maxLength={200}
-                className="w-full p-3 rounded-2xl bg-muted/50 border border-border/60 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
-              />
-              <span className="text-[10px] text-muted-foreground block text-right">
-                {aiPrompt.length}/200
-              </span>
-            </div>
-
-            {generationError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs">
-                {generationError}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleGenerateAi}
-              disabled={isGenerating}
-              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:opacity-90 active:scale-95 transition disabled:opacity-50 cursor-pointer shadow-xs flex items-center justify-center gap-2"
-            >
-              {isGenerating ? (
-                <>
-                  <span className="animate-spin inline-block">✨</span>
-                  <span>{t("generating_ai", "Synthesizing Artwork...")}</span>
-                </>
-              ) : (
-                <>
-                  <span>🎨</span>
-                  <span>{t("generate_artwork", "Generate Watercolor Painting")}</span>
-                </>
-              )}
-            </button>
-          </section>
+          </div>
         )}
       </main>
 
@@ -377,5 +456,3 @@ export function ArtGalleryPage() {
     </div>
   );
 }
-
-export default ArtGalleryPage;
