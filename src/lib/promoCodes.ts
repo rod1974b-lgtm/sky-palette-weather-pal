@@ -1,29 +1,23 @@
 // src/lib/promoCodes.ts
 // Offline-first HMAC SHA-256 Promo Code Verifier & Single-Use Claim
 
-export const VERIFIER_SECRET_B64 = "/KVqgSWaryYQfoT4L8SaKvPgoBD6z5EGAThtJMOdGTQ=";
+export const VERIFIER_SECRET_B64 = import.meta.env.VERIFIER_SECRET_B64 || import.meta.env.VITE_VERIFIER_SECRET_B64 || "";
 
-// Crockford Base32 safe alphabet
-const CROCKFORD_CHARS = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+// Crockford Base32 safe alphabet - must match generator
+const CROCKFORD_CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 function encodeCrockfordBase32(bytes: Uint8Array): string {
-  let bits = 0;
-  let value = 0;
+  const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  let bits = "";
+  for (const b of bytes) {
+    bits += b.toString(2).padStart(8, "0");
+  }
   let output = "";
-
-  for (let i = 0; i < bytes.length; i++) {
-    value = (value << 8) | bytes[i]!;
-    bits += 8;
-    while (bits >= 5) {
-      output += CROCKFORD_CHARS[(value >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
+  for (let i = 0; i < bits.length; i += 5) {
+    let chunk = bits.slice(i, i + 5);
+    if (chunk.length < 5) chunk = chunk.padEnd(5, "0");
+    output += alphabet[parseInt(chunk, 2)];
   }
-
-  if (bits > 0) {
-    output += CROCKFORD_CHARS[(value << (5 - bits)) & 31];
-  }
-
   return output;
 }
 
