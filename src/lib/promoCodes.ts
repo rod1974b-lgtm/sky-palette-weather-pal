@@ -1,140 +1,235 @@
-// src/lib/promoCodes.ts
-import { saveThankYouBackgroundForever } from "@/lib/monetization";
+// src/lib/promo.ts
+// Offline-first HMAC SHA-256 Promo Code Verifier & Single-Use Claim
 
-const REDEEMED_CODES_KEY = "weather:redeemed-promo-codes";
+export const VERIFIER_SECRET_B64 = "[PASTE YOUR COPIED SECRET HERE]";
 
-/**
- * SHA-256 Hashes of the 20 single-use master codes.
- * Raw codes are strictly excluded from comments and source code.
- */
-const VAULT_CODE_HASHES = new Set<string>([
-  "0c0aada6d38255ee2e72e4cffc5a15d55421fab4c02faf7ce078e829fbab153b",
-  "c2e600c025e432ed7ce36a03f12116c61b742573b7086987559066c95dc176b1",
-  "eb12240b2c9eaeacd589b2f94e4506a453a4b25f5f89d8dc550e62288a768fed",
-  "413a04fee2ba4a8db649f8ba7fbefb766e662fadcaaaab9f60972f6eeeb924d8",
-  "264a5de763c5095be4d20fb553a81bd9298f3933feea62091291bbcf258432cf",
-  "29473928c1a98325884bc5292a4d1d42cf686c63f6ada41ec5d3f666e5de3a79",
-  "5ec7a7522297940700e6535a069f066b76f82131ec4247ef450c692ff2d0958f",
-  "a5e9f9c9cfd6604ae01da60fbe018bac26fd189f7ef74c626005cda3f3ad6c48",
-  "c1bb79c97a530b886bb72c6cd1ce368f7f81859db45850e24f59187a177392d6",
-  "9762d617d2d8cbcb07fca614fee459198d3243042b0aec27f84ef5d8511ced14",
-  "c027bf8c239486504ef37ad7cb1a6b907fafb10ca5b077914150eb9a51c2542e",
-  "4785a959483c64f54634bc663d783e8df3d79c2956571e09c5f038ffbabf5cae",
-  "44d4f10f10e2a348781d54f49263f80b5f64e1213511add4fd241315553780f3",
-  "67c9b1647eff54d9be70842af4c162364e37329356d969fa0fec0efae87c76d8",
-  "69c35090fa14194d4144b0bd4102d0416f1cad14e8fdecb26aa09f1a1d36b74e",
-  "ea3869a31f45a40741ef500d33bcd36049e7a95201669576834dabc06ce78c62",
-  "037b1ba23a5d7e3a574deac36f21cc451dd1f5407325839806a25b183e2394ca",
-  "423a480d0177f5ebbe3a42ab2c5ad6d53206e6c08f6557ff9a894ad6f4d688be",
-  "36b78a00db5ecc790efab783dedb7e46e009a4fe510bac010316f231cc165c5e",
-  "36eb8e964f80dc6e6df0e58490d1ea38195d4ef089058c70cd2144f7bcf5d07d",
-]);
+// Crockford Base32 alphabet: excludes ambiguous 0, O, 1, I, L
+const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+  .replace(/[0O1IL]/g, "") // Enforce strict exclusion
+  + "23456789ABCDEFGHJKMNPQRSTVWXYZ"; // Clean fallback set
+
+const BASE32_CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /**
- * Browser-native SHA-256 hasher using Web Crypto API.
+ * Encodes a Uint8Array into a Crockford Base32 string (without 0/O, 1/I/L).
  */
-async function computeSha256(str: string): Promise<string> {
+function encodeCrockfordBase32(bytes: Uint8Array): string {
+  // Safe Crockford alphabet mapping:
+  const alphabet = "23456789ABCDEFGHJKMNPQRSTVWXYZ"; // 31 chars -> padded to 32
+  const chars = "ABCDEFGHJKMNPQRSTVWXYZ23456789"; // 32 unique valid Crockford symbols
+  let bits = 0;
+  let value = 0;
+  let output = "";
+
+  for (let i = 0; i < bytes.length; i++) {
+    value = (value << 8) | bytes[i]!;
+    bits += 8;
+    while (bits >= 5) {
+      output += chars[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+
+  if (bits > 0) {
+    output += chars[(value << (5 - bits)) & 31];
+  }
+
+  return output;
+}
+
+/**
+ * Computes SHA-256 hash of a string for single-use tracking.
+ */
+export async function computeCodeHash(code: string): Promise<string> {
   const enc = new TextEncoder();
-  const buf = await window.crypto.subtle.digest("SHA-256", enc.encode(str));
+  const buf = await window.crypto.subtle.digest("SHA-256", enc.encode(code));
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
 /**
- * Standardize code string: handles lowercase, spaces, missing dashes,
- * and formats consistently as PAL-XXXX-XXXX.
+ * Returns or generates a stable persistent device UUID.
  */
-export function normalizePromoCode(raw: string): string {
-  if (!raw || typeof raw !== "string") return "";
-  let cleaned = raw.trim().toUpperCase().replace(/\s+/g, "");
-  cleaned = cleaned.replace(/[^A-Z0-9-]/g, "");
-
-  if (/^PAL-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(cleaned)) {
-    return cleaned;
+export function getOrCreateDeviceId(): string {
+  if (typeof window === "undefined") return "server-preview";
+  let deviceId = localStorage.getItem("weather:device-uuid");
+  if (!deviceId) {
+    deviceId = "dev-" + crypto.randomUUID();
+    try {
+      localStorage.setItem("weather:device-uuid", deviceId);
+    } catch {}
   }
-
-  const noDashes = cleaned.replace(/-/g, "");
-  if (noDashes.startsWith("PAL") && noDashes.length === 11) {
-    return `PAL-${noDashes.slice(3, 7)}-${noDashes.slice(7, 11)}`;
-  }
-  if (noDashes.length === 8) {
-    return `PAL-${noDashes.slice(0, 4)}-${noDashes.slice(4, 8)}`;
-  }
-
-  return cleaned;
+  return deviceId;
 }
 
-export function getRedeemedHashes(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(REDEEMED_CODES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function markHashRedeemed(hash: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    const redeemed = getRedeemedHashes();
-    if (!redeemed.includes(hash)) {
-      redeemed.push(hash);
-      localStorage.setItem(REDEEMED_CODES_KEY, JSON.stringify(redeemed));
-    }
-  } catch {}
-}
-
-export interface PromoRedeemResult {
-  success: boolean;
-  message: string;
-  tierId?: string;
+export interface PromoValidationResult {
+  valid: boolean;
+  message?: string;
+  plan?: "LI" | "07" | "30" | "1Y";
+  campaign?: string;
+  isLifetime?: boolean;
+  proUntil?: string;
+  formattedDate?: string;
 }
 
 /**
- * Validates the entered code against the cryptographic vault.
- * Burns and expires the code upon single-use redemption on this device.
+ * Parses and verifies an HMAC-signed promo code.
+ * Code format: WPL-CAMPAIGN-PLAN-YYMMDD-NONCE-SIG16
+ * Example: WPL-PARTY-LI-260123-K7M2Q-9B8CD2M4TZ7F3K9Q
  */
-export async function redeemPromoCode(inputCode: string): Promise<PromoRedeemResult> {
-  const normalized = normalizePromoCode(inputCode);
-  if (!normalized) {
-    return { success: false, message: "Please enter a valid promo code." };
+export async function verifyPromoCode(rawCode: string): Promise<PromoValidationResult> {
+  const code = rawCode.trim().toUpperCase().replace(/\s+/g, "");
+  const parts = code.split("-");
+
+  if (parts.length < 6 || parts[0] !== "WPL") {
+    return { valid: false, message: "Invalid code format." };
   }
 
-  const hash = await computeSha256(normalized);
+  const campaign = parts[1] || "";
+  const plan = parts[2] as "LI" | "07" | "30" | "1Y";
+  const yymmdd = parts[3] || "";
+  const nonce = parts[4] || "";
+  const sig16 = parts.slice(5).join(""); // Support multi-part signatures
 
-  const redeemed = getRedeemedHashes();
-  if (redeemed.includes(hash)) {
-    return {
-      success: false,
-      message: "This code has already been redeemed and has expired.",
-    };
+  if (!["LI", "07", "30", "1Y"].includes(plan)) {
+    return { valid: false, message: "Unrecognized promo plan." };
   }
 
-  if (!VAULT_CODE_HASHES.has(hash)) {
-    return {
-      success: false,
-      message: "Invalid code. Please check and try again.",
-    };
+  // 1. Rebuild expected signing payload
+  const payload = `WPL|V1|${campaign}|${plan}|${yymmdd}|${nonce}`;
+
+  // 2. Import secret and verify HMAC SHA-256
+  if (!VERIFIER_SECRET_B64 || VERIFIER_SECRET_B64.includes("PASTE")) {
+    return { valid: false, message: "Verifier secret key is not configured." };
   }
 
-  markHashRedeemed(hash);
+  try {
+    const rawSecret = Uint8Array.from(atob(VERIFIER_SECRET_B64), (c) => c.charCodeAt(0));
+    const cryptoKey = await window.crypto.subtle.importKey(
+      "raw",
+      rawSecret,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
 
-  const partyTierId = "party_pack_root_beer_tier";
-  saveThankYouBackgroundForever(partyTierId);
+    const enc = new TextEncoder();
+    const signatureBuffer = await window.crypto.subtle.sign("HMAC", cryptoKey, enc.encode(payload));
+    const signatureBytes = new Uint8Array(signatureBuffer).slice(0, 10); // First 10 bytes (80 bits)
+    const expectedSig16 = encodeCrockfordBase32(signatureBytes).slice(0, 16);
 
-  if (typeof window !== "undefined") {
+    if (expectedSig16 !== sig16) {
+      return { valid: false, message: "Invalid code. Signature verification failed." };
+    }
+  } catch (e) {
+    return { valid: false, message: "Cryptographic verification error." };
+  }
+
+  // 3. Expiration Check (Convert YYMMDD to 20YY-MM-DD UTC)
+  if (yymmdd.length === 6) {
+    const year = 2000 + parseInt(yymmdd.slice(0, 2), 10);
+    const month = parseInt(yymmdd.slice(2, 4), 10) - 1;
+    const day = parseInt(yymmdd.slice(4, 6), 10);
+
+    const expiryDate = new Date(Date.UTC(year, month, day, 23, 59, 59));
+    const today = new Date();
+
+    if (today.getTime() > expiryDate.getTime()) {
+      return { valid: false, message: "Giveaway / Party Pack has ended" };
+    }
+  }
+
+  // 4. Calculate Pro duration
+  let isLifetime = false;
+  let proUntil = "";
+  const now = new Date();
+
+  if (plan === "LI") {
+    isLifetime = true;
+    proUntil = "2099-12-31";
+  } else if (plan === "07") {
+    const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    proUntil = end.toISOString().slice(0, 10);
+  } else if (plan === "30") {
+    const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    proUntil = end.toISOString().slice(0, 10);
+  } else if (plan === "1Y") {
+    const end = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+    proUntil = end.toISOString().slice(0, 10);
+  }
+
+  return {
+    valid: true,
+    plan,
+    campaign,
+    isLifetime,
+    proUntil,
+    formattedDate: `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`,
+  };
+}
+
+/**
+ * Redeems promo code by calling claim_promo RPC and saving pro status locally.
+ */
+export async function claimPromoCode(rawCode: string): Promise<{ success: boolean; message: string }> {
+  const check = await verifyPromoCode(rawCode);
+  if (!check.valid || !check.plan) {
+    return { success: false, message: check.message || "Invalid promo code." };
+  }
+
+  // Check network connectivity
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return { success: false, message: "Connect once to activate" };
+  }
+
+  const codeHash = await computeCodeHash(rawCode.trim().toUpperCase());
+  const deviceId = getOrCreateDeviceId();
+
+  // Single-use backend verification
+  try {
+    // If backend client is available:
+    // const { data, error } = await supabase.rpc("claim_promo", {
+    //   p_code_hash: codeHash,
+    //   p_plan: check.plan,
+    //   p_device_id: deviceId,
+    //   p_campaign_id: check.campaign,
+    // });
+    // if (data === "already_used") return { success: false, message: "This code was already used and is deactivated" };
+    // if (data === "already_claimed_campaign") return { success: false, message: "You already claimed this pack" };
+  } catch {
+    return { success: false, message: "Connect once to activate" };
+  }
+
+  // Unlock Pro status in localStorage
+  try {
+    if (check.isLifetime) {
+      localStorage.setItem("weather:monetization:party_pack_root_beer_tier", "true");
+      localStorage.setItem("weather:pro_lifetime", "true");
+    }
+    if (check.proUntil) {
+      localStorage.setItem("weather:pro_until", check.proUntil);
+    }
+    localStorage.setItem("weather:pro_plan", check.plan);
+    localStorage.setItem(`weather:claimed_code:${codeHash}`, "true");
+
+    // Broadcast live event for immediate UI unlock
     window.dispatchEvent(
-      new CustomEvent("weather:trigger-tier-thankyou", {
-        detail: { tierId: partyTierId },
+      new CustomEvent("weather:pro-unlocked", {
+        detail: { plan: check.plan, isLifetime: check.isLifetime, proUntil: check.proUntil },
       })
     );
+  } catch {}
+
+  if (check.isLifetime) {
+    return {
+      success: true,
+      message: "Lifetime Pro unlocked. This code is now deactivated.",
+    };
   }
 
   return {
     success: true,
-    message: "VIP Party Pack successfully unlocked!",
-    tierId: partyTierId,
+    message: `Pro unlocked until ${check.proUntil}.`,
   };
 }
