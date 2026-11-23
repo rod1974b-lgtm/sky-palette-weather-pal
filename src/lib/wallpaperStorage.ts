@@ -139,7 +139,7 @@ export async function deleteWallpaperItem(key: string): Promise<void> {
 }
 
 /**
- * Get all saved slot artworks.
+ * Get all saved slot artworks. Preserves exact slot order for 6 slots.
  */
 export async function getSavedArtworks(): Promise<SavedItem[]> {
   try {
@@ -147,7 +147,7 @@ export async function getSavedArtworks(): Promise<SavedItem[]> {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.filter((item) => Boolean(item?.url));
+        return parsed as SavedItem[];
       }
     }
   } catch {}
@@ -158,7 +158,7 @@ export async function getSavedArtworks(): Promise<SavedItem[]> {
     if (local) {
       const parsed = JSON.parse(local);
       if (Array.isArray(parsed)) {
-        return parsed.filter((item) => Boolean(item?.url));
+        return parsed as SavedItem[];
       }
     }
   } catch {}
@@ -222,6 +222,74 @@ export async function applyCustomWallpaper(
         detail: { city, currentCity, url: targetUrl },
       })
     );
+  }
+}
+
+/**
+ * Saves or shares a wallpaper directly to the user's phone photos or downloads.
+ * Uses Web Share API (native "Save Image" to Camera Roll) on mobile devices,
+ * with Blob download and new-tab fallback for desktop browsers.
+ */
+export async function saveArtImageToDevice(
+  imageUrl: string,
+  fileName: string,
+  title = "Weather Wallpaper"
+): Promise<{ success: boolean; method: "share" | "download" | "tab" | "failed" }> {
+  try {
+    let blob: Blob;
+
+    if (imageUrl.startsWith("data:")) {
+      const parts = imageUrl.split(",");
+      const mime = parts[0]?.match(/:(.*?);/)?.[1] || "image/png";
+      const bstr = atob(parts[1] || "");
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      blob = new Blob([u8arr], { type: mime });
+    } else {
+      const resp = await fetch(imageUrl);
+      blob = await resp.blob();
+    }
+
+    const ext = blob.type === "image/jpeg" ? "jpg" : "png";
+    const cleanFileName = fileName.endsWith(`.${ext}`) ? fileName : `${fileName}.${ext}`;
+    const file = new File([blob], cleanFileName, { type: blob.type || "image/png" });
+
+    // 1. Mobile Web Share API: triggers the phone's native "Save Image" / "Save to Photos" dialog
+    if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title,
+        });
+        return { success: true, method: "share" };
+      } catch (err: unknown) {
+        if ((err as { name?: string })?.name === "AbortError") {
+          return { success: true, method: "share" };
+        }
+      }
+    }
+
+    // 2. Blob object URL trigger for desktop and mobile browsers supporting blob downloads
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = cleanFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+    return { success: true, method: "download" };
+  } catch {
+    // 3. Fallback: open image in a new tab so user can touch and hold to "Save to Photos"
+    try {
+      window.open(imageUrl, "_blank");
+      return { success: true, method: "tab" };
+    } catch {
+      return { success: false, method: "failed" };
+    }
   }
 }
 
