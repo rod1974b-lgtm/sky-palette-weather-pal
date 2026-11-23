@@ -1,7 +1,7 @@
 // src/lib/promoCodes.ts
 // Offline-first HMAC SHA-256 Promo Code Verifier & Single-Use Claim
 
-export const VERIFIER_SECRET_B64 = "[PASTE YOUR COPIED SECRET HERE]";
+export const VERIFIER_SECRET_B64 = "/KVqgSWaryYQfoT4L8SaKvPgoBD6z5EGAThtJMOdGTQ=";
 
 // Crockford Base32 safe alphabet
 const CROCKFORD_CHARS = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
@@ -77,12 +77,13 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
 
   const payload = `WPL|V1|${campaign}|${plan}|${yymmdd}|${nonce}`;
 
-  if (!VERIFIER_SECRET_B64 || VERIFIER_SECRET_B64.includes("PASTE")) {
-    return { valid: false, message: "Verifier secret key is not configured." };
+  const secretClean = VERIFIER_SECRET_B64.trim();
+  if (!secretClean || secretClean.includes("PASTE")) {
+    return { valid: false, message: "Verifier secret not configured." };
   }
 
   try {
-    const rawSecret = Uint8Array.from(atob(VERIFIER_SECRET_B64), (c) => c.charCodeAt(0));
+    const rawSecret = Uint8Array.from(atob(secretClean), (c) => c.charCodeAt(0));
     const cryptoKey = await window.crypto.subtle.importKey(
       "raw",
       rawSecret,
@@ -99,7 +100,7 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
     if (expectedSig16 !== sig16) {
       return { valid: false, message: "Invalid code. Signature verification failed." };
     }
-  } catch (e) {
+  } catch {
     return { valid: false, message: "Cryptographic verification error." };
   }
 
