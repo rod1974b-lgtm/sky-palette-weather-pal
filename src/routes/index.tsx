@@ -217,6 +217,14 @@ export function WeatherHomePage() {
           });
         }
         setAlerts(activeAlertList);
+      } catch (e) {
+        console.error("Failed to fetch weather:", e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t]
+  );
 
   // Initialize from storage
   // FIXED i18n: keep <meta name="description"> in sync when language changes in-app.
