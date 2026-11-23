@@ -13,7 +13,7 @@ import {
   getSavedArtworks,
   saveSavedArtworks,
   applyCustomWallpaper,
-  clearAllArtworksFromDB,
+  saveArtImageToDevice,
 } from "@/lib/wallpaperStorage";
 import { showRewardedAdViaMedian } from "@/lib/monetization";
 import { PaymentModal } from "@/components/PaymentModal";
@@ -309,7 +309,7 @@ export function AiGalleryModal({
 
   const handleDeleteArtworkFromSlot = async (slotIndex: number) => {
     const updated = [...savedArtworks];
-    updated.splice(slotIndex, 1);
+    delete updated[slotIndex];
     setSavedArtworks(updated);
     await saveSavedArtworks(updated);
   };
@@ -351,15 +351,10 @@ export function AiGalleryModal({
     );
   };
 
-  const handleDownloadArt = (item: SavedItem, slotNum: number) => {
-    try {
-      const link = document.createElement("a");
-      link.href = item.url;
-      link.download = `${activeCity.toLowerCase().replace(/\s+/g, "-")}-slot-${slotNum}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch {}
+  const handleDownloadArt = async (item: SavedItem, slotNum: number) => {
+    const filename = `${activeCity.toLowerCase().replace(/\s+/g, "-")}-slot-${slotNum}`;
+    const title = `${activeCity} — Slot ${slotNum}`;
+    await saveArtImageToDevice(item.url, filename, title);
   };
 
   const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -739,7 +734,7 @@ export function AiGalleryModal({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDownloadArt(item, slotNum);
+                                void handleDownloadArt(item, slotNum);
                               }}
                               className="p-1 rounded-lg bg-muted hover:bg-muted/80 text-foreground transition"
                               title={t("btn_download", "Download")}
@@ -750,7 +745,7 @@ export function AiGalleryModal({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteArtworkFromSlot(slotIdx);
+                                void handleDeleteArtworkFromSlot(slotIdx);
                               }}
                               className="p-1 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive transition"
                               title={t("btn_delete", "Delete")}
