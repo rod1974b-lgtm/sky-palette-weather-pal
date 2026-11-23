@@ -156,7 +156,7 @@ export function ForecastDetailModal({
   const currentDaily = !isHourly ? resolvedDailyList[activeIndex] : null;
 
   const activeCode = isHourly ? currentHourly?.code ?? 0 : currentDaily?.code ?? 0;
-  const conditionText = getConditionLabel ? getConditionLabel(activeCode) : describe(activeCode, t);
+  const conditionText = getConditionLabel ? getConditionLabel(activeCode) : describe(activeCode, t).label;
 
   // Time & date formatting
   const titleTime = isHourly
