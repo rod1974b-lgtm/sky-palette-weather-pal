@@ -1,6 +1,7 @@
 // src/components/RedeemPromoModal.tsx
 import React, { useState, useEffect } from "react";
-import { verifyPromoCode, claimPromoCode, type PromoValidationResult } from "@/lib/promo";
+import { verifyPromoCode, claimPromoCode, type PromoValidationResult } from "@/lib/promoCodes";
+
 
 interface RedeemPromoModalProps {
   isOpen: boolean;
