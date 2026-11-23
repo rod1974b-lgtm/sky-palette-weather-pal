@@ -186,16 +186,16 @@ export function WeatherHomePage() {
         setWeather(data);
         saveLastPlace(p);
 
-        // Generate active hazard alerts
+               // Generate active hazard alerts
         const activeAlertList: TickerAlertItem[] = [];
         if (data.current.code >= 95) {
           activeAlertList.push({
             id: `ts-${Date.now()}`,
-            severity: "disaster",
+            severity: "alert",
             tag: t("alert_tag_thunderstorm", "THUNDERSTORM"),
             tagKey: "alert_tag_thunderstorm",
-            headline: t("alert_ts_title", "Severe Thunderstorm Warning"),
-            desc: t("alert_ts_desc", "Heavy lightning, sudden squalls, and flash downpours reported."),
+            title: t("alert_ts_title", "Severe Thunderstorm Warning"),
+            message: t("alert_ts_desc", "Heavy lightning, sudden squalls, and flash downpours reported."),
           });
         } else if (data.current.wind >= 45) {
           activeAlertList.push({
@@ -203,8 +203,8 @@ export function WeatherHomePage() {
             severity: "warning",
             tag: t("alert_tag_high_wind", "HIGH WIND"),
             tagKey: "alert_tag_high_wind",
-            headline: t("alert_wind_title", "High Wind Advisory"),
-            desc: t("alert_wind_desc", "Gale-force gusts detected. Secure loose outdoor objects."),
+            title: t("alert_wind_title", "High Wind Advisory"),
+            message: t("alert_wind_desc", "Gale-force gusts detected. Secure loose outdoor objects."),
           });
         } else if (data.current.uv >= 10) {
           activeAlertList.push({
@@ -212,19 +212,11 @@ export function WeatherHomePage() {
             severity: "warning",
             tag: t("alert_tag_extreme_uv", "EXTREME UV"),
             tagKey: "alert_tag_extreme_uv",
-            headline: t("alert_uv_title", "Extreme UV Radiation"),
-            desc: t("alert_uv_desc", "UV Index is dangerous. Seek shade and use SPF 50+."),
+            title: t("alert_uv_title", "Extreme UV Radiation"),
+            message: t("alert_uv_desc", "UV Index is dangerous. Seek shade and use SPF 50+."),
           });
         }
         setAlerts(activeAlertList);
-      } catch (e) {
-        console.error("Failed to fetch weather:", e);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [t]
-  );
 
   // Initialize from storage
   // FIXED i18n: keep <meta name="description"> in sync when language changes in-app.
