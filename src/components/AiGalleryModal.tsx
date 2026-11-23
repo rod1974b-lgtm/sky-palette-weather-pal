@@ -459,7 +459,7 @@ export function AiGalleryModal({
     searchQuery === ""
       ? true
       : item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.city.toLowerCase().includes(searchQuery.toLowerCase())
+        (item.city ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
