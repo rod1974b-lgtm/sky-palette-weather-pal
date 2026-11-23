@@ -1,7 +1,7 @@
 // src/lib/promoCodes.ts
 // Offline HMAC & Hash-list verifier - NO BACKEND NEEDED.
 
-export const VERIFIER_SECRET_B64 = "/KVqgSWaryYQfoT4L8SaKvPgoBD6z5EGAThtJMOdGTQ=";
+export const VERIFIER_SECRET_B64 = import.meta.env.VERIFIER_SECRET_B64 || import.meta.env.VITE_VERIFIER_SECRET_B64 || "";
 
 export interface PromoValidationResult {
   valid: boolean;
@@ -74,6 +74,27 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
   const code = rawCode.trim().toUpperCase().replace(/\s+/g, "");
   const parts = code.split("-");
 
+  // 1. Check hash list FIRST - this is the only change, so your new codes reach the hash list
+  const hash = await computeCodeHash(code);
+  const entry = VALID_CODE_HASHES[hash];
+  if (entry) {
+    if (new Date() > new Date(entry.redeemBy + "T23:59:59Z")) {
+      return { valid: false, message: "Giveaway / Party Pack has ended" };
+    }
+    return {
+      valid: true,
+      isLifetime: entry.plan === "PARTY" || entry.plan === "LI",
+      formattedDate: entry.redeemBy,
+      plan: entry.plan,
+      campaign: entry.campaign,
+      tier: entry.tier,
+      slots: entry.slots,
+      adFree: entry.adFree,
+      redeemBy: entry.redeemBy,
+    };
+  }
+
+  // 2. HMAC fallback - exactly as in your file
   // Format: WPL-CAMPAIGN-PLAN-YYMMDD-NONCE-SIG16
   if (parts.length === 6 && parts[0] === "WPL") {
     if (!VERIFIER_SECRET_B64 || VERIFIER_SECRET_B64.trim() === "") {
@@ -145,26 +166,6 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
     } catch {
       return { valid: false, message: "Verification failed." };
     }
-  }
-
-  // Fallback to SHA-256 hash lookup in VALID_CODE_HASHES
-  const hash = await computeCodeHash(code);
-  const entry = VALID_CODE_HASHES[hash];
-  if (entry) {
-    if (new Date() > new Date(entry.redeemBy + "T23:59:59Z")) {
-      return { valid: false, message: "Giveaway / Party Pack has ended" };
-    }
-    return {
-      valid: true,
-      isLifetime: entry.plan === "PARTY" || entry.plan === "LI",
-      formattedDate: entry.redeemBy,
-      plan: entry.plan,
-      campaign: entry.campaign,
-      tier: entry.tier,
-      slots: entry.slots,
-      adFree: entry.adFree,
-      redeemBy: entry.redeemBy,
-    };
   }
 
   return { valid: false, message: "Invalid promo code." };
