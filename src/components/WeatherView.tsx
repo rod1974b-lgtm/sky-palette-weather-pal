@@ -10,6 +10,7 @@ import {
 } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
+import { saveArtwork } from "@/lib/wallpaperStorage";
 import { OutdoorActivityPlanner } from "@/components/OutdoorActivityPlanner";
 import { WeatherRadar } from "@/components/WeatherRadar";
 import { AstronomyTracker } from "@/components/AstronomyTracker";
@@ -193,6 +194,20 @@ export function WeatherView({
           <div className="absolute inset-0 bg-gradient-to-br from-sky-400 via-indigo-500 to-purple-600" />
         )}
       </section>
+
+      {/* Save to Gallery Button under the artwork */}
+      {displayBg && (
+        <div className="flex justify-end px-1 -mt-2">
+          <button
+            type="button"
+            onClick={() => void saveArtwork(displayBg)}
+            className="px-3.5 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold border border-border/70 shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+          >
+            <span>📥</span>
+            <span>{t("btn_save_to_gallery", "Save to Gallery")}</span>
+          </button>
+        </div>
+      )}
 
       {/* 4. CURRENT WEATHER CONDITIONS & METRICS */}
       <section className="p-4 sm:p-6 rounded-3xl bg-card border border-border/70 shadow-sm text-card-foreground space-y-4">
