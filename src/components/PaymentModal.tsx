@@ -1,38 +1,4 @@
 // src/components/PaymentModal.tsx
-// FIXED — v3 — promo now uses result.tierId (was hardcoded party_pack). See #3 below.
-// FIXED — v2
-// WHAT WAS BROKEN (do not revert to old keys):
-// 1. KEY COLLISION with i18nExtraPart4.ts — PaymentModal used the SAME keys as a DIFFERENT UI
-//    (the support section in Part 4), with DIFFERENT sentences:
-//      pay_perks_title:   Modal wanted "What You Unlock Forever" | Part 4 = "Support Perks"
-//      pay_or_web:        Modal wanted "Select Payment Option"    | Part 4 = "Or support directly on Web:"
-//      pay_support_via:   Modal wanted "Choose Payment Option"    | Part 4 = "Support via {{name}} ({{price}})"
-//      pay_opened_notice: Modal wanted "...{{provider}}..."          | Part 4 = "Opened {{name}} checkout page..."
-//      pay_confirm_unlock:Modal wanted "I Contributed — Unlock..."  | Part 4 = "After completing support on {{name}}..."
-//      pay_error_google_play: Modal wanted "...via Buy Me a Coffee below." | Part 4 = "Google Play ... inside Android app."
-//    Because main locales/*.json do NOT have those pay_* keys (except pay_error_link),
-//    Part 4 WON in the merge (see i18n.ts: extras before main, main only wins if it has the key).
-//    Result in the live app:
-//      - Header showed "Support Perks", not "What You Unlock Forever"
-//      - h4 showed "Support via {{name}} ({{price}})" with RAW {{name}} {{price}} placeholders,
-//        because Modal called t("pay_support_via") with NO params.
-//      - Opened-notice showed "Opened {{name}}..." with RAW {{name}}, because Modal passed
-//        { provider: ... } but Part 4 expects { name: ... }.
-//      - Confirm button showed the long Part 4 label with RAW {{name}}, not the button text.
-//    FIX: Modal now uses NEW unique keys pay_modal_* that exist NOWHERE in extras.
-//    They live in locales/*.json (see pay_modal_translations.json in this batch).
-//    Until you add them to locales, the English fallbacks below still show correctly.
-// 2. PROMO CODE: now trims + uppercases before sending. Before, " pal-xxxx " was sent raw.
-//    Still uses local redeemPromoCode() — REBUILD FIRST, server version comes after rebuild.
-//    See comment on handleRedeemPromo. Do NOT switch to server yet.
-// 3. VERIFIED against REAL promoCodes.ts (pasted 2026-11-21): redeemPromoCode() DOES return
-//    tierId: partyTierId, DOES call saveThankYouBackgroundForever(partyTierId), and ALL codes
-//    unlock Party Pack only. Hardcode was correct, but fragile. FIXED in v3: now uses
-//    result.tierId ?? "party_pack_root_beer_tier" so if promoCodes ever unlocks a different
-//    tier, this modal follows it instead of still showing Party Pack.
-// 4. ADDED: Escape key closes modal + role="dialog" aria-modal. No other behaviour changed.
-//    Manual "I Contributed" confirm is still honor-system (Buy Me a Coffee / PayPal have no webhook).
-//    That is intentional for web — do not "fix" it by removing the button without a webhook.
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -74,7 +40,7 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
 
   const isAndroidMedian = typeof window !== "undefined" && isMedianAndroidApp();
 
-  // FIXED: Escape closes modal. Added for a11y, no other behaviour changed.
+  // Escape closes modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -140,7 +106,6 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
         setErrorMessage(
           err?.message ||
             t(
-              // FIXED: was pay_error_google_play (collided with Part 4). Now unique.
               "pay_modal_error_google_play",
               "Google Play purchase could not be completed. You can also support via Buy Me a Coffee below."
             )
@@ -162,26 +127,33 @@ export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) 
 
   const handleRedeemPromo = async (e: React.FormEvent) => {
     e.preventDefault();
-    // FIXED: trim + uppercase before sending. Before, " pal-xxxx " was sent raw.
     const code = promoCodeInput.trim().toUpperCase();
     if (!code) return;
     setRedeemLoading(true);
     setPromoError(null);
     setPromoSuccess(null);
 
-    // NOTE: Still local redeemPromoCode() for REBUILD phase. Server-verified single-use
-    // version comes AFTER rebuild (see promoCodes.server.ts plan). Do not switch yet.
-    const result = await redeemPromoCode(code);
+    // Map the selected tier to the expected tier name for verification
+    let expectedTier = "Party Pack Root Beer";
+    if (tierId === "small_root_beer_tier" || tier?.name === "Small Root Beer") {
+      expectedTier = "Small Root Beer";
+    } else if (tierId === "medium_root_beer_tier" || tier?.name === "Medium Root Beer") {
+      expectedTier = "Medium Root Beer";
+    } else if (tierId === "large_root_beer_tier" || tier?.name === "Large Root Beer") {
+      expectedTier = "Large Root Beer";
+    } else if (tierId === "party_pack_root_beer_tier" || tier?.name === "Party Pack Root Beer") {
+      expectedTier = "Party Pack Root Beer";
+    }
+
+    const result = await redeemPromoCode(code, expectedTier);
     setRedeemLoading(false);
 
     if (result.success) {
       setPromoSuccess(result.message);
       setPromoCodeInput("");
       setTimeout(() => {
-        // FIXED v3: use result.tierId from redeemPromoCode() (verified: it returns tierId).
-        // Fallback to Party Pack if tierId is missing (old behaviour), never crash.
         if (onSuccess) {
-          onSuccess(result.tierId ?? "party_pack_root_beer_tier");
+          onSuccess(result.tierId ?? tierId ?? "party_pack_root_beer_tier");
         } else {
           onClose();
         }
