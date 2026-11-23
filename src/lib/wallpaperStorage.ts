@@ -226,70 +226,66 @@ export async function applyCustomWallpaper(
 }
 
 /**
- * Saves or shares a wallpaper directly to the user's phone photos or downloads.
- * Uses Web Share API (native "Save Image" to Camera Roll) on mobile devices,
- * with Blob download and new-tab fallback for desktop browsers.
+ * Saves artwork to the device.
+ * 1. Fetches the image as a blob and creates a File.
+ * 2. Uses navigator.share with files so iOS Safari displays the native "Save Image" option.
+ * 3. Falls back to an anchor object URL download with "weatherpal-artwork.png".
+ * 4. Falls back to opening a new tab only if the fetch fails.
  */
-export async function saveArtImageToDevice(
-  imageUrl: string,
-  fileName: string,
-  title = "Weather Wallpaper"
-): Promise<{ success: boolean; method: "share" | "download" | "tab" | "failed" }> {
+export async function saveArtwork(imageUrl: string): Promise<void> {
   try {
-    let blob: Blob;
+    const res = await fetch(imageUrl);
+    if (!res.ok) throw new Error("Fetch failed");
 
-    if (imageUrl.startsWith("data:")) {
-      const parts = imageUrl.split(",");
-      const mime = parts[0]?.match(/:(.*?);/)?.[1] || "image/png";
-      const bstr = atob(parts[1] || "");
-      let n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-      }
-      blob = new Blob([u8arr], { type: mime });
-    } else {
-      const resp = await fetch(imageUrl);
-      blob = await resp.blob();
-    }
+    const blob = await res.blob();
+    const file = new File([blob], "weatherpal-artwork.png", {
+      type: blob.type || "image/png",
+    });
 
-    const ext = blob.type === "image/jpeg" ? "jpg" : "png";
-    const cleanFileName = fileName.endsWith(`.${ext}`) ? fileName : `${fileName}.${ext}`;
-    const file = new File([blob], cleanFileName, { type: blob.type || "image/png" });
-
-    // 1. Mobile Web Share API: triggers the phone's native "Save Image" / "Save to Photos" dialog
-    if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.canShare &&
+      navigator.canShare({ files: [file] })
+    ) {
       try {
         await navigator.share({
           files: [file],
-          title,
+          title: "WeatherPal Artwork",
         });
-        return { success: true, method: "share" };
+        return;
       } catch (err: unknown) {
         if ((err as { name?: string })?.name === "AbortError") {
-          return { success: true, method: "share" };
+          return;
         }
       }
     }
 
-    // 2. Blob object URL trigger for desktop and mobile browsers supporting blob downloads
-    const blobUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = cleanFileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
-    return { success: true, method: "download" };
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = "weatherpal-artwork.png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
   } catch {
-    // 3. Fallback: open image in a new tab so user can touch and hold to "Save to Photos"
-    try {
-      window.open(imageUrl, "_blank");
-      return { success: true, method: "tab" };
-    } catch {
-      return { success: false, method: "failed" };
-    }
+    window.open(imageUrl, "_blank");
+  }
+}
+
+/**
+ * Backward-compatible helper for slot download buttons.
+ */
+export async function saveArtImageToDevice(
+  imageUrl: string,
+  _fileName?: string,
+  _title = "Weather Wallpaper"
+): Promise<{ success: boolean; method: "share" | "download" | "tab" | "failed" }> {
+  try {
+    await saveArtwork(imageUrl);
+    return { success: true, method: "share" };
+  } catch {
+    return { success: false, method: "failed" };
   }
 }
 
