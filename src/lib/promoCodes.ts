@@ -1,10 +1,7 @@
 // src/lib/promoCodes.ts
 // Offline HMAC & Hash-list verifier - NO BACKEND NEEDED.
 
-export const VERIFIER_SECRET_B64 =
-  (import.meta.env["VERIFIER_SECRET_B64"] as string | undefined) ||
-  (import.meta.env["VITE_VERIFIER_SECRET_B64"] as string | undefined) ||
-  "/KVqgSWaryYQfoT4L8SaKvPgoBD6z5EGAThtJMOdGTQ=";
+export const VERIFIER_SECRET_B64 = import.meta.env.VERIFIER_SECRET_B64 || import.meta.env.VITE_VERIFIER_SECRET_B64 || "";
 
 export interface PromoValidationResult {
   valid: boolean;
@@ -57,10 +54,19 @@ export async function computeCodeHash(code: string): Promise<string> {
     .join("");
 }
 
+function isCodeAlreadyClaimed(codeHash: string): boolean {
+  try {
+    return localStorage.getItem(`weather:claimed_code:${codeHash}`) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export const VALID_CODE_HASHES: Record<
   string,
   { plan: string; campaign: string; tier: string; slots: string; adFree: string; redeemBy: string }
 > = {
+  // ===== PARTY PACK - KEEP AS IS - ALREADY WORKING =====
   "26b704774f06ccc4baf1a78336a80fa9e583c4c27ee68b73218f42e23095a907": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-23" },
   "eb8a87c6d9c1e547ed51f38fd100e96d17c73a90bdf500afe21a1eb0afb18e55": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-23" },
   "0b7b225576c022f87f5239bf719e8b3a919827fa4c415d863f30b5c895de5bd5": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-23" },
@@ -71,18 +77,36 @@ export const VALID_CODE_HASHES: Record<
   "88f6b6f9bd1519bd3592d0814cbf1faa864fe8ca56fe7b26b01906e69f5dac05": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-23" },
   "c493a1977faa79e97ab86d4f4c3df74d6e1c4f97ab66a9ec00a1674cb31c71c9": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-23" },
   "8dab831169d106db81134d83811de9536a1e14b853098e9032e46f11271c1009": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-23" },
+
+  // ===== GENERIC - SMALL ROOT BEER - $1.00 / 2 slots / 0 days ad-free =====
+  "SMALL_PLACEHOLDER_HASH_01": { plan: "SMALL", campaign: "SMALL", tier: "Small Root Beer", slots: "2", adFree: "0 Days", redeemBy: "2026-12-23" },
+
+  // ===== GENERIC - MEDIUM ROOT BEER - $3.00 / 4 slots / 30 days ad-free =====
+  "MEDIUM_PLACEHOLDER_HASH_01": { plan: "MEDIUM", campaign: "MEDIUM", tier: "Medium Root Beer", slots: "4", adFree: "30 Days", redeemBy: "2026-12-23" },
+
+  // ===== GENERIC - LARGE ROOT BEER - $5.00 / 6 slots / 365 days ad-free =====
+  "LARGE_PLACEHOLDER_HASH_01": { plan: "LARGE", campaign: "LARGE", tier: "Large Root Beer", slots: "6", adFree: "365 Days", redeemBy: "2026-12-23" },
 };
 
-export async function verifyPromoCode(rawCode: string): Promise<PromoValidationResult> {
+export async function verifyPromoCode(rawCode: string, expectedTier?: string): Promise<PromoValidationResult> {
   const code = rawCode.trim().toUpperCase().replace(/\s+/g, "");
   const parts = code.split("-");
 
-  // 1. Check hash list FIRST
+  // 1-use check - if this code was already claimed on this device, reject it
   const hash = await computeCodeHash(code);
+  if (isCodeAlreadyClaimed(hash)) {
+    return { valid: false, message: "This code has already been used." };
+  }
+
+  // 1. Check hash list FIRST
   const entry = VALID_CODE_HASHES[hash];
   if (entry) {
     if (new Date() > new Date(entry.redeemBy + "T23:59:59Z")) {
       return { valid: false, message: "Giveaway / Party Pack has ended" };
+    }
+    // Tier check - if the UI passed the selected tier, it must match the code's tier
+    if (expectedTier && entry.tier !== expectedTier) {
+      return { valid: false, message: `This code is for ${entry.tier}, not ${expectedTier}.` };
     }
     return {
       valid: true,
@@ -111,18 +135,14 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
       const keyBytes = base64ToUint8Array(VERIFIER_SECRET_B64);
       const cryptoKey = await window.crypto.subtle.importKey(
         "raw",
-        keyBytes as unknown as BufferSource,
+        keyBytes,
         { name: "HMAC", hash: "SHA-256" },
         false,
         ["sign"]
       );
 
       const enc = new TextEncoder();
-      const hmacBuf = await window.crypto.subtle.sign(
-        "HMAC",
-        cryptoKey,
-        enc.encode(payload) as unknown as BufferSource
-      );
+      const hmacBuf = await window.crypto.subtle.sign("HMAC", cryptoKey, enc.encode(payload));
       const first10 = new Uint8Array(hmacBuf).slice(0, 10);
       const expectedSig = encodeCrockfordBase32(first10).slice(0, 16);
 
@@ -130,7 +150,6 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
         return { valid: false, message: "Invalid promo code signature." };
       }
 
-      // Expiry check: YYMMDD -> 20YY-MM-DD
       const year = `20${yymmdd.slice(0, 2)}`;
       const month = yymmdd.slice(2, 4);
       const day = yymmdd.slice(4, 6);
@@ -145,18 +164,26 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
       let slots = "Unlimited";
       let adFree = "FOREVER";
 
-      if (plan === "07") {
-        tier = "Pro (7 Days)";
-        slots = "4 Slots";
-        adFree = "7 Days";
-      } else if (plan === "30") {
-        tier = "Pro (30 Days)";
-        slots = "6 Slots";
+      if (plan === "SMALL") {
+        tier = "Small Root Beer";
+        slots = "2";
+        adFree = "0 Days";
+      } else if (plan === "MEDIUM" || plan === "30") {
+        tier = "Medium Root Beer";
+        slots = "4";
         adFree = "30 Days";
-      } else if (plan === "1Y") {
-        tier = "Pro (1 Year)";
-        slots = "Unlimited";
-        adFree = "1 Year";
+      } else if (plan === "LARGE" || plan === "1Y") {
+        tier = "Large Root Beer";
+        slots = "6";
+        adFree = "365 Days";
+      } else if (plan === "07") {
+        tier = "Pro (7 Days)";
+        slots = "4";
+        adFree = "7 Days";
+      }
+
+      if (expectedTier && tier !== expectedTier) {
+        return { valid: false, message: `This code is for ${tier}, not ${expectedTier}.` };
       }
 
       return {
@@ -178,11 +205,16 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
   return { valid: false, message: "Invalid promo code." };
 }
 
-export async function claimPromoCode(rawCode: string) {
-  const check = await verifyPromoCode(rawCode);
+export async function claimPromoCode(rawCode: string, expectedTier?: string) {
+  const check = await verifyPromoCode(rawCode, expectedTier);
   if (!check.valid) return { success: false, message: check.message || "Invalid promo code." };
 
   const codeHash = await computeCodeHash(rawCode.trim().toUpperCase());
+  // Double-check 1-use right before claiming, so it can't be claimed twice
+  if (isCodeAlreadyClaimed(codeHash)) {
+    return { success: false, message: "This code has already been used." };
+  }
+
   try {
     localStorage.setItem("weather:pro_tier", check.tier || "Party Pack Root Beer");
     localStorage.setItem("weather:pro_slots", check.slots || "Unlimited");
@@ -193,6 +225,19 @@ export async function claimPromoCode(rawCode: string) {
       localStorage.setItem("weather:monetization:party_pack_root_beer_tier", "true");
       localStorage.setItem("weather:pro_lifetime", "true");
       localStorage.setItem("weather:pro_until", "2099-12-31");
+    } else if (check.adFree === "30 Days") {
+      const until = new Date();
+      until.setDate(until.getDate() + 30);
+      localStorage.setItem("weather:pro_until", until.toISOString().slice(0, 10));
+      localStorage.removeItem("weather:pro_lifetime");
+    } else if (check.adFree === "365 Days") {
+      const until = new Date();
+      until.setDate(until.getDate() + 365);
+      localStorage.setItem("weather:pro_until", until.toISOString().slice(0, 10));
+      localStorage.removeItem("weather:pro_lifetime");
+    } else {
+      localStorage.removeItem("weather:pro_lifetime");
+      localStorage.removeItem("weather:pro_until");
     }
 
     localStorage.setItem(`weather:claimed_code:${codeHash}`, "true");
@@ -206,7 +251,7 @@ export async function claimPromoCode(rawCode: string) {
   return { success: true, message: `${check.tier} unlocked. This code is now deactivated.` };
 }
 
-export async function redeemPromoCode(inputCode: string) {
-  const res = await claimPromoCode(inputCode);
+export async function redeemPromoCode(inputCode: string, expectedTier?: string) {
+  const res = await claimPromoCode(inputCode, expectedTier);
   return { success: res.success, message: res.message, tierId: "party_pack_root_beer_tier" };
 }
