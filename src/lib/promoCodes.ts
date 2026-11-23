@@ -1,7 +1,10 @@
 // src/lib/promoCodes.ts
 // Offline HMAC & Hash-list verifier - NO BACKEND NEEDED.
 
-export const VERIFIER_SECRET_B64 = import.meta.env.VERIFIER_SECRET_B64 || import.meta.env.VITE_VERIFIER_SECRET_B64 || "";
+export const VERIFIER_SECRET_B64 =
+  (import.meta.env["VERIFIER_SECRET_B64"] as string | undefined) ||
+  (import.meta.env["VITE_VERIFIER_SECRET_B64"] as string | undefined) ||
+  "/KVqgSWaryYQfoT4L8SaKvPgoBD6z5EGAThtJMOdGTQ=";
 
 export interface PromoValidationResult {
   valid: boolean;
@@ -74,7 +77,7 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
   const code = rawCode.trim().toUpperCase().replace(/\s+/g, "");
   const parts = code.split("-");
 
-  // 1. Check hash list FIRST - this is the only change, so your new codes reach the hash list
+  // 1. Check hash list FIRST
   const hash = await computeCodeHash(code);
   const entry = VALID_CODE_HASHES[hash];
   if (entry) {
@@ -94,7 +97,7 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
     };
   }
 
-  // 2. HMAC fallback - exactly as in your file
+  // 2. HMAC fallback
   // Format: WPL-CAMPAIGN-PLAN-YYMMDD-NONCE-SIG16
   if (parts.length === 6 && parts[0] === "WPL") {
     if (!VERIFIER_SECRET_B64 || VERIFIER_SECRET_B64.trim() === "") {
@@ -108,14 +111,18 @@ export async function verifyPromoCode(rawCode: string): Promise<PromoValidationR
       const keyBytes = base64ToUint8Array(VERIFIER_SECRET_B64);
       const cryptoKey = await window.crypto.subtle.importKey(
         "raw",
-        keyBytes,
+        keyBytes as unknown as BufferSource,
         { name: "HMAC", hash: "SHA-256" },
         false,
         ["sign"]
       );
 
       const enc = new TextEncoder();
-      const hmacBuf = await window.crypto.subtle.sign("HMAC", cryptoKey, enc.encode(payload));
+      const hmacBuf = await window.crypto.subtle.sign(
+        "HMAC",
+        cryptoKey,
+        enc.encode(payload) as unknown as BufferSource
+      );
       const first10 = new Uint8Array(hmacBuf).slice(0, 10);
       const expectedSig = encodeCrockfordBase32(first10).slice(0, 16);
 
