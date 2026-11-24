@@ -1,12 +1,12 @@
 // src/components/WeatherView.tsx
 // V6 - Single Save button + NaN fix. Keeps layout, only fixes Save + safe numbers.
 // What changed vs your pasted file:
-// 1. Import: removed downloadArtwork, shareArtwork from wallpaperStorage, now uses saveWallpaperToDownloads from saveWallpaper
-// 2. handleSaveHero: now calls saveWallpaperToDownloads with mode download, shows toast with result message
-// 3. handleSaveHero: now calls saveWallpaperToDownloads with mode share, shows toast with result message
-// 4. Added saveToast state + toast UI below dual buttons
+// 1. Import: uses saveWallpaperToDownloads from saveWallpaper
+// 2. handleSaveHero: calls saveWallpaperToDownloads with mode download, shows toast with result message
+// 3. Save Wallpaper button: single full-width button directly below hero
+// 4. Added saveToast state + toast UI below single button
 // What did NOT change:
-// Hero layout, dimensions, styling, toolbar, conditions card, hourly, daily, what to wear, planner, radar, astronomy, modals - all identical to your pasted file
+// Hero layout, dimensions, styling, toolbar, conditions card, hourly, daily, what to wear, planner, radar, astronomy, modals - all identical
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -85,7 +85,7 @@ export function WeatherView({
   const [postcardOpen, setPostcardOpen] = useState(false);
   const [activeOutfitTab, setActiveOutfitTab] = useState<"casual" | "business" | "outdoor">("casual");
   
-  // Single button loading state - V5: one Save button only
+  // Single button loading state - V5/V6: one Save button only
   const [isSavingHero, setIsSavingHero] = useState(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
 
@@ -101,7 +101,6 @@ export function WeatherView({
   const displayBg = localWallpaper || customBgUrl;
 
   // V6 NaN guard: pick first valid number from aliases, never show NaN. If truly missing, show --.
-  // Screenshots showed NaN°F because w.current.temp was undefined for Ban Mai ... and Math.round(undefined) = NaN.
   const cur = w.current as any;
   const safeTemp = pickNum(cur.temp, cur.temperature, cur.temperature_2m, cur.temp_c, cur.temp_f);
   const safeFeels = pickNum(cur.feels, cur.feels_like, cur.apparent_temperature, cur.apparentTemperature) ?? safeTemp;
@@ -243,7 +242,7 @@ export function WeatherView({
         )}
       </section>
 
-      {/* SINGLE BUTTON V5: One Save button only. Old dual buttons caused Share to Gallery preview loop. */}
+      {/* SINGLE BUTTON V5/V6: One Save button only. Old dual buttons caused Share to Gallery preview loop. */}
       {displayBg && (
         <div className="flex px-1 -mt-2">
           <button
