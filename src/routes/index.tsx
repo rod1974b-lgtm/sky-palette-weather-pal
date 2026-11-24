@@ -36,6 +36,7 @@ import {
   getLocalizedCountry,
 } from "@/lib/placeLocalization";
 import { processPaymentReturnParams } from "@/lib/monetization";
+import { normalizeWeather } from "@/lib/weatherSafe";
 // SERVER CHECK PAUSED — see useEffect below. Do NOT re-add the promoCodes.server import
 // until Supabase is actually set up, or the preview will fail to build (module not found)
 // AND the check will delete real Party Pack unlocks (see below).
@@ -188,13 +189,16 @@ export function WeatherHomePage() {
     async (p: Place, u: WeatherUnit) => {
       setLoading(true);
       try {
-        const data = await fetchWeather(p, u);
+        const raw = await fetchWeather(p, u);
+        // V6 NaN fix: normalize aliases + parse strings, so temp/feels/humidity never become NaN in UI.
+        // If fetch returns undefined temp for a city like Ban Mai ..., normalize keeps -- instead of NaN.
+        const data = normalizeWeather(raw, u);
         setWeather(data);
         saveLastPlace(p);
 
                // Generate active hazard alerts
         const activeAlertList: TickerAlertItem[] = [];
-        if (data.current.code >= 95) {
+        if ((data.current as any).code >= 95) {
           activeAlertList.push({
             id: `ts-${Date.now()}`,
             severity: "alert",
