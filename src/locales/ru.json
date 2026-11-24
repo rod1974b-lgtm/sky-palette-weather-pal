@@ -260,5 +260,6 @@
   "pay_modal_support_via": "Выберите способ оплаты",
   "pay_modal_opened_notice": "{{provider}} открыт в вашем браузере. Вы завершили поддержку?",
   "pay_modal_confirm_unlock": "Я поддержал — Разблокируйте мои бонусы сейчас! 🎉",
-  "pay_modal_error_google_play": "Не удалось завершить покупку в Google Play. Вы также можете поддержать через Buy Me a Coffee ниже."
+  "pay_modal_error_google_play": "Не удалось завершить покупку в Google Play. Вы также можете поддержать через Buy Me a Coffee ниже.",
+  "btn_save_to_gallery"	"Сохранить в галерею"
 }
