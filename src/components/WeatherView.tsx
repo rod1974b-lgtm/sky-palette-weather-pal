@@ -74,6 +74,7 @@ export function WeatherView({
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
   const [activeOutfitTab, setActiveOutfitTab] = useState<"casual" | "business" | "outdoor">("casual");
+  const [isSavingArtwork, setIsSavingArtwork] = useState(false);
 
   // Artwork resolution
   const [localWallpaper, setLocalWallpaper] = useState<string | null>(customBgUrl ?? null);
@@ -90,6 +91,18 @@ export function WeatherView({
     setLocalWallpaper(url);
     onSelectBackground?.(url);
     onSelectBg?.(url);
+  };
+
+  const handleSaveHeroArtwork = async () => {
+    if (!displayBg || isSavingArtwork) return;
+    setIsSavingArtwork(true);
+    try {
+      await saveArtwork(displayBg);
+    } finally {
+      setTimeout(() => {
+        setIsSavingArtwork(false);
+      }, 1200);
+    }
   };
 
   const openGuide = (topic: GuideTopic) => {
@@ -200,11 +213,18 @@ export function WeatherView({
         <div className="flex justify-end px-1 -mt-2">
           <button
             type="button"
-            onClick={() => void saveArtwork(displayBg)}
-            className="px-3.5 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold border border-border/70 shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+            onClick={handleSaveHeroArtwork}
+            disabled={isSavingArtwork}
+            className={`px-3.5 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold border border-border/70 shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
+              isSavingArtwork ? "opacity-75 cursor-wait" : ""
+            }`}
           >
-            <span>📥</span>
-            <span>{t("btn_save_to_gallery", "Save to Gallery")}</span>
+            <span>{isSavingArtwork ? "⏳" : "📥"}</span>
+            <span>
+              {isSavingArtwork
+                ? t("toast_downloading", "Downloading artwork...")
+                : t("btn_save_to_gallery", "Save to Gallery")}
+            </span>
           </button>
         </div>
       )}
