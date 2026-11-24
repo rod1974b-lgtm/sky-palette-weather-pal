@@ -260,5 +260,6 @@
   "pay_modal_support_via": "भुगतान विकल्प चुनें",
   "pay_modal_opened_notice": "{{provider}} आपके ब्राउज़र में खुल गया है। क्या आपने अपना योगदान पूरा कर लिया है?",
   "pay_modal_confirm_unlock": "मैंने योगदान दिया — अभी मेरे लाभ अनलॉक करें! 🎉",
-  "pay_modal_error_google_play": "Google Play खरीद पूरी नहीं हो सकी। आप नीचे Buy Me a Coffee के माध्यम से भी समर्थन कर सकते हैं।"
+  "pay_modal_error_google_play": "Google Play खरीद पूरी नहीं हो सकी। आप नीचे Buy Me a Coffee के माध्यम से भी समर्थन कर सकते हैं।",
+  "btn_save_to_gallery"	"गैलरी में सहेजें"
 }
