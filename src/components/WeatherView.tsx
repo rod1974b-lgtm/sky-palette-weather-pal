@@ -10,7 +10,7 @@ import {
 } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
-import { saveArtwork } from "@/lib/wallpaperStorage";
+import { downloadArtwork, shareArtwork } from "@/lib/wallpaperStorage";
 import { OutdoorActivityPlanner } from "@/components/OutdoorActivityPlanner";
 import { WeatherRadar } from "@/components/WeatherRadar";
 import { AstronomyTracker } from "@/components/AstronomyTracker";
@@ -74,7 +74,10 @@ export function WeatherView({
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
   const [activeOutfitTab, setActiveOutfitTab] = useState<"casual" | "business" | "outdoor">("casual");
-  const [isSavingArtwork, setIsSavingArtwork] = useState(false);
+  
+  // Dual button loading states
+  const [isDownloadingHero, setIsDownloadingHero] = useState(false);
+  const [isSharingHero, setIsSharingHero] = useState(false);
 
   // Artwork resolution
   const [localWallpaper, setLocalWallpaper] = useState<string | null>(customBgUrl ?? null);
@@ -93,14 +96,26 @@ export function WeatherView({
     onSelectBg?.(url);
   };
 
-  const handleSaveHeroArtwork = async () => {
-    if (!displayBg || isSavingArtwork) return;
-    setIsSavingArtwork(true);
+  const handleDownloadHero = async () => {
+    if (!displayBg || isDownloadingHero) return;
+    setIsDownloadingHero(true);
     try {
-      await saveArtwork(displayBg);
+      await downloadArtwork(displayBg);
     } finally {
       setTimeout(() => {
-        setIsSavingArtwork(false);
+        setIsDownloadingHero(false);
+      }, 1200);
+    }
+  };
+
+  const handleShareHero = async () => {
+    if (!displayBg || isSharingHero) return;
+    setIsSharingHero(true);
+    try {
+      await shareArtwork(displayBg);
+    } finally {
+      setTimeout(() => {
+        setIsSharingHero(false);
       }, 1200);
     }
   };
@@ -208,21 +223,41 @@ export function WeatherView({
         )}
       </section>
 
-      {/* Save to Gallery Button under the artwork */}
+      {/* DUAL BUTTONS: Direct Download + Share / Save to Gallery */}
       {displayBg && (
-        <div className="flex justify-end px-1 -mt-2">
+        <div className="flex justify-end items-center gap-2 px-1 -mt-2">
+          {/* Button 1: Save directly to Downloads folder */}
           <button
             type="button"
-            onClick={handleSaveHeroArtwork}
-            disabled={isSavingArtwork}
-            className={`px-3.5 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold border border-border/70 shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
-              isSavingArtwork ? "opacity-75 cursor-wait" : ""
+            onClick={handleDownloadHero}
+            disabled={isDownloadingHero}
+            className={`px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold border border-border/70 shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
+              isDownloadingHero ? "opacity-75 cursor-wait" : ""
             }`}
+            title="Download directly to your device"
           >
-            <span>{isSavingArtwork ? "⏳" : "📥"}</span>
+            <span>{isDownloadingHero ? "⏳" : "💾"}</span>
             <span>
-              {isSavingArtwork
-                ? t("toast_downloading", "Downloading artwork...")
+              {isDownloadingHero
+                ? t("toast_downloading", "Downloading...")
+                : t("btn_save_to_downloads", "Save to Downloads")}
+            </span>
+          </button>
+
+          {/* Button 2: Save to Photo Gallery / Open Share Sheet */}
+          <button
+            type="button"
+            onClick={handleShareHero}
+            disabled={isSharingHero}
+            className={`px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold border border-border/70 shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
+              isSharingHero ? "opacity-75 cursor-wait" : ""
+            }`}
+            title="Open phone share / save to photo gallery"
+          >
+            <span>{isSharingHero ? "⏳" : "📤"}</span>
+            <span>
+              {isSharingHero
+                ? t("toast_downloading", "Opening...")
                 : t("btn_save_to_gallery", "Save to Gallery")}
             </span>
           </button>
