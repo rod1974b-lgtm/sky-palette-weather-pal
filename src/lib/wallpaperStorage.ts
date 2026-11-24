@@ -226,25 +226,46 @@ export async function applyCustomWallpaper(
 }
 
 /**
+ * Helper to convert any image URL (including data URI) into a Blob reliably.
+ */
+async function resolveImageBlob(imageUrl: string): Promise<Blob> {
+  if (imageUrl.startsWith("data:")) {
+    const parts = imageUrl.split(",");
+    const header = parts[0] || "";
+    const b64 = parts[1] || "";
+    const mimeMatch = header.match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : "image/png";
+    const binary = atob(b64);
+    const len = binary.length;
+    const u8arr = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      u8arr[i] = binary.charCodeAt(i);
+    }
+    return new Blob([u8arr], { type: mime });
+  }
+
+  const res = await fetch(imageUrl);
+  if (!res.ok) throw new Error("Fetch failed");
+  return await res.blob();
+}
+
+/**
  * Saves artwork to the device.
- * 1. Fetches the image as a blob and creates a File.
- * 2. Uses navigator.share with files so iOS Safari displays the native "Save Image" option.
- * 3. Falls back to an anchor object URL download with "weatherpal-artwork.png".
- * 4. Falls back to opening a new tab only if the fetch fails.
+ * 1. Resolves base64 or fetches the image as a blob and creates a File.
+ * 2. Uses navigator.share with files so iOS Safari displays native "Save Image".
+ * 3. Falls back to an anchor object URL download with delayed URL revocation.
+ * 4. Falls back to opening a new tab only if blob creation fails.
  */
 export async function saveArtwork(imageUrl: string): Promise<void> {
   try {
-    const res = await fetch(imageUrl);
-    if (!res.ok) throw new Error("Fetch failed");
-
-    const blob = await res.blob();
+    const blob = await resolveImageBlob(imageUrl);
     const file = new File([blob], "weatherpal-artwork.png", {
       type: blob.type || "image/png",
     });
 
     if (
       typeof navigator !== "undefined" &&
-      navigator.canShare &&
+      typeof navigator.canShare === "function" &&
       navigator.canShare({ files: [file] })
     ) {
       try {
@@ -267,9 +288,15 @@ export async function saveArtwork(imageUrl: string): Promise<void> {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(objectUrl);
+
+    // Keep object URL active for 60 seconds so browser download stream finishes
+    setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+    }, 60000);
   } catch {
-    window.open(imageUrl, "_blank");
+    try {
+      window.open(imageUrl, "_blank");
+    } catch {}
   }
 }
 
