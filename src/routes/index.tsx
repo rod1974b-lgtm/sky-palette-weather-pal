@@ -520,16 +520,16 @@ export function WeatherHomePage() {
       <div className="fixed inset-0 pointer-events-none bg-black/10 backdrop-blur-[0.5px]" />
 
       <main className="relative z-10 mx-auto max-w-4xl px-3 py-3.5 sm:px-6 sm:py-6 space-y-3.5 sm:space-y-4">
-        {/* Navigation / Header Bar */}
+        {/* Navigation / Header Bar with protected high-contrast brand badge */}
         <header className="space-y-2.5">
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="inline-flex items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-2xl bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 shadow-xs w-fit">
             <img
               src="/icons/weather_pal_1_512.png"
               alt="My Weather Pal"
               className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-xl drop-shadow-sm shrink-0"
               loading="eager"
             />
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground drop-shadow-md whitespace-nowrap">
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-foreground whitespace-nowrap">
               My Weather Pal
             </h1>
           </div>
