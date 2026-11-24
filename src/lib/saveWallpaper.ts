@@ -1,11 +1,6 @@
 // src/lib/saveWallpaper.ts
 // FREE fix for: Gallery opens wallpaper but Save to Downloads does nothing on phone
-// Why it failed before:
-//  - iOS Safari IGNORES <a download> - it just opens the image, never saves it
-//  - Android Chrome blocks <a download> for cross-origin URLs and for blob URLs inside Lovable's iframe preview
-//  - AI images / Unsplash / external URLs often fail CORS fetch, so blob was never created
 // Fix: fetch -> blob -> try Capacitor (if installed) -> try navigator.share with File (iOS/Android) -> try <a download> blob -> fallback open in new tab + long-press
-// No paid plugin, no new dependency. Works in Lovable preview, PWA, and installed app.
 
 export type SaveStatus = "saved" | "shared" | "opened" | "error";
 
@@ -38,7 +33,6 @@ export function isInIframe(): boolean {
 
 function cleanFileName(name: string, fallback = "weather-pal-wallpaper"): string {
   const cleaned = name.trim().toLowerCase().replace(/[^a-z0-9-_]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || fallback;
-  // Keep .jpg by default - smallest + universal for Photos / Downloads / Gallery
   return cleaned.endsWith(".jpg") || cleaned.endsWith(".png") || cleaned.endsWith(".webp") ? cleaned : `${cleaned}.jpg`;
 }
 
@@ -47,7 +41,6 @@ function blobToBase64(blob: Blob): Promise<string> {
     const reader = new FileReader();
     reader.onloadend = () => {
       const res = reader.result as string;
-      // Strip data:...;base64, prefix - Capacitor Filesystem wants raw base64
       resolve(res.split(",")[1] || res);
     };
     reader.onerror = reject;
@@ -57,7 +50,11 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 function dataUrlToBlob(dataUrl: string): Blob | null {
   try {
-    const [header, data] = dataUrl.split(",");
+    const parts = dataUrl.split(",");
+    const header = parts[0];
+    const data = parts[1];
+    if (!header || !data) return null;
+
     const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
     if (header.includes("base64")) {
       const bin = atob(data);
@@ -71,7 +68,6 @@ function dataUrlToBlob(dataUrl: string): Blob | null {
   }
 }
 
-// Try to get a Blob even when CORS blocks fetch - draw via <img> + canvas
 async function canvasFallbackBlob(imageUrl: string): Promise<Blob | null> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -91,33 +87,24 @@ async function canvasFallbackBlob(imageUrl: string): Promise<Blob | null> {
     };
     img.onerror = () => resolve(null);
     img.src = imageUrl;
-    // Timeout - don't hang the Save button
     setTimeout(() => resolve(null), 8000);
   });
 }
 
 export async function urlToBlob(imageUrl: string): Promise<Blob | null> {
-  // 1) data: URL (AI Gallery often returns base64) - no fetch needed
   if (imageUrl.startsWith("data:")) {
     return dataUrlToBlob(imageUrl);
   }
-  // 2) Normal fetch -> blob (best quality, keeps original)
   try {
     const res = await fetch(imageUrl, { mode: "cors", credentials: "omit" });
     if (res.ok) {
       const blob = await res.blob();
       if (blob.size > 0) return blob;
     }
-  } catch {
-    // CORS blocked - fall through to canvas
-  }
-  // 3) Canvas fallback for cross-origin images
+  } catch {}
   return await canvasFallbackBlob(imageUrl);
 }
 
-// --- Capacitor (optional, FREE if you already use Capacitor) ---
-// If your app is built with Capacitor, this writes to Cache then shares via native Share sheet
-// which puts it in Photos / Gallery / Downloads. If Capacitor is NOT installed, this is skipped.
 async function tryCapacitorSave(blob: Blob, fileName: string): Promise<boolean> {
   try {
     const cap = (window as any).Capacitor;
@@ -129,7 +116,6 @@ async function tryCapacitorSave(blob: Blob, fileName: string): Promise<boolean> 
       data: base64,
       directory: Directory.Cache,
     });
-    // Try native Share - this is what actually puts it in Gallery on Android/iOS
     if (cap.Plugins.Share) {
       await cap.Plugins.Share.share({
         title: "Weather Pal Wallpaper",
@@ -138,7 +124,6 @@ async function tryCapacitorSave(blob: Blob, fileName: string): Promise<boolean> 
       });
       return true;
     }
-    // No Share plugin - at least file is in Cache, open it
     window.open(saved.uri, "_blank");
     return true;
   } catch {
@@ -146,7 +131,6 @@ async function tryCapacitorSave(blob: Blob, fileName: string): Promise<boolean> 
   }
 }
 
-// --- Web Share API - THE fix for iPhone ---
 async function tryWebShare(blob: Blob, fileName: string): Promise<boolean> {
   try {
     const nav = navigator as any;
@@ -160,7 +144,6 @@ async function tryWebShare(blob: Blob, fileName: string): Promise<boolean> {
     });
     return true;
   } catch (err: any) {
-    // User closed share sheet = AbortError - treat as cancelled, not failed
     if (err?.name === "AbortError") return true;
     return false;
   }
@@ -172,11 +155,9 @@ function anchorDownload(blob: Blob, fileName: string): boolean {
     const a = document.createElement("a");
     a.href = url;
     a.download = fileName;
-    // Must be in DOM for Firefox / mobile WebView
     document.body.appendChild(a);
     a.click();
     a.remove();
-    // Revoke after a delay - iOS needs time to open it
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     return true;
   } catch {
@@ -184,22 +165,20 @@ function anchorDownload(blob: Blob, fileName: string): boolean {
   }
 }
 
-/**
- * MAIN FUNCTION - call this from Hero Card + AI Gallery Save buttons
- * Usage: const result = await saveWallpaperToDownloads(imageUrl, "weather-pal-clear-day")
- */
-export async function saveWallpaperToDownloads(imageUrl: string, rawFileName: string): Promise<SaveResult> {
+export async function saveWallpaperToDownloads(
+  imageUrl: string,
+  rawFileName: string,
+  options?: { mode?: "download" | "share" }
+): Promise<SaveResult> {
   const fileName = cleanFileName(rawFileName);
 
   if (!imageUrl) {
     return { status: "error", message: "No image to save." };
   }
 
-  // Get blob first - everything else needs it
   const blob = await urlToBlob(imageUrl);
 
   if (!blob) {
-    // Last resort: open original in new tab so user can long-press -> Save Image
     window.open(imageUrl, "_blank", "noopener,noreferrer");
     return {
       status: "opened",
@@ -209,14 +188,13 @@ export async function saveWallpaperToDownloads(imageUrl: string, rawFileName: st
     };
   }
 
-  // 1) Capacitor native path (if app is Capacitor-wrapped) - best for installed app
   if (await tryCapacitorSave(blob, fileName)) {
     return { status: "saved", message: "Saved! Check Photos / Gallery / Downloads." };
   }
 
-  // 2) iPhone / iPad MUST use Share sheet - <a download> does nothing on iOS Safari
-  //    Also best on Android PWA - Share -> Save to Files / Downloads / Photos
-  if (isMobile()) {
+  const mode = options?.mode || (isMobile() ? "share" : "download");
+
+  if (mode === "share" || isIOS()) {
     if (await tryWebShare(blob, fileName)) {
       return {
         status: "shared",
@@ -225,11 +203,8 @@ export async function saveWallpaperToDownloads(imageUrl: string, rawFileName: st
           : "Share sheet opened. Tap Save to Downloads / Save to Files.",
       };
     }
-    // Share failed / not supported - fall through to anchor download
   }
 
-  // 3) Desktop + Android Chrome - blob + <a download> works
-  //    In Lovable iframe preview, download is blocked, so open in new tab instead
   if (isInIframe()) {
     const blobUrl = URL.createObjectURL(blob);
     window.open(blobUrl, "_blank", "noopener,noreferrer");
@@ -246,7 +221,13 @@ export async function saveWallpaperToDownloads(imageUrl: string, rawFileName: st
     return { status: "saved", message: "Saved to Downloads! Check your Downloads folder." };
   }
 
-  // 4) Ultimate fallback
+  if (await tryWebShare(blob, fileName)) {
+    return {
+      status: "shared",
+      message: "Share sheet opened. Tap Save Image or Save to Files.",
+    };
+  }
+
   const blobUrl = URL.createObjectURL(blob);
   window.open(blobUrl, "_blank", "noopener,noreferrer");
   return {
