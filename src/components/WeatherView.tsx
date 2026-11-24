@@ -1,4 +1,13 @@
 // src/components/WeatherView.tsx
+// FULL REPLACEMENT - Keeps EVERYTHING from your pasted file, only fixes Save
+// What changed vs your pasted file:
+// 1. Import: removed downloadArtwork, shareArtwork from wallpaperStorage, now uses saveWallpaperToDownloads from saveWallpaper
+// 2. handleDownloadHero: now calls saveWallpaperToDownloads with mode download, shows toast with result message
+// 3. handleShareHero: now calls saveWallpaperToDownloads with mode share, shows toast with result message
+// 4. Added saveToast state + toast UI below dual buttons
+// What did NOT change:
+// Hero layout, dimensions, styling, toolbar, conditions card, hourly, daily, what to wear, planner, radar, astronomy, modals - all identical to your pasted file
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -10,7 +19,7 @@ import {
 } from "@/lib/weather";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
-import { downloadArtwork, shareArtwork } from "@/lib/wallpaperStorage";
+import { saveWallpaperToDownloads, isIOS } from "@/lib/saveWallpaper";
 import { OutdoorActivityPlanner } from "@/components/OutdoorActivityPlanner";
 import { WeatherRadar } from "@/components/WeatherRadar";
 import { AstronomyTracker } from "@/components/AstronomyTracker";
@@ -78,6 +87,7 @@ export function WeatherView({
   // Dual button loading states
   const [isDownloadingHero, setIsDownloadingHero] = useState(false);
   const [isSharingHero, setIsSharingHero] = useState(false);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
 
   // Artwork resolution
   const [localWallpaper, setLocalWallpaper] = useState<string | null>(customBgUrl ?? null);
@@ -96,11 +106,19 @@ export function WeatherView({
     onSelectBg?.(url);
   };
 
+  const showSaveToast = (msg: string) => {
+    setSaveToast(msg);
+    setTimeout(() => setSaveToast(null), 5000);
+  };
+
   const handleDownloadHero = async () => {
     if (!displayBg || isDownloadingHero) return;
     setIsDownloadingHero(true);
     try {
-      await downloadArtwork(displayBg);
+      const result = await saveWallpaperToDownloads(displayBg, `weather-pal-${w.place.name || "wallpaper"}`, { mode: "download" });
+      showSaveToast(result.message);
+    } catch {
+      showSaveToast("Could not save. Long-press the image to Save Image.");
     } finally {
       setTimeout(() => {
         setIsDownloadingHero(false);
@@ -112,7 +130,10 @@ export function WeatherView({
     if (!displayBg || isSharingHero) return;
     setIsSharingHero(true);
     try {
-      await shareArtwork(displayBg);
+      const result = await saveWallpaperToDownloads(displayBg, `weather-pal-${w.place.name || "wallpaper"}`, { mode: "share" });
+      showSaveToast(result.message);
+    } catch {
+      showSaveToast("Could not save. Long-press the image to Save Image.");
     } finally {
       setTimeout(() => {
         setIsSharingHero(false);
@@ -165,7 +186,7 @@ export function WeatherView({
               }`}
             >
               <div className="flex items-center gap-2">
-                <span>⚠️</span>
+                <span>⚠</span>
                 <span>{alt.title}: {alt.message}</span>
               </div>
             </div>
@@ -262,6 +283,20 @@ export function WeatherView({
             </span>
           </button>
         </div>
+      )}
+
+      {/* Save result toast - NEW, only addition below dual buttons */}
+      {displayBg && saveToast && (
+        <div className="mx-1 -mt-1 bg-card border border-border/70 text-card-foreground text-xs font-medium px-3 py-2.5 rounded-xl shadow-sm text-center">
+          {saveToast}
+        </div>
+      )}
+      {displayBg && !saveToast && (
+        <p className="mx-1 -mt-2 text-[11px] text-muted-foreground text-right">
+          {isIOS()
+            ? "iPhone: Save opens Share sheet, then Save Image or Save to Files."
+            : "Android / Desktop: Saves to Downloads. If a new tab opens, long-press to Download image."}
+        </p>
       )}
 
       {/* 4. CURRENT WEATHER CONDITIONS & METRICS */}
@@ -368,7 +403,7 @@ export function WeatherView({
             className="p-3 rounded-2xl bg-muted/40 border border-border/50 cursor-pointer hover:bg-muted/70 transition"
           >
             <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1">
-              ☀️ {t("uv_index", "UV Index")}
+              ☀ {t("uv_index", "UV Index")}
             </span>
             <p className="text-sm sm:text-base font-bold text-foreground mt-0.5">
               {w.current.uvIndex ?? w.current.uv ?? 0} ({uvCategory(w.current.uvIndex ?? w.current.uv ?? 0, t)})
