@@ -1,8 +1,4 @@
 // src/components/WallpaperGallery.tsx
-// FULL REPLACEMENT - Gallery view that CAN save on phone
-// Before: Gallery only had <img> + <a href> - iOS ignored download, Android blocked cross-origin
-// After: Save button uses saveWallpaperToDownloads() - Share sheet on iPhone, Downloads on Android/Desktop
-
 import { useEffect, useState, useCallback } from "react";
 import { saveWallpaperToDownloads, isIOS, isMobile } from "@/lib/saveWallpaper";
 
@@ -11,7 +7,6 @@ export interface GalleryWallpaper {
   url: string;
   title: string;
   subtitle?: string;
-  // If your AI gallery uses data: URLs, put them in url - saveWallpaper handles it
 }
 
 interface Props {
@@ -27,7 +22,6 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Reset to startIndex every time gallery opens
   useEffect(() => {
     if (open) {
       setIndex(startIndex);
@@ -42,7 +36,6 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
     };
   }, [open, startIndex]);
 
-  // ESC to close, arrows to navigate
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -74,13 +67,14 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
   }, [wallpapers, index, saving]);
 
   const handleShare = useCallback(async () => {
-    // Share = same function on mobile, but we force the share path by just calling save
     await handleSave();
   }, [handleSave]);
 
   if (!open || wallpapers.length === 0) return null;
 
   const current = wallpapers[index];
+  if (!current) return null;
+
   const saveLabel = saving
     ? "Saving…"
     : isIOS()
@@ -101,7 +95,7 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
         </div>
         <button
           onClick={onClose}
-          className="shrink-0 ml-3 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-xl"
+          className="shrink-0 ml-3 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-xl cursor-pointer"
           aria-label="Close gallery"
         >
           ✕
@@ -120,14 +114,14 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
           <>
             <button
               onClick={() => setIndex((i) => (i - 1 + wallpapers.length) % wallpapers.length)}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center cursor-pointer"
               aria-label="Previous wallpaper"
             >
               ‹
             </button>
             <button
               onClick={() => setIndex((i) => (i + 1) % wallpapers.length)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center cursor-pointer"
               aria-label="Next wallpaper"
             >
               ›
@@ -143,7 +137,7 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
             <button
               key={w.id}
               onClick={() => setIndex(i)}
-              className={`shrink-0 w-16 h-10 rounded-lg overflow-hidden ring-2 ${i === index ? "ring-amber-400" : "ring-transparent opacity-60"}`}
+              className={`shrink-0 w-16 h-10 rounded-lg overflow-hidden ring-2 cursor-pointer ${i === index ? "ring-amber-400" : "ring-transparent opacity-60"}`}
             >
               <img src={w.url} alt={w.title} className="w-full h-full object-cover" />
             </button>
@@ -151,27 +145,27 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
         </div>
       )}
 
-      {/* Actions - THIS IS THE FIX: Save button calls saveWallpaperToDownloads, not <a download> */}
+      {/* Actions */}
       <div className="p-4 bg-black/40 backdrop-blur">
         <div className="flex gap-2 max-w-md mx-auto">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-white font-bold py-3.5 px-4 rounded-full shadow-lg active:scale-[0.98] transition"
+            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-white font-bold py-3.5 px-4 rounded-full shadow-lg active:scale-[0.98] transition cursor-pointer"
           >
             {saving ? "⏳ Saving…" : `⬇️ ${saveLabel}`}
           </button>
           <button
             onClick={handleShare}
             disabled={saving}
-            className="px-4 py-3.5 rounded-full bg-white/15 hover:bg-white/25 text-white font-semibold"
+            className="px-4 py-3.5 rounded-full bg-white/15 hover:bg-white/25 text-white font-semibold cursor-pointer"
           >
             ↗ Share
           </button>
           {onSetAsBackground && (
             <button
               onClick={() => onSetAsBackground(current)}
-              className="px-4 py-3.5 rounded-full bg-white text-black font-semibold"
+              className="px-4 py-3.5 rounded-full bg-white text-black font-semibold cursor-pointer"
             >
               Set BG
             </button>
@@ -185,7 +179,7 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
         </p>
 
         {toast && (
-          <div className="mt-3 mx-auto max-w-md bg-white text-black text-sm font-medium px-4 py-3 rounded-xl shadow-xl text-center">
+          <div className="mt-2 text-center text-xs text-amber-300 font-medium animate-pulse">
             {toast}
           </div>
         )}
