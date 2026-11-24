@@ -262,4 +262,8 @@
   "pay_modal_confirm_unlock": "¡Contribuí — Desbloquea mis ventajas ahora! 🎉",
   "pay_modal_error_google_play": "No se pudo completar la compra en Google Play. También puedes apoyar con Buy Me a Coffee abajo.",
   "btn_save_to_gallery": "Guardar en galería"
+    "btn_save_to_gallery": "Guardar en galería",
+  "btn_save_to_downloads": "Guardar en descargas"
+}
+
 }
