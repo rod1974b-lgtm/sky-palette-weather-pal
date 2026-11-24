@@ -261,9 +261,8 @@
   "pay_modal_opened_notice": "{{provider}} dibuka di browser Anda. Sudah menyelesaikan kontribusi Anda?",
   "pay_modal_confirm_unlock": "Saya Sudah Berkontribusi — Buka Keuntungan Saya Sekarang! 🎉",
   "pay_modal_error_google_play": "Pembelian Google Play tidak dapat diselesaikan. Anda juga dapat mendukung via Buy Me a Coffee di bawah.",
-  "btn_save_to_gallery": "Simpan ke Galeri"
-    "btn_save_to_gallery": "Simpan ke Galeri",
+  "btn_save_to_gallery": "Simpan ke Galeri",
   "btn_save_to_downloads": "Simpan ke Unduhan"
 }
 
-}
+
