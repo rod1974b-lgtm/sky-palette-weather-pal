@@ -261,11 +261,10 @@
   "pay_modal_opened_notice": "Opened {{provider}} in your browser. Completed your contribution?",
    "pay_modal_confirm_unlock": "I Contributed — Unlock My Perks Now! 🎉",
   "pay_modal_error_google_play": "Google Play purchase could not be completed. You can also support via Buy Me a Coffee below.",
-  "btn_save_to_gallery": "Save to Gallery"
-    "btn_save_to_gallery": "Save to Gallery",
+  "btn_save_to_gallery": "Save to Gallery",
   "btn_save_to_downloads": "Save to Downloads"
 }
 
-}
+
 
 
