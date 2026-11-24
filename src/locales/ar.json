@@ -261,5 +261,6 @@
   "pay_modal_opened_notice": "تم فتح {{provider}} في متصفحك. هل أكملت مساهمتك؟",
   "pay_modal_confirm_unlock": "لقد ساهمت — افتح مزاياي الآن! 🎉",
   "pay_modal_error_google_play": "تعذرت إتمام عملية الشراء عبر Google Play. يمكنك أيضاً الدعم عبر Buy Me a Coffee أدناه.",
-  "btn_save_to_gallery"	"حفظ في المعرض"
+    "btn_save_to_gallery": "حفظ في المعرض"
+
 }
