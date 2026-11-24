@@ -261,12 +261,10 @@
   "pay_modal_opened_notice": "Đã mở {{provider}} trong trình duyệt của bạn. Bạn đã hoàn tất đóng góp chưa?",
   "pay_modal_confirm_unlock": "Tôi đã đóng góp — Mở khóa quyền lợi ngay! 🎉",
   "pay_modal_error_google_play": "Không thể hoàn tất mua hàng qua Google Play. Bạn cũng có thể ủng hộ qua Buy Me a Coffee bên dưới.",
-  "btn_save_to_gallery": "Lưu vào bộ sưu tập"
-    "btn_save_to_gallery": "Lưu vào bộ sưu tập",
+  "btn_save_to_gallery": "Lưu vào bộ sưu tập",
   "btn_save_to_downloads": "Lưu vào thư mục Tải về"
-    "btn_save_to_gallery": "Lưu vào bộ sưu tập",
-  "btn_save_to_downloads": "Lưu vào thư mục Tải về"
-}
+  
+    }
 
-}
+
 
