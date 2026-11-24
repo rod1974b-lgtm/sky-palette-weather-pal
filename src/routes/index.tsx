@@ -131,14 +131,12 @@ export function WeatherHomePage() {
   const [alerts, setAlerts] = useState<TickerAlertItem[]>([]);
   const [showComparison, setShowComparison] = useState(false);
 
-  // Search autocomplete state
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Monetization modals
   const [thankYouTier, setThankYouTier] = useState<string | null>(null);
 
   const displayCity = useCallback(
@@ -158,7 +156,6 @@ export function WeatherHomePage() {
         setWeather(data);
         saveLastPlace(p);
 
-        // Generate active hazard alerts with safe fallbacks
         const activeAlertList: TickerAlertItem[] = [];
         if (data?.current) {
           const code = (data.current as { code?: number }).code ?? 0;
@@ -204,7 +201,6 @@ export function WeatherHomePage() {
     [t]
   );
 
-  // Keep <meta name="description"> in sync when language changes in-app
   useEffect(() => {
     try {
       const el = document.querySelector('meta[name="description"]');
@@ -283,7 +279,6 @@ export function WeatherHomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Listen to cross-component sky theme events
   useEffect(() => {
     const VALID_SKY = new Set([
       "auto",
@@ -319,7 +314,6 @@ export function WeatherHomePage() {
     };
   }, []);
 
-  // Listen for background changes
   useEffect(() => {
     const handleBgChange = (e: Event) => {
       const url = (e as CustomEvent).detail?.url;
@@ -329,7 +323,6 @@ export function WeatherHomePage() {
     return () => window.removeEventListener("weather:custom-bg-change", handleBgChange);
   }, []);
 
-  // Listen for payment return URL params and instant tier unlock events
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -387,7 +380,6 @@ export function WeatherHomePage() {
     } catch {}
   };
 
-  // GPS geolocation with reverse geocoding via Photon
   const handleGPS = () => {
     if (!navigator.geolocation) {
       alert(t("geolocation_unsupported", "Geolocation is not supported by your browser."));
@@ -442,7 +434,6 @@ export function WeatherHomePage() {
     );
   };
 
-  // Debounced search autocomplete
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSuggestions([]);
@@ -531,7 +522,6 @@ export function WeatherHomePage() {
       <main className="relative z-10 mx-auto max-w-4xl px-3 py-3.5 sm:px-6 sm:py-6 space-y-3.5 sm:space-y-4">
         {/* Navigation / Header Bar */}
         <header className="space-y-2.5">
-          {/* Level 1: App Icon and Title Alone */}
           <div className="flex items-center gap-2 sm:gap-2.5">
             <img
               src="/icons/weather_pal_1_512.png"
@@ -544,7 +534,6 @@ export function WeatherHomePage() {
             </h1>
           </div>
 
-          {/* Level 2: Current City Pin Badge (Left) & Quick Actions (Right) */}
           <div className="flex items-center justify-between gap-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/85 dark:bg-black/60 backdrop-blur-md border border-white/25 text-xs font-bold text-foreground shadow-xs min-w-0 max-w-[58%] sm:max-w-md">
               <span className="text-xs shrink-0">📍</span>
@@ -619,7 +608,6 @@ export function WeatherHomePage() {
             )}
           </div>
 
-          {/* Autocomplete Dropdown */}
           {isSearching && suggestions.length > 0 && (
             <div className="absolute top-full mt-2 w-full rounded-2xl bg-card/95 backdrop-blur-xl border border-border shadow-2xl z-50 divide-y divide-border/40 overflow-hidden max-h-64 overflow-y-auto">
               {suggestions.map((s, idx) => (
@@ -738,7 +726,6 @@ export function WeatherHomePage() {
         </div>
       </footer>
 
-      {/* Thank You / Redemption Unlock Modal */}
       {thankYouTier && (
         <ThankYouModal
           tier={thankYouTier}
