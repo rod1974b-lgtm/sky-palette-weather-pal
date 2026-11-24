@@ -1,9 +1,15 @@
 // src/routes/index.tsx
+// REAL v5 - KEEP THIS FILE EXACTLY. DO NOT USE THE DEMO index.tsx FROM EARLIER.
 // FIXED v5 — i18n: ticker tags, footer credit, and meta/og descriptions now translated.
 //   - tag: t("alert_tag_*") + tagKey so WeatherAlertWatcher can re-translate on language change.
 //   - footer: t("footer_credit")
 //   - head(): i18n.t("meta_description" / "og_description") + live meta sync useEffect.
 //   - All new keys are in locales/*.json (256 keys each). Brand title stays English by design.
+// SAVE FIX NOTE: This file needs NO Save change. Save lives in:
+//   src/components/WeatherView.tsx (calls saveWallpaperToDownloads with mode download / share)
+//   src/lib/wallpaperStorage.ts (downloadArtwork / shareArtwork now wrap saveWallpaperToDownloads)
+//   src/lib/saveWallpaper.ts (fetch to blob, Share sheet on iPhone, anchor download on Android/Desktop)
+// This file only passes customBgUrl + onSelectBackground + weather + alerts to WeatherView. That wiring is already correct.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -304,7 +310,7 @@ export function WeatherHomePage() {
     };
   }, []);
 
-  // Listen to background changes
+  // Listen for background changes
   useEffect(() => {
     const handleBgChange = (e: Event) => {
       const url = (e as CustomEvent).detail?.url;
