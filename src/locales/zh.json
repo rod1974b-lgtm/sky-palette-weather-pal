@@ -261,5 +261,6 @@
   "pay_modal_opened_notice": "已在浏览器中打开{{provider}}。您完成支持了吗？",
   "pay_modal_confirm_unlock": "我已支持 — 立即解锁我的特权！🎉",
   "pay_modal_error_google_play": "无法完成Google Play购买。您也可以通过下方的Buy Me a Coffee支持。",
-  "btn_save_to_gallery"	"保存到图库"
+  "btn_save_to_gallery": "保存到图库"
+
 }
