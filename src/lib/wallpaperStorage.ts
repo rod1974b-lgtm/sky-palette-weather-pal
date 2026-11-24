@@ -226,7 +226,7 @@ export async function applyCustomWallpaper(
 }
 
 /**
- * Helper to convert any image URL (including data URI) into a Blob reliably.
+ * Helper to convert any image URL (including base64 data URI) into a Blob reliably.
  */
 async function resolveImageBlob(imageUrl: string): Promise<Blob> {
   if (imageUrl.startsWith("data:")) {
@@ -234,7 +234,7 @@ async function resolveImageBlob(imageUrl: string): Promise<Blob> {
     const header = parts[0] || "";
     const b64 = parts[1] || "";
     const mimeMatch = header.match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : "image/png";
+    const mime: string = mimeMatch && mimeMatch[1] ? mimeMatch[1] : "image/png";
     const binary = atob(b64);
     const len = binary.length;
     const u8arr = new Uint8Array(len);
@@ -250,41 +250,19 @@ async function resolveImageBlob(imageUrl: string): Promise<Blob> {
 }
 
 /**
- * Saves artwork to the device.
- * 1. Resolves base64 or fetches the image as a blob and creates a File.
- * 2. Uses navigator.share with files so iOS Safari displays native "Save Image".
- * 3. Falls back to an anchor object URL download with delayed URL revocation.
- * 4. Falls back to opening a new tab only if blob creation fails.
+ * Direct file download into device Downloads folder.
+ * Uses an anchor download with an object URL and keeps it active for 60 seconds.
  */
-export async function saveArtwork(imageUrl: string): Promise<void> {
+export async function downloadArtwork(
+  imageUrl: string,
+  fileName = "weatherpal-artwork.png"
+): Promise<void> {
   try {
     const blob = await resolveImageBlob(imageUrl);
-    const file = new File([blob], "weatherpal-artwork.png", {
-      type: blob.type || "image/png",
-    });
-
-    if (
-      typeof navigator !== "undefined" &&
-      typeof navigator.canShare === "function" &&
-      navigator.canShare({ files: [file] })
-    ) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: "WeatherPal Artwork",
-        });
-        return;
-      } catch (err: unknown) {
-        if ((err as { name?: string })?.name === "AbortError") {
-          return;
-        }
-      }
-    }
-
     const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = objectUrl;
-    a.download = "weatherpal-artwork.png";
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -301,16 +279,64 @@ export async function saveArtwork(imageUrl: string): Promise<void> {
 }
 
 /**
+ * Native mobile share sheet / Photos / Gallery saver.
+ * Uses navigator.share with files so iOS & Android present native Save to Photos.
+ */
+export async function shareArtwork(
+  imageUrl: string,
+  title = "WeatherPal Artwork"
+): Promise<void> {
+  try {
+    const blob = await resolveImageBlob(imageUrl);
+    const file = new File([blob], "weatherpal-artwork.png", {
+      type: blob.type || "image/png",
+    });
+
+    if (
+      typeof navigator !== "undefined" &&
+      typeof navigator.canShare === "function" &&
+      navigator.canShare({ files: [file] })
+    ) {
+      try {
+        await navigator.share({
+          files: [file],
+          title,
+        });
+        return;
+      } catch (err: unknown) {
+        if ((err as { name?: string })?.name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    // Fall back to direct download if navigator.share is unavailable
+    await downloadArtwork(imageUrl);
+  } catch {
+    try {
+      window.open(imageUrl, "_blank");
+    } catch {}
+  }
+}
+
+/**
+ * Backward-compatible helper (defaults to direct download).
+ */
+export async function saveArtwork(imageUrl: string): Promise<void> {
+  await downloadArtwork(imageUrl);
+}
+
+/**
  * Backward-compatible helper for slot download buttons.
  */
 export async function saveArtImageToDevice(
   imageUrl: string,
-  _fileName?: string,
+  fileName?: string,
   _title = "Weather Wallpaper"
 ): Promise<{ success: boolean; method: "share" | "download" | "tab" | "failed" }> {
   try {
-    await saveArtwork(imageUrl);
-    return { success: true, method: "share" };
+    await downloadArtwork(imageUrl, fileName);
+    return { success: true, method: "download" };
   } catch {
     return { success: false, method: "failed" };
   }
