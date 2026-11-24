@@ -261,9 +261,7 @@
   "pay_modal_opened_notice": "{{provider}} ouvert dans votre navigateur. Avez-vous terminé votre contribution ?",
   "pay_modal_confirm_unlock": "J'ai contribué — Débloquez mes avantages maintenant ! 🎉",
   "pay_modal_error_google_play": "L'achat Google Play n'a pas pu être terminé. Vous pouvez aussi soutenir via Buy Me a Coffee ci-dessous.",
-    "btn_save_to_gallery": "Enregistrer dans la galerie"
   "btn_save_to_gallery": "Enregistrer dans la galerie",
   "btn_save_to_downloads": "Enregistrer dans Téléchargements"
 }
 
-}
