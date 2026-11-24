@@ -261,10 +261,9 @@
   "pay_modal_opened_notice": "ブラウザで{{provider}}を開きました。支援は完了しましたか？",
   "pay_modal_confirm_unlock": "支援しました — 特典を今すぐ解除！🎉",
   "pay_modal_error_google_play": "Google Playでの購入を完了できませんでした。下のBuy Me a Coffeeからも支援できます。",
-    "btn_save_to_gallery": "ギャラリーに保存"
-    "btn_save_to_gallery": "ギャラリーに保存",
+  "btn_save_to_gallery": "ギャラリーに保存",
   "btn_save_to_downloads": "ダウンロードに保存"
 }
 
 
-}
+
