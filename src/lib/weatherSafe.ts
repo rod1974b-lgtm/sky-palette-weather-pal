@@ -1,6 +1,6 @@
 // src/lib/weatherSafe.ts
 // V6 - NaN FIX - FREE, no new dependency
-// Root cause in screenshots: Ban Mai ... shows NaN°F, Feels like NaN°F, Humidity %, Hourly NaN°
+// Root cause: Ban Mai ... shows NaN°F, Feels like NaN°F, Humidity %, Hourly NaN°
 // Math.round(undefined) = NaN. Math.round("31") works, Math.round(null) = 0, Math.round(undefined) = NaN.
 // fetchWeather / Open-Meteo sometimes returns a different field name, a string, or undefined for one city.
 // Example aliases: temp vs temperature vs temperature_2m, feels vs apparent_temperature,
@@ -56,18 +56,40 @@ export function normalizeWeather<T extends any>(data: T, unit: string): T {
     if (temp === null) {
       const c = toNum(cur.temp_c ?? cur.temperature_c);
       const f = toNum(cur.temp_f ?? cur.temperature_f);
-      if (c !== null && isImperial) temp = c * 9 / 5 + 32;
+      if (c !== null && isImperial) temp = (c * 9) / 5 + 32;
       else if (c !== null) temp = c;
-      else if (f !== null && !isImperial) temp = (f - 32) * 5 / 9;
+      else if (f !== null && !isImperial) temp = ((f - 32) * 5) / 9;
       else if (f !== null) temp = f;
     }
     // Feels: feels, feels_like, apparent_temperature, apparentTemperature
-    let feels = pickNum(cur.feels, cur.feels_like, cur.feelsLike, cur.apparent_temperature, cur.apparentTemperature, cur.feels_c, cur.feels_f);
+    let feels = pickNum(
+      cur.feels,
+      cur.feels_like,
+      cur.feelsLike,
+      cur.apparent_temperature,
+      cur.apparentTemperature,
+      cur.feels_c,
+      cur.feels_f
+    );
     if (feels === null && temp !== null) feels = temp;
     // Humidity: humidity, relative_humidity, relative_humidity_2m
-    const humidity = pickNum(cur.humidity, cur.relative_humidity, cur.relative_humidity_2m, cur.humidity_2m, cur.relativeHumidity);
+    const humidity = pickNum(
+      cur.humidity,
+      cur.relative_humidity,
+      cur.relative_humidity_2m,
+      cur.humidity_2m,
+      cur.relativeHumidity
+    );
     // Wind: wind_speed, wind, wind_speed_10m, windSpeed, wind_mph, wind_kmh
-    const windSpeed = pickNum(cur.wind_speed, cur.wind, cur.wind_speed_10m, cur.windSpeed, cur.wind_speed_10, cur.wind_mph, cur.wind_kmh);
+    const windSpeed = pickNum(
+      cur.wind_speed,
+      cur.wind,
+      cur.wind_speed_10m,
+      cur.windSpeed,
+      cur.wind_speed_10,
+      cur.wind_mph,
+      cur.wind_kmh
+    );
     // UV: uv, uvIndex, uv_index, uv_index_max
     const uv = pickNum(cur.uv, cur.uvIndex, cur.uv_index, cur.uvIndexMax, cur.uv_index_max);
     // AQI: aqi, air_quality, airQuality
@@ -110,7 +132,12 @@ export function normalizeWeather<T extends any>(data: T, unit: string): T {
         if (!day) return day;
         const mx = pickNum(day.max, day.temp_max, day.temperature_2m_max, day.max_temp, day.maximum);
         const mn = pickNum(day.min, day.temp_min, day.temperature_2m_min, day.min_temp, day.minimum);
-        return { ...day, max: mx ?? day.max, min: mn ?? day.min, code: pickNum(day.code, day.weather_code, day.weathercode) ?? day.code };
+        return {
+          ...day,
+          max: mx ?? day.max,
+          min: mn ?? day.min,
+          code: pickNum(day.code, day.weather_code, day.weathercode) ?? day.code,
+        };
       });
     }
 
