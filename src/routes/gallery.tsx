@@ -63,7 +63,30 @@ export function ArtGalleryPage() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [adBonusState, setAdBonusState] = useState<boolean>(() => hasActiveAdSlotBonus());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const getAdHoursRemaining = (): number => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const raw = localStorage.getItem("weather_pal_ad_slot_bonus_until");
+      if (raw) {
+        const rem = Number(raw) - Date.now();
+        if (rem > 0) return Math.max(1, Math.ceil(rem / (60 * 60 * 1000)));
+      }
+      const rawAlt = localStorage.getItem("weather:gallery-ad-bonus-time");
+      if (rawAlt) {
+        const elapsed = Date.now() - parseInt(rawAlt, 10);
+        const rem = 24 * 60 * 60 * 1000 - elapsed;
+        if (rem > 0) return Math.max(1, Math.ceil(rem / (60 * 60 * 1000)));
+      }
+      return 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const adHoursLeft = getAdHoursRemaining();
 
   useEffect(() => {
     applyPersistedLanguage();
@@ -77,20 +100,24 @@ export function ArtGalleryPage() {
 
   const paidTierId = getPaidTier();
   const tierConfig = paidTierId ? getTierById(paidTierId) : null;
-  const adBonus = hasActiveAdSlotBonus();
+  const isPermanentSlot2 = (tierConfig?.bonus?.aiBackgrounds ?? 0) >= 2;
 
   const maxSlots = useMemo(() => {
     if (tierConfig?.bonus?.aiBackgrounds) {
       return Math.min(6, tierConfig.bonus.aiBackgrounds);
     }
-    return adBonus ? 2 : 1;
-  }, [tierConfig, adBonus]);
+    return adBonusState ? 2 : 1;
+  }, [tierConfig, adBonusState]);
 
   const handleWatchAd = () => {
     showRewardedAdViaMedian(
       () => {
         triggerAdSlotBonus();
-        alert(t("ad_bonus_unlocked", "Bonus slot unlocked for 24 hours!"));
+        try {
+          localStorage.setItem("weather:gallery-ad-bonus-time", String(Date.now()));
+        } catch {}
+        setAdBonusState(true);
+        alert(t("ad_bonus_unlocked", "Slot 2 unlocked for 24 hours!"));
       },
       (err) => {
         alert(err.message || "Could not show rewarded ad.");
@@ -127,7 +154,7 @@ export function ArtGalleryPage() {
 
   const handleGenerateAi = async () => {
     if (targetSlot >= maxSlots) {
-      alert(t("slot_limit_reached", "Slot limit reached! Unlock more slots with supporter tiers or rewarded ads."));
+      alert(t("slot_limit_reached", "Slot limit reached! Unlock Slot 2 with a rewarded ad or Small Root Beer."));
       return;
     }
 
@@ -172,7 +199,7 @@ export function ArtGalleryPage() {
     }
 
     if (targetSlot >= maxSlots) {
-      alert(t("slot_limit_reached", "Slot limit reached! Unlock more slots with supporter tiers or rewarded ads."));
+      alert(t("slot_limit_reached", "Slot limit reached! Unlock Slot 2 with a rewarded ad or Small Root Beer."));
       return;
     }
 
@@ -225,7 +252,7 @@ export function ArtGalleryPage() {
         {/* Slot Limits & Status Header */}
         <section className="p-4 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-bold text-foreground">
                 📍 {getLocalizedCity(currentPlace.name, i18n.language)}
                 {currentPlace.country ? `, ${getLocalizedCountry(currentPlace.country, i18n.language)}` : ""}
@@ -233,20 +260,27 @@ export function ArtGalleryPage() {
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold">
                 {savedArtworks.filter(Boolean).length} / {maxSlots} Slots Unlocked
               </span>
+              {adBonusState && !isPermanentSlot2 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30">
+                  🎁 Slot 2 Active ({adHoursLeft}h left)
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {tierConfig ? tierConfig.name : "Free Tier (1 Permanent Slot + 1 Bonus Ad Slot)"}
+              {tierConfig
+                ? tierConfig.name
+                : "Free Plan (Slot 1 Permanent • Slot 2 via 24h Ad or Small Root Beer)"}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {!adBonus && maxSlots < 6 && (
+            {!adBonusState && maxSlots < 6 && (
               <button
                 type="button"
                 onClick={handleWatchAd}
                 className="px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition cursor-pointer"
               >
-                📺 Watch Ad (+1 Slot / 24h)
+                📺 Watch Ad (Slot 2 for 24h)
               </button>
             )}
             <button
@@ -297,6 +331,7 @@ export function ArtGalleryPage() {
               const isUnlocked = idx < maxSlots;
               const item = savedArtworks[idx];
               const isTarget = targetSlot === idx;
+              const isSlot2 = idx === 1;
 
               return (
                 <div
@@ -307,13 +342,21 @@ export function ArtGalleryPage() {
                       ? "ring-2 ring-primary border-primary bg-primary/5"
                       : isUnlocked
                       ? "border-border/80 bg-card hover:border-border"
-                      : "border-border/40 bg-muted/20 opacity-70"
+                      : "border-border/40 bg-muted/20 opacity-80"
                   }`}
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-border/50 text-xs font-bold">
                     <span>{isUnlocked ? "🎨" : "🔒"} Slot {idx + 1}</span>
                     <span className="text-[10px] text-muted-foreground">
-                      {isUnlocked ? (isTarget ? "Target" : "Unlocked") : "Locked"}
+                      {isUnlocked
+                        ? isSlot2 && adBonusState && !isPermanentSlot2
+                          ? `🎁 24h Ad Active (${adHoursLeft}h)`
+                          : isTarget
+                          ? "Target"
+                          : "Unlocked"
+                        : isSlot2
+                        ? "Ad or $1 Tier"
+                        : "Locked"}
                     </span>
                   </div>
 
@@ -326,12 +369,28 @@ export function ArtGalleryPage() {
                     ) : isUnlocked ? (
                       <div className="text-center py-4 text-muted-foreground">
                         <span className="text-2xl font-bold">+</span>
-                        <p className="text-xs font-medium">Empty Slot</p>
+                        <p className="text-xs font-medium">Empty Slot {idx + 1}</p>
+                        {isSlot2 && adBonusState && !isPermanentSlot2 && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">
+                            Ad Bonus active for {adHoursLeft} more hours
+                          </p>
+                        )}
+                      </div>
+                    ) : isSlot2 ? (
+                      <div className="text-center py-3 text-muted-foreground space-y-1">
+                        <span className="text-2xl">🔒</span>
+                        <p className="text-xs font-bold text-foreground">Slot 2</p>
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                          Watch ad for 24h or unlock with Small Root Beer ($1)
+                        </p>
                       </div>
                     ) : (
-                      <div className="text-center py-4 text-muted-foreground">
+                      <div className="text-center py-4 text-muted-foreground space-y-1">
                         <span className="text-2xl">🔒</span>
-                        <p className="text-xs">Supporter Slot</p>
+                        <p className="text-xs font-semibold">Slot {idx + 1} Locked</p>
+                        <p className="text-[10px]">
+                          {idx <= 3 ? "Medium Root Beer ($3)" : "Large Root Beer ($5)"}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -378,17 +437,43 @@ export function ArtGalleryPage() {
                       <button
                         type="button"
                         onClick={() => setActiveTab("studio")}
-                        className="w-full py-1 rounded-lg bg-muted font-bold"
+                        className="w-full py-1 rounded-lg bg-muted font-bold hover:bg-muted/80 transition"
                       >
                         + Paint with AI
                       </button>
+                    ) : isSlot2 ? (
+                      <div className="w-full flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleWatchAd();
+                          }}
+                          className="flex-1 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30 text-[11px] transition"
+                        >
+                          📺 Watch Ad
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPaymentModalTier("small_root_beer_tier");
+                          }}
+                          className="flex-1 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 text-[11px] transition"
+                        >
+                          🍺 Small ($1)
+                        </button>
+                      </div>
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setPaymentModalTier("small_root_beer_tier")}
-                        className="w-full py-1 rounded-lg bg-amber-500/10 text-amber-600 font-bold"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPaymentModalTier(idx <= 3 ? "medium_root_beer_tier" : "large_root_beer_tier");
+                        }}
+                        className="w-full py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs transition"
                       >
-                        ⚡ Unlock
+                        ⚡ Unlock with Root Beer
                       </button>
                     )}
                   </div>
