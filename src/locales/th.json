@@ -262,4 +262,8 @@
   "pay_modal_confirm_unlock": "ฉันสนับสนุนแล้ว — ปลดล็อกสิทธิพิเศษเลย! 🎉",
   "pay_modal_error_google_play": "ซื้อผ่าน Google Play ไม่สำเร็จ คุณสามารถสนับสนุนผ่าน Buy Me a Coffee ด้านล่างได้",
   "btn_save_to_gallery":"บันทึกลงแกลเลอรี"
+    "btn_save_to_gallery": "บันทึกลงแกลเลอรี",
+  "btn_save_to_downloads": "บันทึกลงโฟลเดอร์ดาวน์โหลด"
+}
+
 }
