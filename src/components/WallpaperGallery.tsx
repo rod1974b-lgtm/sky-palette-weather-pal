@@ -1,6 +1,6 @@
 // src/components/WallpaperGallery.tsx
 // FULL REPLACEMENT - Gallery view that CAN save on phone
-// Before: Gallery only had img + anchor href - iOS ignored download, Android blocked cross-origin
+// Before: Gallery only had <img> + <a href> - iOS ignored download, Android blocked cross-origin
 // After: Save button uses saveWallpaperToDownloads() - Share sheet on iPhone, Downloads on Android/Desktop
 
 import { useEffect, useState, useCallback } from "react";
@@ -47,8 +47,8 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight") setIndex((i) => wallpapers.length > 0 ? (i + 1) % wallpapers.length : 0);
-      if (e.key === "ArrowLeft") setIndex((i) => wallpapers.length > 0 ? (i - 1 + wallpapers.length) % wallpapers.length : 0);
+      if (e.key === "ArrowRight") setIndex((i) => (i + 1) % wallpapers.length);
+      if (e.key === "ArrowLeft") setIndex((i) => (i - 1 + wallpapers.length) % wallpapers.length);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -78,10 +78,9 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
     await handleSave();
   }, [handleSave]);
 
-  const safeIndex = wallpapers.length > 0 ? Math.min(Math.max(index, 0), wallpapers.length - 1) : 0;
-  const current = wallpapers[safeIndex];
+  if (!open || wallpapers.length === 0) return null;
 
-  if (!open || wallpapers.length === 0 || !current) return null;
+  const current = wallpapers[index];
   const saveLabel = saving
     ? "Saving…"
     : isIOS()
@@ -152,7 +151,7 @@ export function WallpaperGallery({ open, wallpapers, startIndex = 0, onClose, on
         </div>
       )}
 
-      {/* Actions - THIS IS THE FIX: Save button calls saveWallpaperToDownloads, not anchor download */}
+      {/* Actions - THIS IS THE FIX: Save button calls saveWallpaperToDownloads, not <a download> */}
       <div className="p-4 bg-black/40 backdrop-blur">
         <div className="flex gap-2 max-w-md mx-auto">
           <button
