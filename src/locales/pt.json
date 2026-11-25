@@ -262,6 +262,30 @@
   "pay_modal_confirm_unlock": "Eu contribuí — Desbloqueie minhas vantagens agora! 🎉",
   "pay_modal_error_google_play": "Não foi possível concluir a compra no Google Play. Você também pode apoiar via Buy Me a Coffee abaixo.",
   "btn_save_to_gallery": "Salvar na galeria",
-  "btn_save_to_downloads": "Salvar em Downloads"
+  "btn_save_to_downloads": "Salvar em Downloads",
+  "art_gallery": "Galeria de Arte",
+  "save_wallpaper": "Salvar Papel de Parede",
+  "back_to_forecast": "Voltar à Previsão",
+  "your_slots": "Seus Espaços ({{count}})",
+  "curated_landmarks": "Pontos Turísticos Curados",
+  "ai_studio": "Estúdio de IA (Destino: Espaço {{slot}})",
+  "apply": "Aplicar",
+  "slot_label": "Espaço {{slot}}",
+  "slot_locked": "Espaço {{slot}} Bloqueado",
+  "unlock_with_root_beer": "Desbloquear com Root Beer",
+  "supporter_tiers": "Níveis de Apoiador",
+  "paint_with_ai_for_slot": "Pintar com IA para Espaço {{slot}}",
+  "ai_studio_placeholder": "Descreva a paisagem, monumentos, neblina ou iluminação...",
+  "upload_photo": "Enviar Foto",
+  "paint_artwork": "Pintar Obra",
+  "ai_select_closed": "Seleção de IA fechada.",
+  "landmark_name": "{{city}} Ponto Turístico {{number}}",
+  "small_root_beer": "Root Beer Pequena",
+  "paywall_benefit_city_landmark": "2 espaços permanentes para papéis de parede de pontos turísticos",
+  "guide_common_conditions": "Condições Meteorológicas Comuns",
+  "guide_drizzle": "Garoa",
+  "hourly_forecast": "Previsão Horária",
+  "seven_day_outlook": "Previsão de 7 Dias"
 }
+
 
