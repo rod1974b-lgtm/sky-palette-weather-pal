@@ -262,6 +262,30 @@
   "pay_modal_confirm_unlock": "मैंने योगदान दिया — अभी मेरे लाभ अनलॉक करें! 🎉",
   "pay_modal_error_google_play": "Google Play खरीद पूरी नहीं हो सकी। आप नीचे Buy Me a Coffee के माध्यम से भी समर्थन कर सकते हैं।",
   "btn_save_to_gallery": "गैलरी में सहेजें",
-  "btn_save_to_downloads": "डाउनलोड में सहेजें"
+  "btn_save_to_downloads": "डाउनलोड में सहेजें",
+  "art_gallery": "कला दीर्घा",
+  "save_wallpaper": "वॉलपेपर सहेजें",
+  "back_to_forecast": "पूर्वानुमान पर वापस जाएं",
+  "your_slots": "आपके स्लॉट ({{count}})",
+  "curated_landmarks": "चुनिंदा स्थल",
+  "ai_studio": "एआई स्टूडियो (लक्ष्य: स्लॉट {{slot}})",
+  "apply": "लागू करें",
+  "slot_label": "स्लॉट {{slot}}",
+  "slot_locked": "स्लॉट {{slot}} लॉक है",
+  "unlock_with_root_beer": "रूट बीयर से अनलॉक करें",
+  "supporter_tiers": "समर्थक स्तर",
+  "paint_with_ai_for_slot": "स्लॉट {{slot}} के लिए एआई से पेंट करें",
+  "ai_studio_placeholder": "दृश्य, स्थलों, कोहरे या रोशनी का वर्णन करें...",
+  "upload_photo": "फोटो अपलोड करें",
+  "paint_artwork": "कलाकृति बनाएं",
+  "ai_select_closed": "एआई चयन बंद किया गया।",
+  "landmark_name": "{{city}} लैंडमार्क {{number}}",
+  "small_root_beer": "छोटा रूट बीयर",
+  "paywall_benefit_city_landmark": "शहर के लैंडमार्क वॉलपेपर के लिए 2 स्थायी स्लॉट",
+  "guide_common_conditions": "सामान्य मौसम स्थितियां",
+  "guide_drizzle": "बूंदाबांदी",
+  "hourly_forecast": "प्रति घंटा पूर्वानुमान",
+  "seven_day_outlook": "7-दिवसीय दृष्टिकोण"
 }
+
 
