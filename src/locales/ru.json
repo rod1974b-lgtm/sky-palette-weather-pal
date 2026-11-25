@@ -262,8 +262,32 @@
   "pay_modal_confirm_unlock": "Я поддержал — Разблокируйте мои бонусы сейчас! 🎉",
   "pay_modal_error_google_play": "Не удалось завершить покупку в Google Play. Вы также можете поддержать через Buy Me a Coffee ниже.",
   "btn_save_to_gallery": "Сохранить в галерею",
-  "btn_save_to_downloads": "Сохранить в загрузки"
+  "btn_save_to_downloads": "Сохранить в загрузки",
+  "art_gallery": "Арт-галерея",
+  "save_wallpaper": "Сохранить обои",
+  "back_to_forecast": "Назад к прогнозу",
+  "your_slots": "Ваши слоты ({{count}})",
+  "curated_landmarks": "Избранные достопримечательности",
+  "ai_studio": "ИИ Студия (Цель: Слот {{slot}})",
+  "apply": "Применить",
+  "slot_label": "Слот {{slot}}",
+  "slot_locked": "Слот {{slot}} заблокирован",
+  "unlock_with_root_beer": "Разблокировать с Root Beer",
+  "supporter_tiers": "Уровни поддержки",
+  "paint_with_ai_for_slot": "Нарисовать ИИ для слота {{slot}}",
+  "ai_studio_placeholder": "Опишите пейзаж, достопримечательности, туман или освещение...",
+  "upload_photo": "Загрузить фото",
+  "paint_artwork": "Создать рисунок",
+  "ai_select_closed": "Выбор ИИ закрыт.",
+  "landmark_name": "{{city}} Достопримечательность {{number}}",
+  "small_root_beer": "Маленький Root Beer",
+  "paywall_benefit_city_landmark": "2 постоянных слота для обоев достопримечательностей",
+  "guide_common_conditions": "Общие погодные условия",
+  "guide_drizzle": "Морось",
+  "hourly_forecast": "Почасовой прогноз",
+  "seven_day_outlook": "Прогноз на 7 дней"
 }
+
  
    
 
