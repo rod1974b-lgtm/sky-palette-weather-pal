@@ -262,8 +262,32 @@
   "pay_modal_confirm_unlock": "支援しました — 特典を今すぐ解除！🎉",
   "pay_modal_error_google_play": "Google Playでの購入を完了できませんでした。下のBuy Me a Coffeeからも支援できます。",
   "btn_save_to_gallery": "ギャラリーに保存",
-  "btn_save_to_downloads": "ダウンロードに保存"
+  "btn_save_to_downloads": "ダウンロードに保存",
+  "art_gallery": "アートギャラリー",
+  "save_wallpaper": "壁紙を保存",
+  "back_to_forecast": "予報に戻る",
+  "your_slots": "あなたのスロット ({{count}})",
+  "curated_landmarks": "厳選ランドマーク",
+  "ai_studio": "AIスタジオ (対象: スロット {{slot}})",
+  "apply": "適用",
+  "slot_label": "スロット {{slot}}",
+  "slot_locked": "スロット {{slot}} ロック中",
+  "unlock_with_root_beer": "ルートビアで解除",
+  "supporter_tiers": "サポータープラン",
+  "paint_with_ai_for_slot": "スロット {{slot}} をAIで描く",
+  "ai_studio_placeholder": "風景、ランドマーク、霧、光などを説明してください...",
+  "upload_photo": "写真をアップロード",
+  "paint_artwork": "作品を描く",
+  "ai_select_closed": "AI選択を閉じました。",
+  "landmark_name": "{{city}} ランドマーク {{number}}",
+  "small_root_beer": "スモール ルートビア",
+  "paywall_benefit_city_landmark": "都市のランドマーク壁紙用 永久スロット 2つ",
+  "guide_common_conditions": "一般的な天気の状態",
+  "guide_drizzle": "霧雨",
+  "hourly_forecast": "時間別予報",
+  "seven_day_outlook": "7日間予報"
 }
+
 
 
 
