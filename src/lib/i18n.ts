@@ -42,7 +42,7 @@ export function normalizeLangCode(input: unknown): SupportedLang | null {
   return null;
 }
 
-// Complete 14-language extensions for outfits, gallery slots, guide headings, and tabs
+// Complete 14-language matrix for outfits, gallery slots, guide headings, and tabs
 const allLanguagesExtension: Record<string, Record<string, string>> = {
   en: {
     gallery: "Art Gallery",
