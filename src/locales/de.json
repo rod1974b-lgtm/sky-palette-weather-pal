@@ -262,6 +262,30 @@
   "pay_modal_confirm_unlock": "Ich habe unterstützt — Jetzt meine Vorteile freischalten! 🎉",
   "pay_modal_error_google_play": "Google Play-Kauf konnte nicht abgeschlossen werden. Du kannst auch unten über Buy Me a Coffee unterstützen.",
   "btn_save_to_gallery": "In Galerie speichern",
-  "btn_save_to_downloads": "In Downloads speichern"
+  "btn_save_to_downloads": "In Downloads speichern",
+  "art_gallery": "Kunstgalerie",
+  "save_wallpaper": "Hintergrund speichern",
+  "back_to_forecast": "Zurück zur Vorhersage",
+  "your_slots": "Deine Slots ({{count}})",
+  "curated_landmarks": "Kuratierte Wahrzeichen",
+  "ai_studio": "KI Studio (Ziel: Slot {{slot}})",
+  "apply": "Anwenden",
+  "slot_label": "Slot {{slot}}",
+  "slot_locked": "Slot {{slot}} gesperrt",
+  "unlock_with_root_beer": "Mit Root Beer freischalten",
+  "supporter_tiers": "Unterstützer Stufen",
+  "paint_with_ai_for_slot": "Mit KI für Slot {{slot}} malen",
+  "ai_studio_placeholder": "Beschreibe Landschaft, Wahrzeichen, Nebel oder Licht...",
+  "upload_photo": "Foto hochladen",
+  "paint_artwork": "Kunstwerk malen",
+  "ai_select_closed": "KI Auswahl geschlossen.",
+  "landmark_name": "{{city}} Wahrzeichen {{number}}",
+  "small_root_beer": "Kleines Root Beer",
+  "paywall_benefit_city_landmark": "2 permanente Slots für Stadt Wahrzeichen Hintergründe",
+  "guide_common_conditions": "Allgemeine Wetterbedingungen",
+  "guide_drizzle": "Nieselregen",
+  "hourly_forecast": "Stündliche Vorhersage",
+  "seven_day_outlook": "7 Tage Aussicht"
 }
+
 
