@@ -262,9 +262,28 @@
   "pay_modal_confirm_unlock": "Tôi đã đóng góp — Mở khóa quyền lợi ngay! 🎉",
   "pay_modal_error_google_play": "Không thể hoàn tất mua hàng qua Google Play. Bạn cũng có thể ủng hộ qua Buy Me a Coffee bên dưới.",
   "btn_save_to_gallery": "Lưu vào bộ sưu tập",
-  "btn_save_to_downloads": "Lưu vào thư mục Tải về"
-  
-    }
-
-
-
+  "btn_save_to_downloads": "Lưu vào thư mục Tải về",
+  "art_gallery": "Phòng trưng bày nghệ thuật",
+  "save_wallpaper": "Lưu hình nền",
+  "back_to_forecast": "Quay lại dự báo",
+  "your_slots": "Các vị trí của bạn ({{count}})",
+  "curated_landmarks": "Địa danh chọn lọc",
+  "ai_studio": "Xưởng vẽ AI (Mục tiêu: Vị trí {{slot}})",
+  "apply": "Áp dụng",
+  "slot_label": "Vị trí {{slot}}",
+  "slot_locked": "Vị trí {{slot}} đã khóa",
+  "unlock_with_root_beer": "Mở khóa bằng Root Beer",
+  "supporter_tiers": "Các gói ủng hộ",
+  "paint_with_ai_for_slot": "Vẽ bằng AI cho vị trí {{slot}}",
+  "ai_studio_placeholder": "Mô tả phong cảnh, địa danh, sương mù hoặc ánh sáng...",
+  "upload_photo": "Tải ảnh lên",
+  "paint_artwork": "Vẽ tác phẩm",
+  "ai_select_closed": "Đã đóng lựa chọn AI.",
+  "landmark_name": "{{city}} Địa danh {{number}}",
+  "small_root_beer": "Root Beer nhỏ",
+  "paywall_benefit_city_landmark": "2 vị trí vĩnh viễn cho hình nền địa danh thành phố",
+  "guide_common_conditions": "Điều kiện thời tiết phổ biến",
+  "guide_drizzle": "Mưa phùn",
+  "hourly_forecast": "Dự báo theo giờ",
+  "seven_day_outlook": "Triển vọng 7 ngày"
+}
