@@ -4,23 +4,38 @@ import { toast } from "sonner";
 import type { Weather } from "@/lib/weather";
 import { pickNum } from "@/lib/weatherSafe";
 import { saveWallpaperToDownloads } from "@/lib/saveWallpaper";
-import WeatherIcon from "./WeatherIcon";
+import { WeatherIcon } from "@/lib/weatherIcons";
 import AiGalleryModal from "./AiGalleryModal";
 import WeatherPostcardModal from "./WeatherPostcardModal";
 import WeatherGuideModal from "./WeatherGuideModal";
 import ForecastDetailModal from "./ForecastDetailModal";
 import OutdoorActivityPlanner from "./OutdoorActivityPlanner";
 
-interface WeatherViewProps {
+export interface TickerAlertItem {
+  id: string;
+  tag?: string;
+  tagKey?: string;
+  title: string;
+  message?: string;
+  desc?: string;
+  severity: "info" | "warning" | "alert";
+  isMock?: boolean;
+}
+
+export interface WeatherViewProps {
   weather: Weather;
   unit: "metric" | "imperial";
   onOpenAiGallery?: () => void;
   onOpenPostcard?: () => void;
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
   isRefreshing?: boolean;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
+  activeAlerts?: TickerAlertItem[];
   customBgUrl?: string | null;
   onSelectBackground?: (url: string | null) => void;
 }
+
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
   weather: w,
