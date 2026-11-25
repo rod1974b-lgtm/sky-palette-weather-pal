@@ -262,7 +262,31 @@
   "pay_modal_confirm_unlock": "我已支持 — 立即解锁我的特权！🎉",
   "pay_modal_error_google_play": "无法完成Google Play购买。您也可以通过下方的Buy Me a Coffee支持。",
   "btn_save_to_gallery": "保存到图库",
-  "btn_save_to_downloads": "保存到下载"
+  "btn_save_to_downloads": "保存到下载",
+  "art_gallery": "艺术画廊",
+  "save_wallpaper": "保存壁纸",
+  "back_to_forecast": "返回预报",
+  "your_slots": "你的插槽 ({{count}})",
+  "curated_landmarks": "精选地标",
+  "ai_studio": "AI 工作室 (目标: 插槽 {{slot}})",
+  "apply": "应用",
+  "slot_label": "插槽 {{slot}}",
+  "slot_locked": "插槽 {{slot}} 已锁定",
+  "unlock_with_root_beer": "用根啤解锁",
+  "supporter_tiers": "支持者等级",
+  "paint_with_ai_for_slot": "用 AI 为插槽 {{slot}} 绘画",
+  "ai_studio_placeholder": "描述风景、地标、雾气或光线...",
+  "upload_photo": "上传照片",
+  "paint_artwork": "绘制作品",
+  "ai_select_closed": "AI 选择已关闭。",
+  "landmark_name": "{{city}} 地标 {{number}}",
+  "small_root_beer": "小杯根啤",
+  "paywall_benefit_city_landmark": "2 个永久插槽用于城市地标壁纸",
+  "guide_common_conditions": "常见天气状况",
+  "guide_drizzle": "毛毛雨",
+  "hourly_forecast": "逐小时预报",
+  "seven_day_outlook": "7 日预报"
 }
+
 
 
