@@ -262,7 +262,31 @@
   "pay_modal_confirm_unlock": "ฉันสนับสนุนแล้ว — ปลดล็อกสิทธิพิเศษเลย! 🎉",
   "pay_modal_error_google_play": "ซื้อผ่าน Google Play ไม่สำเร็จ คุณสามารถสนับสนุนผ่าน Buy Me a Coffee ด้านล่างได้",
   "btn_save_to_gallery": "บันทึกลงแกลเลอรี",
-  "btn_save_to_downloads": "บันทึกลงโฟลเดอร์ดาวน์โหลด"
+  "btn_save_to_downloads": "บันทึกลงโฟลเดอร์ดาวน์โหลด",
+  "art_gallery": "แกลเลอรีศิลปะ",
+  "save_wallpaper": "บันทึกวอลเปเปอร์",
+  "back_to_forecast": "กลับไปพยากรณ์",
+  "your_slots": "สล็อตของคุณ ({{count}})",
+  "curated_landmarks": "สถานที่สำคัญที่คัดสรร",
+  "ai_studio": "สตูดิโอ AI (เป้าหมาย: สล็อต {{slot}})",
+  "apply": "ใช้",
+  "slot_label": "สล็อต {{slot}}",
+  "slot_locked": "สล็อต {{slot}} ถูกล็อก",
+  "unlock_with_root_beer": "ปลดล็อกด้วยรูทเบียร์",
+  "supporter_tiers": "ระดับผู้สนับสนุน",
+  "paint_with_ai_for_slot": "วาดด้วย AI สำหรับสล็อต {{slot}}",
+  "ai_studio_placeholder": "อธิบายทิวทัศน์ สถานที่สำคัญ หมอก หรือแสง...",
+  "upload_photo": "อัปโหลดรูปภาพ",
+  "paint_artwork": "วาดผลงาน",
+  "ai_select_closed": "ปิดการเลือก AI แล้ว",
+  "landmark_name": "{{city}} แลนด์มาร์ก {{number}}",
+  "small_root_beer": "รูทเบียร์เล็ก",
+  "paywall_benefit_city_landmark": "สล็อตถาวร 2 ช่องสำหรับวอลเปเปอร์สถานที่สำคัญในเมือง",
+  "guide_common_conditions": "สภาพอากาศทั่วไป",
+  "guide_drizzle": "ฝนปรอย",
+  "hourly_forecast": "พยากรณ์รายชั่วโมง",
+  "seven_day_outlook": "พยากรณ์ 7 วัน"
 }
+
 
 
