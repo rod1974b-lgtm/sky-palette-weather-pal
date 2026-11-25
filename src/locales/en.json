@@ -262,7 +262,30 @@
    "pay_modal_confirm_unlock": "I Contributed — Unlock My Perks Now! 🎉",
   "pay_modal_error_google_play": "Google Play purchase could not be completed. You can also support via Buy Me a Coffee below.",
   "btn_save_to_gallery": "Save to Gallery",
-  "btn_save_to_downloads": "Save to Downloads"
+  "btn_save_to_downloads": "Save to Downloads",
+  "art_gallery": "Art Gallery",
+  "save_wallpaper": "Save Wallpaper",
+  "back_to_forecast": "Back to Forecast",
+  "your_slots": "Your Slots ({{count}})",
+  "curated_landmarks": "Curated Landmarks",
+  "ai_studio": "AI Studio (Target: Slot {{slot}})",
+  "apply": "Apply",
+  "slot_label": "Slot {{slot}}",
+  "slot_locked": "Slot {{slot}} Locked",
+  "unlock_with_root_beer": "Unlock with Root Beer",
+  "supporter_tiers": "Supporter Tiers",
+  "paint_with_ai_for_slot": "Paint with AI for Slot {{slot}}",
+  "ai_studio_placeholder": "Describe scenery, landmarks, mist, or lighting...",
+  "upload_photo": "Upload Photo",
+  "paint_artwork": "Paint Artwork",
+  "ai_select_closed": "AI select closed.",
+  "landmark_name": "{{city}} Landmark {{number}}",
+  "small_root_beer": "Small Root Beer",
+  "paywall_benefit_city_landmark": "2 permanent slots for city landmark wallpapers",
+  "guide_common_conditions": "Common Weather Conditions",
+  "guide_drizzle": "Drizzle",
+  "hourly_forecast": "Hourly Forecast",
+  "seven_day_outlook": "7-Day Outlook"
 }
 
 
