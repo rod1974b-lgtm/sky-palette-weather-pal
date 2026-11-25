@@ -235,6 +235,7 @@ export function AiGalleryModal({
   const activeCode = currentWeatherCode ?? weatherCode ?? 0;
 
   // Refresh slot limits & load IndexedDB saved slots whenever modal opens
+   // Refresh slot limits & load IndexedDB saved slots whenever modal opens
   useEffect(() => {
     if (isOpen) {
       setSlotLimits(getUserSlotLimits());
@@ -244,17 +245,14 @@ export function AiGalleryModal({
     }
   }, [isOpen]);
 
-  // Load curated landmarks
+  // INSERT HERE (Lines 247–254)
   useEffect(() => {
-    if (isOpen) {
-      const cityKey = activeCity.toLowerCase().trim();
-      let cityCatalogUrls: string[] = [];
-      for (const [name, urls] of Object.entries(LANDMARK_WATERCOLORS)) {
-        if (cityKey.includes(name)) {
-          cityCatalogUrls = urls;
-          break;
-        }
-      }
+    const handleProUnlocked = () => {
+      setSlotLimits(getUserSlotLimits());
+    };
+    window.addEventListener("weather:pro-unlocked", handleProUnlocked);
+    return () => window.removeEventListener("weather:pro-unlocked", handleProUnlocked);
+  }, []);
 
       const rawList =
         cityCatalogUrls.length > 0
