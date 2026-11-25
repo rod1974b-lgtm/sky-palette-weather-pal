@@ -262,7 +262,31 @@
   "pay_modal_confirm_unlock": "Saya Sudah Berkontribusi — Buka Keuntungan Saya Sekarang! 🎉",
   "pay_modal_error_google_play": "Pembelian Google Play tidak dapat diselesaikan. Anda juga dapat mendukung via Buy Me a Coffee di bawah.",
   "btn_save_to_gallery": "Simpan ke Galeri",
-  "btn_save_to_downloads": "Simpan ke Unduhan"
+  "btn_save_to_downloads": "Simpan ke Unduhan",
+  "art_gallery": "Galeri Seni",
+  "save_wallpaper": "Simpan Wallpaper",
+  "back_to_forecast": "Kembali ke Prakiraan",
+  "your_slots": "Slot Anda ({{count}})",
+  "curated_landmarks": "Landmark Pilihan",
+  "ai_studio": "Studio AI (Target: Slot {{slot}})",
+  "apply": "Terapkan",
+  "slot_label": "Slot {{slot}}",
+  "slot_locked": "Slot {{slot}} Terkunci",
+  "unlock_with_root_beer": "Buka dengan Root Beer",
+  "supporter_tiers": "Tingkat Pendukung",
+  "paint_with_ai_for_slot": "Lukis dengan AI untuk Slot {{slot}}",
+  "ai_studio_placeholder": "Jelaskan pemandangan, landmark, kabut, atau pencahayaan...",
+  "upload_photo": "Unggah Foto",
+  "paint_artwork": "Lukis Karya Seni",
+  "ai_select_closed": "Pilihan AI ditutup.",
+  "landmark_name": "{{city}} Landmark {{number}}",
+  "small_root_beer": "Root Beer Kecil",
+  "paywall_benefit_city_landmark": "2 slot permanen untuk wallpaper landmark kota",
+  "guide_common_conditions": "Kondisi Cuaca Umum",
+  "guide_drizzle": "Gerimis",
+  "hourly_forecast": "Prakiraan Per Jam",
+  "seven_day_outlook": "Prakiraan 7 Hari"
 }
+
 
 
