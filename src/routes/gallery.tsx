@@ -27,6 +27,7 @@ import {
   triggerAdSlotBonus,
   hasActiveAdSlotBonus,
 } from "@/lib/monetization";
+import { useProStatus } from "@/lib/proStatus";
 
 const DESC =
   "Explore curated city landmark watercolors, create custom AI scenes, and personalize your forecast wallpaper.";
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/gallery")({
 export function ArtGalleryPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const proStatus = useProStatus();
 
   const [savedArtworks, setSavedArtworks] = useState<SavedItem[]>([]);
   const [currentPlace, setCurrentPlace] = useState<Place>({
@@ -97,16 +99,21 @@ export function ArtGalleryPage() {
     });
   }, []);
 
-  const paidTierId = getPaidTier();
+  const paidTierId = proStatus.tierId || getPaidTier();
   const tierConfig = paidTierId ? getTierById(paidTierId) : null;
-  const isPermanentSlot2 = (tierConfig?.bonus?.aiBackgrounds ?? 0) >= 2;
+  const isPermanentSlot2 = proStatus.effectiveSlots >= 2 || (tierConfig?.bonus?.aiBackgrounds ?? 0) >= 2;
 
+  // Max unlocked slots: takes the highest between pro package, monetization tier, or temporary ad bonus
   const maxSlots = useMemo(() => {
+    if (proStatus.slots === "Unlimited") return 6;
+    if (proStatus.effectiveSlots > 1) {
+      return Math.min(6, proStatus.effectiveSlots);
+    }
     if (tierConfig?.bonus?.aiBackgrounds) {
       return Math.min(6, tierConfig.bonus.aiBackgrounds);
     }
     return adBonusState ? 2 : 1;
-  }, [tierConfig, adBonusState]);
+  }, [proStatus, tierConfig, adBonusState]);
 
   const handleWatchAd = () => {
     showRewardedAdViaMedian(
@@ -148,41 +155,43 @@ export function ArtGalleryPage() {
   const handleDownloadSlotArt = async (item: SavedItem, slotIndex: number) => {
     const filename = `${currentPlace.name.toLowerCase().replace(/\s+/g, "-")}-slot-${slotIndex + 1}`;
     const title = `${currentPlace.name} Artwork`;
-    await saveArtImageToDevice(item.url, filename, title);
+    const ok = await saveArtImageToDevice(item.url, filename, title);
+    if (!ok) {
+      window.open(item.url, "_blank");
+    }
   };
 
   const handleGenerateAi = async () => {
-    if (targetSlot >= maxSlots) {
-      alert(t("slot_limit_reached", "Slot limit reached! Unlock Slot 2 with a rewarded ad or Small Root Beer."));
-      return;
-    }
-
+    if (!aiPrompt.trim()) return;
     setIsGenerating(true);
     setGenerationError(null);
+
     try {
-      const city = currentPlace.name === "Your Location" ? "Bangkok" : currentPlace.name;
-      const res = await generateWatercolorFn({
-        data: { city, userPrompt: aiPrompt.slice(0, 200) },
+      const fullPrompt = `${aiPrompt.trim()}, watercolor painting of ${currentPlace.name}`;
+      const result = await generateWatercolorFn({
+        data: {
+          prompt: fullPrompt,
+          cityName: currentPlace.name,
+          weatherCondition: "clear",
+        },
       });
-      if (!res?.imageUrl) {
-        throw new Error(t("generation_failed", "Generation failed"));
+
+      if (result.success && result.imageUrl) {
+        const newItem: SavedItem = {
+          id: `ai-${Date.now()}`,
+          url: result.imageUrl,
+          title: `${currentPlace.name} (AI)`,
+          city: currentPlace.name,
+          timestamp: Date.now(),
+        };
+        await handleSaveToSlot(targetSlot, newItem);
+        setActiveTab("slots");
+        setAiPrompt("");
+      } else {
+        setGenerationError(result.error || t("ai_generation_failed", "Could not generate artwork."));
       }
-      const newArt: SavedItem = {
-        id: `ai-${Date.now()}`,
-        url: res.imageUrl,
-        title: aiPrompt ? aiPrompt.slice(0, 30) : `${city} AI Art`,
-        city,
-        timestamp: Date.now(),
-      };
-      const updated = [...savedArtworks];
-      updated[targetSlot] = newArt;
-      await saveSavedArtworks(updated);
-      setSavedArtworks(updated);
-      setAiPrompt("");
-      setActiveTab("slots");
-      await handleApplyArt(res.imageUrl);
-    } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : t("generation_error", "Error generating art"));
+    } catch (e: any) {
+      setGenerationError(e?.message || t("ai_generation_failed", "Could not generate artwork."));
     } finally {
       setIsGenerating(false);
     }
@@ -192,32 +201,19 @@ export function ArtGalleryPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      alert(t("invalid_image_file", "Please upload a valid image file."));
-      return;
-    }
-
-    if (targetSlot >= maxSlots) {
-      alert(t("slot_limit_reached", "Slot limit reached! Unlock Slot 2 with a rewarded ad or Small Root Beer."));
-      return;
-    }
-
     try {
-      const compressed = await compressImageFile(file, 1024, 0.82);
-      const newArt: SavedItem = {
+      const compressedDataUrl = await compressImageFile(file);
+      const newItem: SavedItem = {
         id: `upload-${Date.now()}`,
-        url: compressed,
-        title: file.name.slice(0, 30),
+        url: compressedDataUrl,
+        title: file.name.replace(/\.[^/.]+$/, ""),
         city: currentPlace.name,
         timestamp: Date.now(),
       };
-      const updated = [...savedArtworks];
-      updated[targetSlot] = newArt;
-      await saveSavedArtworks(updated);
-      setSavedArtworks(updated);
-      await handleApplyArt(compressed);
+      await handleSaveToSlot(targetSlot, newItem);
+      setActiveTab("slots");
     } catch {
-      alert(t("upload_photo_failed", "Failed to process uploaded photo."));
+      alert(t("upload_error", "Failed to load photo."));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -225,14 +221,14 @@ export function ArtGalleryPage() {
 
   const curatedList = useMemo(() => {
     const raw = getAllAvailableArtworks(currentPlace.name, 0, "clear", currentPlace.country);
-    return (raw || []).map((u, i) => ({
+    return (raw || []).map((art: any, i: number) => ({
       id: `curated-${i}`,
-      url: typeof u === "string" ? u : (u as any)?.url || "",
-      title: t("landmark_name", { city: currentPlace.name, number: i + 1 }),
+      url: typeof art === "string" ? art : art.url,
+      title: typeof art === "string" ? `${currentPlace.name} Landmark` : art.title || currentPlace.name,
       city: currentPlace.name,
       timestamp: Date.now(),
     }));
-  }, [currentPlace, t]);
+  }, [currentPlace]);
 
   const savedCount = savedArtworks.filter(Boolean).length;
 
@@ -262,23 +258,30 @@ export function ArtGalleryPage() {
                 {currentPlace.country ? `, ${getLocalizedCountry(currentPlace.country, i18n.language)}` : ""}
               </span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold">
-                {savedCount} / {maxSlots} {t("unlocked_label", "Unlocked")}
+                {savedCount} / {proStatus.slots === "Unlimited" ? "∞" : maxSlots} {t("unlocked_label", "Unlocked")}
               </span>
-              {adBonusState && !isPermanentSlot2 && (
+              {adBonusState && !isPermanentSlot2 && !proStatus.adFree && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30">
                   🎁 {t("slot_label", { slot: 2 })} ({adHoursLeft}h)
                 </span>
               )}
+              {proStatus.adFree && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30">
+                  🛡️ {proStatus.isLifetime ? "Ad-Free Forever" : "Ad-Free"}
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {tierConfig
+              {proStatus.isUnlocked
+                ? `🍺 ${proStatus.tier} • ${proStatus.slots === "Unlimited" ? "Unlimited Slots" : `${proStatus.slots} Slots`} • ${proStatus.adFree ? "Ads Off" : "Standard Ads"}`
+                : tierConfig
                 ? tierConfig.name
                 : t("free_plan_card", "Free Plan (Slot 1 Permanent • Slot 2 via 24h Ad or Small Root Beer)")}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {!adBonusState && maxSlots < 6 && (
+            {!proStatus.adFree && !adBonusState && maxSlots < 6 && (
               <button
                 type="button"
                 onClick={handleWatchAd}
@@ -292,7 +295,7 @@ export function ArtGalleryPage() {
               onClick={() => setPaymentModalTier("small_root_beer_tier")}
               className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold transition hover:brightness-105 cursor-pointer"
             >
-              ⚡ {t("supporter_tiers", "Supporter Tiers")}
+              {proStatus.isUnlocked ? "🍺 Upgrade / Tiers" : `⚡ ${t("supporter_tiers", "Supporter Tiers")}`}
             </button>
           </div>
         </section>
@@ -361,7 +364,7 @@ export function ArtGalleryPage() {
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       {isUnlocked
-                        ? isSlot2 && adBonusState && !isPermanentSlot2
+                        ? isSlot2 && adBonusState && !isPermanentSlot2 && !proStatus.adFree
                           ? `🎁 24h (${adHoursLeft}h)`
                           : isTarget
                           ? t("target_label", "Target")
@@ -388,7 +391,7 @@ export function ArtGalleryPage() {
                         <p className="text-xs font-medium">
                           {t("slot_label", { slot: idx + 1 })}
                         </p>
-                        {isSlot2 && adBonusState && !isPermanentSlot2 && (
+                        {isSlot2 && adBonusState && !isPermanentSlot2 && !proStatus.adFree && (
                           <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">
                             {t("ad_bonus_active_hours", "24h Ad Active ({{hours}}h)", { hours: adHoursLeft })}
                           </p>
@@ -465,16 +468,18 @@ export function ArtGalleryPage() {
                       </button>
                     ) : isSlot2 ? (
                       <div className="w-full flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleWatchAd();
-                          }}
-                          className="flex-1 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30 text-[11px] transition cursor-pointer"
-                        >
-                          📺 {t("watch_ad_btn", "Watch Ad")}
-                        </button>
+                        {!proStatus.adFree && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWatchAd();
+                            }}
+                            className="flex-1 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30 text-[11px] transition cursor-pointer"
+                          >
+                            📺 {t("watch_ad_btn", "Watch Ad")}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
