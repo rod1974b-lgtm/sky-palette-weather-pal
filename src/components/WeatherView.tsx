@@ -7,9 +7,9 @@ import { saveWallpaperToDownloads } from "@/lib/saveWallpaper";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import AiGalleryModal from "./AiGalleryModal";
 import WeatherPostcardModal from "./WeatherPostcardModal";
-import WeatherGuideModal from "./WeatherGuideModal";
-import ForecastDetailModal from "./ForecastDetailModal";
-import OutdoorActivityPlanner from "./OutdoorActivityPlanner";
+import { WeatherGuideModal } from "./WeatherGuideModal";
+import { ForecastDetailModal } from "./ForecastDetailModal";
+import { OutdoorActivityPlanner } from "./OutdoorActivityPlanner";
 
 export interface TickerAlertItem {
   id: string;
@@ -21,6 +21,21 @@ export interface TickerAlertItem {
   severity: "info" | "warning" | "alert";
   isMock?: boolean;
 }
+
+export interface WeatherViewProps {
+  weather: Weather;
+  unit: "metric" | "imperial";
+  onOpenAiGallery?: () => void;
+  onOpenPostcard?: () => void;
+  onRefresh?: () => void | Promise<void>;
+  isRefreshing?: boolean;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
+  activeAlerts?: TickerAlertItem[];
+  customBgUrl?: string | null | undefined;
+  onSelectBackground?: (url: string | null) => void;
+}
+
 
 export interface WeatherViewProps {
   weather: Weather;
