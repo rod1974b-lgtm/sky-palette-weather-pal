@@ -262,6 +262,30 @@
   "pay_modal_confirm_unlock": "J'ai contribué — Débloquez mes avantages maintenant ! 🎉",
   "pay_modal_error_google_play": "L'achat Google Play n'a pas pu être terminé. Vous pouvez aussi soutenir via Buy Me a Coffee ci-dessous.",
   "btn_save_to_gallery": "Enregistrer dans la galerie",
-  "btn_save_to_downloads": "Enregistrer dans Téléchargements"
+  "btn_save_to_downloads": "Enregistrer dans Téléchargements",
+  "art_gallery": "Galerie d'art",
+  "save_wallpaper": "Enregistrer le fond d'écran",
+  "back_to_forecast": "Retour aux prévisions",
+  "your_slots": "Vos emplacements ({{count}})",
+  "curated_landmarks": "Monuments sélectionnés",
+  "ai_studio": "Studio IA (Cible: Emplacement {{slot}})",
+  "apply": "Appliquer",
+  "slot_label": "Emplacement {{slot}}",
+  "slot_locked": "Emplacement {{slot}} verrouillé",
+  "unlock_with_root_beer": "Débloquer avec Root Beer",
+  "supporter_tiers": "Niveaux de soutien",
+  "paint_with_ai_for_slot": "Peindre avec l'IA pour l'emplacement {{slot}}",
+  "ai_studio_placeholder": "Décrivez le paysage, les monuments, la brume ou la lumière...",
+  "upload_photo": "Télécharger une photo",
+  "paint_artwork": "Peindre l'oeuvre",
+  "ai_select_closed": "Sélection IA fermée.",
+  "landmark_name": "{{city}} Monument {{number}}",
+  "small_root_beer": "Petite Root Beer",
+  "paywall_benefit_city_landmark": "2 emplacements permanents pour fonds de monuments",
+  "guide_common_conditions": "Conditions météo courantes",
+  "guide_drizzle": "Bruine",
+  "hourly_forecast": "Prévisions horaires",
+  "seven_day_outlook": "Prévisions sur 7 jours"
 }
+
 
