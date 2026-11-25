@@ -262,7 +262,31 @@
   "pay_modal_confirm_unlock": "لقد ساهمت — افتح مزاياي الآن! 🎉",
   "pay_modal_error_google_play": "تعذرت إتمام عملية الشراء عبر Google Play. يمكنك أيضاً الدعم عبر Buy Me a Coffee أدناه.",
   "btn_save_to_gallery": "حفظ في المعرض",
-  "btn_save_to_downloads": "حفظ في التنزيلات"
+  "btn_save_to_downloads": "حفظ في التنزيلات",
+  "art_gallery": "معرض الفنون",
+  "save_wallpaper": "حفظ الخلفية",
+  "back_to_forecast": "العودة إلى التوقعات",
+  "your_slots": "مساحاتك ({{count}})",
+  "curated_landmarks": "معالم مختارة",
+  "ai_studio": "استوديو الذكاء الاصطناعي (الهدف: مساحة {{slot}})",
+  "apply": "تطبيق",
+  "slot_label": "مساحة {{slot}}",
+  "slot_locked": "المساحة {{slot}} مقفلة",
+  "unlock_with_root_beer": "فتح مع روت بير",
+  "supporter_tiers": "فئات الداعمين",
+  "paint_with_ai_for_slot": "الرسم بالذكاء الاصطناعي للمساحة {{slot}}",
+  "ai_studio_placeholder": "صف المشهد، المعالم، الضباب، أو الإضاءة...",
+  "upload_photo": "تحميل صورة",
+  "paint_artwork": "رسم العمل الفني",
+  "ai_select_closed": "تم إغلاق اختيار الذكاء الاصطناعي.",
+  "landmark_name": "{{city}} معلم {{number}}",
+  "small_root_beer": "روت بير صغير",
+  "paywall_benefit_city_landmark": "مساحتان دائمتان لخلفيات معالم المدينة",
+  "guide_common_conditions": "حالات الطقس الشائعة",
+  "guide_drizzle": "رذاذ",
+  "hourly_forecast": "توقعات كل ساعة",
+  "seven_day_outlook": "توقعات 7 أيام"
 }
+
 
 
