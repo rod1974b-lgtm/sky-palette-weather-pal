@@ -1,4 +1,3 @@
-// src/lib/proStatus.ts
 import { useState, useEffect, useCallback } from "react";
 
 export interface ProPackageStatus {
@@ -81,7 +80,7 @@ export function readProPackage(): ProPackageStatus {
       adFree = true;
     } else if (isSmall) {
       slots = 2;
-      adFree = false; // Ads still on for Small
+      adFree = false; // Ads stay on for Small
     }
 
     const isUnlocked =
