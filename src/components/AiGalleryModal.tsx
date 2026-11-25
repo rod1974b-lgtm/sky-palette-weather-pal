@@ -230,12 +230,11 @@ export function AiGalleryModal({
   const [appliedUrl, setAppliedUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const activeCity = currentPlace?.name || currentCity || cityName || city || "Bangkok";
+   const activeCity = currentPlace?.name || currentCity || cityName || city || "Bangkok";
   const activeCountry = currentPlace?.country || country || "Thailand";
   const activeCode = currentWeatherCode ?? weatherCode ?? 0;
 
   // Refresh slot limits & load IndexedDB saved slots whenever modal opens
-   // Refresh slot limits & load IndexedDB saved slots whenever modal opens
   useEffect(() => {
     if (isOpen) {
       setSlotLimits(getUserSlotLimits());
@@ -245,7 +244,7 @@ export function AiGalleryModal({
     }
   }, [isOpen]);
 
-  // INSERT HERE (Lines 247–254)
+  // Listen for real-time promo redemption without reload
   useEffect(() => {
     const handleProUnlocked = () => {
       setSlotLimits(getUserSlotLimits());
@@ -253,6 +252,18 @@ export function AiGalleryModal({
     window.addEventListener("weather:pro-unlocked", handleProUnlocked);
     return () => window.removeEventListener("weather:pro-unlocked", handleProUnlocked);
   }, []);
+
+  // Load curated landmarks
+  useEffect(() => {
+    if (isOpen) {
+      const cityKey = activeCity.toLowerCase().trim();
+      let cityCatalogUrls: string[] = [];
+      for (const [name, urls] of Object.entries(LANDMARK_WATERCOLORS)) {
+        if (cityKey.includes(name)) {
+          cityCatalogUrls = urls;
+          break;
+        }
+      }
 
       const rawList =
         cityCatalogUrls.length > 0
