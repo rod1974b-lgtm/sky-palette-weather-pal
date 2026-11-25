@@ -1,209 +1,342 @@
 // src/components/PaymentModal.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
-  SUPPORTED_TIERS,
-  unlockTierLocally,
-  saveTierPurchaseReceipt,
-  type SupporterTier,
+  ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE,
+  getDonationUrl,
+  isMedianAndroidApp,
+  purchaseTierViaGooglePlay,
+  saveThankYouBackgroundForever,
+  setPendingDonationTier,
+  getPendingDonationTier,
+  clearPendingDonationTier,
+  type RootBeerTier,
+  type DonationProvider,
 } from "@/lib/monetization";
-import { redeemPromoCode, type PromoRedeemResult } from "@/lib/promoCodes";
+import { redeemPromoCode } from "@/lib/promoCodes";
 
 interface PaymentModalProps {
   tierId: string;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (tierId: string) => void;
 }
 
 export function PaymentModal({ tierId, onClose, onSuccess }: PaymentModalProps) {
   const { t } = useTranslation();
-  const [selectedTierId, setSelectedTierId] = useState<string>(tierId);
-  const [promoInput, setPromoInput] = useState("");
-  const [promoStatus, setPromoStatus] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [hasOpenedCheckout, setHasOpenedCheckout] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [playBillingLoading, setPlayBillingLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const tier: SupporterTier =
-    SUPPORTED_TIERS.find((t) => t.id === selectedTierId) || SUPPORTED_TIERS[0]!;
+  // Promo Code Redemption State
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
 
-  const handleSimulatePurchase = (method: "Card" | "GPay" | "ApplePay") => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      unlockTierLocally(tier.id);
-      saveTierPurchaseReceipt({
-        orderId: `SIM-${Date.now()}`,
-        tierId: tier.id,
-        tierName: tier.name,
-        amount: tier.price,
-        currency: "USD",
-        method,
-        timestamp: Date.now(),
-      });
-      setIsProcessing(false);
-      alert(t("payment_success", `Thank you for your ${tier.name} support!`));
-      onSuccess?.();
-      onClose();
-    }, 800);
+  const tier: RootBeerTier | undefined = ROOT_BEER_TIERS_DEEPER_AMBER_NO_PRICE.find(
+    (t) => t.id === tierId
+  );
+
+  const isAndroidMedian = typeof window !== "undefined" && isMedianAndroidApp();
+
+  // Escape closes modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  // Listen for window focus to detect when user returns from checkout tab
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      const pendingTier = getPendingDonationTier();
+      if (pendingTier && pendingTier === tierId) {
+        setHasOpenedCheckout(true);
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
+  }, [tierId]);
+
+  const handleOpenWebPayment = useCallback(
+    (provider: DonationProvider, label: string) => {
+      if (!tier) return;
+      try {
+        setPendingDonationTier(tier.id);
+        const url = getDonationUrl(tier.id, provider);
+        setSelectedProvider(label);
+        setHasOpenedCheckout(true);
+        setErrorMessage(null);
+
+        const popup = window.open(url, "_blank", "noopener,noreferrer");
+        if (!popup || popup.closed || typeof popup.closed === "undefined") {
+          window.location.href = url;
+        }
+      } catch {
+        setErrorMessage(
+          t("pay_error_link", "Could not open payment link. Please try again.")
+        );
+      }
+    },
+    [tier, t]
+  );
+
+  const handleGooglePlayPurchase = () => {
+    if (!tier) return;
+    setPlayBillingLoading(true);
+    setErrorMessage(null);
+
+    purchaseTierViaGooglePlay(
+      tier.id,
+      () => {
+        setPlayBillingLoading(false);
+        saveThankYouBackgroundForever(tier.id);
+        if (onSuccess) {
+          onSuccess(tier.id);
+        } else {
+          onClose();
+        }
+      },
+      (err) => {
+        setPlayBillingLoading(false);
+        setErrorMessage(
+          err?.message ||
+            t(
+              "pay_modal_error_google_play",
+              "Google Play purchase could not be completed. You can also support via Buy Me a Coffee below."
+            )
+        );
+      }
+    );
   };
 
-  const handleRedeemPromo = async () => {
-    if (!promoInput.trim()) return;
-    setIsProcessing(true);
-    setPromoStatus(null);
-    try {
-      const res: PromoRedeemResult = await redeemPromoCode(promoInput.trim(), tier.name);
-      if (res.success) {
-        unlockTierLocally(tier.id);
-        setPromoStatus(t("promo_success", "Code applied! Enjoy your unlocked slots."));
-        setTimeout(() => {
-          onSuccess?.();
-          onClose();
-        }, 1200);
-      } else {
-        setPromoStatus(res.message || t("promo_invalid", "Invalid or expired promo code"));
-      }
-    } catch {
-      setPromoStatus(t("promo_error", "Failed to verify promo code"));
-    } finally {
-      setIsProcessing(false);
+  const handleManualConfirmDonation = () => {
+    if (!tier) return;
+    saveThankYouBackgroundForever(tier.id);
+    clearPendingDonationTier();
+    if (onSuccess) {
+      onSuccess(tier.id);
+    } else {
+      onClose();
     }
   };
 
+  const handleRedeemPromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = promoCodeInput.trim().toUpperCase();
+    if (!code) return;
+    setRedeemLoading(true);
+    setPromoError(null);
+    setPromoSuccess(null);
+
+    let expectedTier = "Party Pack Root Beer";
+    if (tierId === "small_root_beer_tier" || tier?.name === "Small Root Beer") {
+      expectedTier = "Small Root Beer";
+    } else if (tierId === "medium_root_beer_tier" || tier?.name === "Medium Root Beer") {
+      expectedTier = "Medium Root Beer";
+    } else if (tierId === "large_root_beer_tier" || tier?.name === "Large Root Beer") {
+      expectedTier = "Large Root Beer";
+    } else if (tierId === "party_pack_root_beer_tier" || tier?.name === "Party Pack Root Beer") {
+      expectedTier = "Party Pack Root Beer";
+    }
+
+    const result = await redeemPromoCode(code, expectedTier);
+    setRedeemLoading(false);
+
+    if (result.success) {
+      setPromoSuccess(result.message);
+      setPromoCodeInput("");
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess(result.tierId ?? tierId ?? "party_pack_root_beer_tier");
+        } else {
+          onClose();
+        }
+      }, 1200);
+    } else {
+      setPromoError(result.message);
+    }
+  };
+
+  if (!tier) return null;
+
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md p-5 rounded-3xl bg-background border border-border shadow-2xl">
-        <VisuallyHidden>
-          <DialogTitle>{t("supporter_tiers", "Supporter Tiers")}</DialogTitle>
-          <DialogDescription>
-            {t("unlock_with_root_beer", "Unlock with Root Beer")}
-          </DialogDescription>
-        </VisuallyHidden>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={tier.name}
+        className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-amber-900/10 dark:border-amber-500/20 overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-amber-700 via-amber-600 to-amber-800 text-white p-5 text-center relative">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("close", "Close")}
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
+          >
+            ✕
+          </button>
+          <div className="text-3xl mb-1">🍺</div>
+          <h2 className="text-xl font-bold tracking-tight">{tier.name}</h2>
+          <p className="text-xs text-amber-100/90 mt-1">
+            {tier.displayPrice} • {tier.tagline}
+          </p>
+        </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between border-b pb-2">
-            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-              <span>⚡</span>
-              <span>{t("supporter_tiers", "Supporter Tiers")}</span>
-            </h2>
+        {/* Body */}
+        <div className="p-6 overflow-y-auto space-y-5 text-zinc-800 dark:text-zinc-200 text-sm">
+          {/* Perks Summary */}
+          <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-2xl p-4 space-y-2">
+            <h3 className="font-semibold text-amber-900 dark:text-amber-300 text-xs uppercase tracking-wider">
+              {t("pay_modal_perks_title", "What You Unlock Forever")}
+            </h3>
+            <ul className="space-y-1.5 text-xs text-zinc-700 dark:text-zinc-300">
+              <li className="flex items-start gap-2">
+                <span className="text-amber-600 font-bold">✓</span>
+                <span>{tier.perks?.backgrounds || tier.bonus.label}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-600 font-bold">✓</span>
+                <span>{tier.perks?.aiGenerations || `+${tier.bonus.aiBackgrounds} AI slots`}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-600 font-bold">✓</span>
+                <span>
+                  {tier.perks?.adFree ||
+                    (tier.bonus.noAdsForever ? "Lifetime Ad-Free" : "Standard ads")}
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-600 font-bold">✓</span>
+                <span>{tier.perks?.celebration || "Supporter thank-you & mascot"}</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Payment Providers */}
+          <div className="space-y-2.5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              {isAndroidMedian
+                ? t("pay_modal_or_web", "Select Payment Option")
+                : t("pay_modal_support_via", "Choose Payment Option")}
+            </h4>
+
+            {/* Google Pay Button */}
             <button
               type="button"
-              onClick={onClose}
-              className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground text-sm cursor-pointer"
+              onClick={() => {
+                if (isAndroidMedian) {
+                  handleGooglePlayPurchase();
+                } else {
+                  handleOpenWebPayment("googlepay", "Google Pay");
+                }
+              }}
+              disabled={playBillingLoading}
+              className="w-full py-3.5 px-4 rounded-xl font-semibold text-sm bg-black hover:bg-zinc-800 text-white shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 border border-zinc-700 disabled:opacity-50 cursor-pointer"
             >
-              ✕
+              <span className="font-bold tracking-tight text-base">GPay</span>
+              <span className="text-xs opacity-90">({tier.displayPrice})</span>
+            </button>
+
+            {/* Buy Me a Coffee */}
+            <button
+              type="button"
+              onClick={() => handleOpenWebPayment("buymeacoffee", "Buy Me a Coffee")}
+              className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-amber-950 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>☕</span>
+              <span>Buy Me a Coffee ({tier.displayPrice})</span>
+            </button>
+
+            {/* PayPal */}
+            <button
+              type="button"
+              onClick={() => handleOpenWebPayment("paypal", "PayPal")}
+              className="w-full py-2.5 px-4 rounded-xl font-medium text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>🅿</span>
+              <span>PayPal ({tier.displayPrice})</span>
             </button>
           </div>
 
-          {/* Tier Selector Chips */}
-          <div className="grid grid-cols-3 gap-2">
-            {SUPPORTED_TIERS.map((item) => (
+          {errorMessage && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-xs">
+              {errorMessage}
+            </div>
+          )}
+
+          {hasOpenedCheckout && (
+            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/50 rounded-2xl space-y-2 text-center animate-in fade-in duration-300">
+              <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                {t(
+                  "pay_modal_opened_notice",
+                  "Opened {{provider}} in your browser. Completed your contribution?",
+                  {
+                    provider: selectedProvider || "checkout",
+                  }
+                )}
+              </p>
               <button
-                key={item.id}
                 type="button"
-                onClick={() => setSelectedTierId(item.id)}
-                className={`p-2 rounded-2xl border text-center transition cursor-pointer ${
-                  selectedTierId === item.id
-                    ? "border-amber-500 bg-amber-500/10 text-foreground ring-1 ring-amber-500"
-                    : "border-border/60 bg-card text-muted-foreground hover:border-border"
-                }`}
+                onClick={handleManualConfirmDonation}
+                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all active:scale-[0.98] cursor-pointer"
               >
-                <p className="text-xs font-bold truncate">
-                  {item.id === "small_root_beer_tier"
-                    ? t("small_root_beer", "Small Root Beer")
-                    : item.name}
-                </p>
-                <p className="text-sm font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">
-                  {item.displayPrice}
-                </p>
+                {t("pay_modal_confirm_unlock", "I Contributed — Unlock My Perks Now! 🎉")}
               </button>
-            ))}
-          </div>
-
-          {/* Tier Details Card */}
-          <div className="p-4 rounded-2xl bg-card border border-border space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">
-                  {tier.id === "small_root_beer_tier"
-                    ? t("small_root_beer", "Small Root Beer")
-                    : tier.name}
-                </h3>
-                <p className="text-xs text-muted-foreground">{tier.tagline}</p>
-              </div>
-              <span className="text-base font-black text-amber-600 dark:text-amber-400">
-                {tier.displayPrice}
-              </span>
             </div>
-
-            {/* Perks list */}
-            <div className="space-y-1.5 text-xs text-foreground/90 pt-1">
-              <div className="flex items-start gap-2">
-                <span className="text-amber-500 font-bold">✓</span>
-                <span>
-                  {t(
-                    "paywall_benefit_city_landmark",
-                    "2 permanent slots for city landmark wallpapers"
-                  )}
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-amber-500 font-bold">✓</span>
-                <span>
-                  {tier.bonus.aiBackgrounds} {t("ai_studio", { slot: tier.bonus.aiBackgrounds })}
-                </span>
-              </div>
-              {tier.durationDays && (
-                <div className="flex items-start gap-2">
-                  <span className="text-amber-500 font-bold">✓</span>
-                  <span>{tier.durationDays} {t("days_ad_free", "Days Ad-Free")}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Purchase Actions */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              disabled={isProcessing}
-              onClick={() => handleSimulatePurchase("Card")}
-              className="w-full py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs hover:brightness-105 transition cursor-pointer disabled:opacity-50"
-            >
-              ⚡ {t("unlock_with_root_beer", "Unlock with Root Beer")} ({tier.displayPrice})
-            </button>
-          </div>
+          )}
 
           {/* Promo Code Input */}
-          <div className="pt-2 border-t border-border/60 space-y-2">
-            <p className="text-[11px] font-semibold text-muted-foreground">
-              {t("have_promo_code", "Have an offline promo code?")}
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={promoInput}
-                onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                placeholder="WPL-XXXX-XXXX"
-                className="flex-1 text-xs px-3 py-2 rounded-xl border border-border bg-background uppercase font-mono"
-              />
-              <button
-                type="button"
-                disabled={isProcessing || !promoInput.trim()}
-                onClick={handleRedeemPromo}
-                className="px-3 py-2 rounded-xl bg-muted font-bold text-xs hover:bg-muted/80 transition cursor-pointer disabled:opacity-50"
+          <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+            <form onSubmit={handleRedeemPromo} className="space-y-2">
+              <label
+                htmlFor="promo_code_input"
+                className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400"
               >
-                {t("apply", "Apply")}
-              </button>
-            </div>
-            {promoStatus && (
-              <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
-                {promoStatus}
+                {t("promo_code_label", "Have a VIP / Supporter Code?")}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="promo_code_input"
+                  type="text"
+                  value={promoCodeInput}
+                  onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                  placeholder="PAL-XXXX-XXXX"
+                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="submit"
+                  disabled={redeemLoading || !promoCodeInput.trim()}
+                  className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors disabled:opacity-40 cursor-pointer"
+                >
+                  {redeemLoading ? "..." : t("redeem", "Redeem")}
+                </button>
+              </div>
+            </form>
+
+            {promoError && (
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1.5 font-medium">
+                {promoError}
+              </p>
+            )}
+            {promoSuccess && (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1.5 font-medium">
+                ✓ {promoSuccess}
               </p>
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
