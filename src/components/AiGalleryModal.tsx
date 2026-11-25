@@ -18,6 +18,7 @@ import {
 import { showRewardedAdViaMedian } from "@/lib/monetization";
 import { PaymentModal } from "@/components/PaymentModal";
 import { getLocalizedCity, getLocalizedCountry } from "@/lib/placeLocalization";
+import { useProStatus, readProPackage } from "@/lib/proStatus";
 import type { Place } from "@/lib/weather";
 
 export interface AiGalleryModalProps {
@@ -61,10 +62,21 @@ export function getUserSlotLimits(): UserSlotLimits {
     };
   }
 
-  const isPartyVip = localStorage.getItem("weather:monetization:party_pack_root_beer_tier") === "true";
-  const isLarge = localStorage.getItem("weather:monetization:large_root_beer_tier") === "true";
-  const isMedium = localStorage.getItem("weather:monetization:medium_root_beer_tier") === "true";
-  const isSmall = localStorage.getItem("weather:monetization:small_root_beer_tier") === "true";
+  const pro = readProPackage();
+
+  const isPartyVip =
+    pro.isLifetime ||
+    pro.slots === "Unlimited" ||
+    localStorage.getItem("weather:monetization:party_pack_root_beer_tier") === "true";
+  const isLarge =
+    pro.effectiveSlots >= 6 ||
+    localStorage.getItem("weather:monetization:large_root_beer_tier") === "true";
+  const isMedium =
+    pro.effectiveSlots >= 4 ||
+    localStorage.getItem("weather:monetization:medium_root_beer_tier") === "true";
+  const isSmall =
+    pro.effectiveSlots >= 2 ||
+    localStorage.getItem("weather:monetization:small_root_beer_tier") === "true";
 
   let baseSlots = 1;
   let isUnlimited = false;
@@ -127,21 +139,6 @@ function getTierFullName(tierLevel: number, t: TFunction): string {
       return `🍺 ${t("tier_small", "Small Root Beer Tier (2 Permanent Slots)")}`;
     default:
       return `🆓 ${t("tier_free", "Free Tier (1 Slot + Watch Ad for +1 Slot / 24h)")}`;
-  }
-}
-
-function getTierShortName(tierLevel: number, t: TFunction): string {
-  switch (tierLevel) {
-    case 4:
-      return t("tier_short_party", "Party VIP (Unlimited)");
-    case 3:
-      return t("tier_short_large", "Large Tier (6 Slots)");
-    case 2:
-      return t("tier_short_medium", "Medium Tier (4 Slots)");
-    case 1:
-      return t("tier_short_small", "Small Tier (2 Slots)");
-    default:
-      return t("tier_short_free", "Free Tier (1 Slot)");
   }
 }
 
@@ -209,6 +206,7 @@ export function AiGalleryModal({
   onOpenPaymentModal,
 }: AiGalleryModalProps) {
   const { t, i18n } = useTranslation();
+  const proStatus = useProStatus();
 
   const [activeTab, setActiveTab] = useState<"slots" | "curated" | "ai">("slots");
   const [targetSlotIndex, setTargetSlotIndex] = useState<number>(0);
@@ -230,7 +228,7 @@ export function AiGalleryModal({
   const [appliedUrl, setAppliedUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-   const activeCity = currentPlace?.name || currentCity || cityName || city || "Bangkok";
+  const activeCity = currentPlace?.name || currentCity || cityName || city || "Bangkok";
   const activeCountry = currentPlace?.country || country || "Thailand";
   const activeCode = currentWeatherCode ?? weatherCode ?? 0;
 
@@ -238,6 +236,7 @@ export function AiGalleryModal({
   useEffect(() => {
     if (isOpen) {
       setSlotLimits(getUserSlotLimits());
+      proStatus.refresh();
       getSavedArtworks()
         .then((items) => setSavedArtworks(items))
         .catch(() => {});
@@ -248,10 +247,15 @@ export function AiGalleryModal({
   useEffect(() => {
     const handleProUnlocked = () => {
       setSlotLimits(getUserSlotLimits());
+      proStatus.refresh();
     };
     window.addEventListener("weather:pro-unlocked", handleProUnlocked);
-    return () => window.removeEventListener("weather:pro-unlocked", handleProUnlocked);
-  }, []);
+    window.addEventListener("storage", handleProUnlocked);
+    return () => {
+      window.removeEventListener("weather:pro-unlocked", handleProUnlocked);
+      window.removeEventListener("storage", handleProUnlocked);
+    };
+  }, [proStatus]);
 
   // Load curated landmarks
   useEffect(() => {
@@ -529,7 +533,7 @@ export function AiGalleryModal({
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            {!slotLimits.hasAdBonus && !slotLimits.isUnlimited && (
+            {!slotLimits.hasAdBonus && !slotLimits.isUnlimited && !proStatus.adFree && (
               <button
                 type="button"
                 onClick={handleWatchRewardedAd}
@@ -581,7 +585,7 @@ export function AiGalleryModal({
             }`}
           >
             <span>🏛️</span>
-            <span>{t("tab_curated_landmarks", "Curated Landmarks")}</span>
+            <span>{t("tab_curated_city", "Curated Landmarks")}</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-muted font-normal">
               {curatedArts.length}
             </span>
@@ -597,25 +601,22 @@ export function AiGalleryModal({
             }`}
           >
             <span>✨</span>
-            <span>{t("tab_ai_generator", "AI Watercolor Studio")}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
-              Target Slot {targetSlotIndex + 1}
-            </span>
+            <span>{t("tab_ai_studio", "AI Watercolor Studio")}</span>
           </button>
         </div>
 
-        {/* TAB 1: WALLPAPER SLOTS GRID */}
+        {/* TAB 1: YOUR 6 WALLPAPER SLOTS */}
         {activeTab === "slots" && (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <p>
                 {t(
-                  "subheading_click_slot_target",
-                  "Tap any unlocked slot to target it for new AI watercolor art or photo uploads."
+                  "subheading_slots_desc",
+                  "Tap an unlocked slot to set it as target for new art or apply wallpaper live."
                 )}
               </p>
-              <span className="text-xs font-medium text-amber-500">
-                {getTierShortName(slotLimits.tierLevel, t)}
+              <span className="font-semibold text-foreground">
+                {t("active_target_label", "Target:")} {t("slot_label", { slot: targetSlotIndex + 1 })}
               </span>
             </div>
 
@@ -629,7 +630,9 @@ export function AiGalleryModal({
                 let tierRequired = "Free";
                 let tierCode = "small_root_beer_tier";
                 if (slotIdx === 1) {
-                  tierRequired = slotLimits.hasAdBonus ? t("slot_ad_active", "Ad Bonus Active") : t("slot_small_or_ad", "Ad or Small Tier ($1)");
+                  tierRequired = slotLimits.hasAdBonus
+                    ? t("slot_ad_active", "Ad Bonus Active")
+                    : t("slot_small_or_ad", "Ad or Small Tier ($1)");
                   tierCode = "small_root_beer_tier";
                 } else if (slotIdx >= 2 && slotIdx <= 3) {
                   tierRequired = t("slot_medium_tier", "Medium Tier ($3)");
@@ -660,7 +663,7 @@ export function AiGalleryModal({
                     {/* Slot Header */}
                     <div className="p-3 flex items-center justify-between border-b border-border/50 text-xs">
                       <span className="font-bold flex items-center gap-1.5">
-                        {isUnlocked ? "🎨" : "🔒"} {t("slot_label", "Slot")} {slotNum}
+                        {isUnlocked ? "🎨" : "🔒"} {t("slot_label", { slot: slotNum })}
                       </span>
                       <span
                         className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
@@ -777,8 +780,36 @@ export function AiGalleryModal({
                               : "bg-muted hover:bg-muted/80 text-foreground"
                           }`}
                         >
-                          {isTargeted ? `✓ ${t("btn_targeted", "Target Selected")}` : `+ ${t("btn_paint_with_ai", "Paint with AI")}`}
+                          {isTargeted
+                            ? `✓ ${t("btn_targeted", "Target Selected")}`
+                            : `+ ${t("btn_paint_with_ai", "Paint with AI")}`}
                         </button>
+                      ) : slotIdx === 1 ? (
+                        <div className="w-full flex items-center gap-1.5">
+                          {!proStatus.adFree && !slotLimits.hasAdBonus && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleWatchRewardedAd();
+                              }}
+                              disabled={isWatchingAd}
+                              className="flex-1 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30 text-[11px] transition cursor-pointer disabled:opacity-50"
+                            >
+                              📺 {isWatchingAd ? "⏳..." : t("watch_ad_btn", "Watch Ad (24h)")}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPaymentModalTier("small_root_beer_tier");
+                            }}
+                            className="flex-1 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 text-[11px] transition cursor-pointer"
+                          >
+                            🍺 {t("small_root_beer", "Small ($1)")}
+                          </button>
+                        </div>
                       ) : (
                         <button
                           type="button"
@@ -804,7 +835,10 @@ export function AiGalleryModal({
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <p className="text-xs text-muted-foreground">
-                {t("subheading_curated_desc", "Authentic watercolors curated for this city and surrounding regions.")}
+                {t(
+                  "subheading_curated_desc",
+                  "Authentic watercolors curated for this city and surrounding regions."
+                )}
               </p>
               <input
                 type="text"
@@ -837,7 +871,9 @@ export function AiGalleryModal({
                   <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-foreground line-clamp-1">{item.title}</h4>
-                      <p className="text-[11px] text-muted-foreground">{getLocalizedCity(item.city || activeCity, i18n.language)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {getLocalizedCity(item.city || activeCity, i18n.language)}
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-1.5 pt-2 border-t border-border/50">
@@ -880,12 +916,14 @@ export function AiGalleryModal({
                   </span>
                 </span>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Generates an atmospheric 1024×1024 watercolor scenery saved directly into Slot {targetSlotIndex + 1}.
+                  Generates an atmospheric 1024×1024 watercolor scenery saved directly into Slot{" "}
+                  {targetSlotIndex + 1}.
                 </p>
               </div>
 
               <span className="text-[11px] px-2.5 py-1 rounded-lg bg-muted font-bold">
-                Slot {targetSlotIndex + 1} {targetSlotIndex < slotLimits.aiSlots ? "✓ Unlocked" : "🔒 Locked"}
+                Slot {targetSlotIndex + 1}{" "}
+                {targetSlotIndex < slotLimits.aiSlots ? "✓ Unlocked" : "🔒 Locked"}
               </span>
             </div>
 
@@ -897,14 +935,15 @@ export function AiGalleryModal({
             )}
 
             <div className="space-y-1.5">
-              <label className="font-bold text-foreground">
-                Scene Description:
-              </label>
+              <label className="font-bold text-foreground">Scene Description:</label>
               <textarea
                 rows={3}
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder={`e.g., An ancient pagoda overlooking the mist in ${getLocalizedCity(activeCity, i18n.language)}, glowing lantern reflections, gentle watercolor wash...`}
+                placeholder={`e.g., An ancient pagoda overlooking the mist in ${getLocalizedCity(
+                  activeCity,
+                  i18n.language
+                )}, glowing lantern reflections, gentle watercolor wash...`}
                 className="w-full text-xs rounded-xl border border-input/60 bg-background/80 p-2.5 focus:outline-hidden focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -970,7 +1009,9 @@ export function AiGalleryModal({
                 disabled={isGenerating || !customPrompt.trim()}
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold hover:brightness-105 active:scale-95 disabled:opacity-50 transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                {isGenerating ? "⏳ " + t("btn_painting", "Painting Scene...") : "✨ " + t("btn_generate_ai", "Paint Watercolor with AI")}
+                {isGenerating
+                  ? "⏳ " + t("btn_painting", "Painting Scene...")
+                  : "✨ " + t("btn_generate_ai", "Paint Watercolor with AI")}
               </button>
             </div>
           </div>
@@ -983,6 +1024,7 @@ export function AiGalleryModal({
           onClose={() => {
             setPaymentModalTier(null);
             setSlotLimits(getUserSlotLimits());
+            proStatus.refresh();
           }}
         />
       )}
