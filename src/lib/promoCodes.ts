@@ -30,6 +30,13 @@ function isCodeAlreadyClaimed(codeHash: string): boolean {
   }
 }
 
+function tierIdForTier(tier?: string): string {
+  if (tier === "Small Root Beer") return "small_root_beer_tier";
+  if (tier === "Medium Root Beer") return "medium_root_beer_tier";
+  if (tier === "Large Root Beer") return "large_root_beer_tier";
+  return "party_pack_root_beer_tier";
+}
+
 export const VALID_CODE_HASHES: Record<
   string,
   { plan: string; campaign: string; tier: string; slots: string | number; adFree: string; redeemBy: string }
@@ -46,7 +53,7 @@ export const VALID_CODE_HASHES: Record<
   "1f5084ad19205406bc814358aae1025e25e2645b5d4d2ad07b53a472870fe18b": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-24" },
   "ada517a04dcfb9db178905648c8ff0973fd900094d52551c04873eee2f0eedc3": { plan: "PARTY", campaign: "PARTY", tier: "Party Pack Root Beer", slots: "Unlimited", adFree: "FOREVER", redeemBy: "2026-12-24" },
 
-  // ===== GENERIC - SMALL ROOT BEER - $1.00 / 2 slots / 0 days ad-free =====
+  // ===== SMALL ROOT BEER - $1.00 / 2 slots / 0 days ad-free =====
   "57216b7c780277541405ede967dae8624643b81c41ba13e308faffd7de391baf": { plan: "SMALL", campaign: "SMALL", tier: "Small Root Beer", slots: "2", adFree: "0 days", redeemBy: "2026-12-24" },
   "4024bb5c8bd389f68532bf6cb83b67a75c5943599aac254a4f50c55768e3b4fd": { plan: "SMALL", campaign: "SMALL", tier: "Small Root Beer", slots: "2", adFree: "0 days", redeemBy: "2026-12-24" },
   "8ee571a044a97b48eedaa25ef9df2740e209a8ba81e38221b68dff3cba165024": { plan: "SMALL", campaign: "SMALL", tier: "Small Root Beer", slots: "2", adFree: "0 days", redeemBy: "2026-12-24" },
@@ -58,7 +65,7 @@ export const VALID_CODE_HASHES: Record<
   "5f26b2c6a9f3fdcb551413826b549082a43aa92578adbd28334128ac22cb740b": { plan: "SMALL", campaign: "SMALL", tier: "Small Root Beer", slots: "2", adFree: "0 days", redeemBy: "2026-12-24" },
   "6e017819139acdcafa615bc70dcdd813ef17c7a5547d9b2988a6b7953997f3cf": { plan: "SMALL", campaign: "SMALL", tier: "Small Root Beer", slots: "2", adFree: "0 days", redeemBy: "2026-12-24" },
 
-  // ===== GENERIC - MEDIUM ROOT BEER - $3.00 / 4 slots / 30 days ad-free =====
+  // ===== MEDIUM ROOT BEER - $3.00 / 4 slots / 30 days ad-free =====
   "0ad37f79941a035a3942f7675254a5dfa0d6f95b1f2d3f93388c03a7193fc90d": { plan: "MEDIUM", campaign: "MEDIUM", tier: "Medium Root Beer", slots: "4", adFree: "30 days", redeemBy: "2026-12-24" },
   "c2c4bf759057773b49a00092249c2700f920f120916311264320cfce9bfc6f3e": { plan: "MEDIUM", campaign: "MEDIUM", tier: "Medium Root Beer", slots: "4", adFree: "30 days", redeemBy: "2026-12-24" },
   "fe6508fc12162f18c38ff5d62790cc42889bba98ebb2c11668a458bf60174eff": { plan: "MEDIUM", campaign: "MEDIUM", tier: "Medium Root Beer", slots: "4", adFree: "30 days", redeemBy: "2026-12-24" },
@@ -70,7 +77,7 @@ export const VALID_CODE_HASHES: Record<
   "1da0f64a9336081938e2a17420a11211ccacf3742d046ef1f1a75435c5e9eea3": { plan: "MEDIUM", campaign: "MEDIUM", tier: "Medium Root Beer", slots: "4", adFree: "30 days", redeemBy: "2026-12-24" },
   "f44e393571e037f099de40b4a9e6861b74099f84a9c672d766ba142b889d90fa": { plan: "MEDIUM", campaign: "MEDIUM", tier: "Medium Root Beer", slots: "4", adFree: "30 days", redeemBy: "2026-12-24" },
 
-  // ===== GENERIC - LARGE ROOT BEER - $5.00 / 6 slots / 365 days ad-free =====
+  // ===== LARGE ROOT BEER - $5.00 / 6 slots / 365 days ad-free =====
   "84468fa9cad6652c33737deeda265b1900d8f287ff92b14e8c7c212c20f6613a": { plan: "LARGE", campaign: "LARGE", tier: "Large Root Beer", slots: "6", adFree: "365 days", redeemBy: "2026-12-24" },
   "9b5b1dce49f7e7cceb90efed21c7c127ae2b9780af5804cec67803b8fdf7156d": { plan: "LARGE", campaign: "LARGE", tier: "Large Root Beer", slots: "6", adFree: "365 days", redeemBy: "2026-12-24" },
   "c1e9ba6bb42414e7788f57b73c72c1d68b04062a8d548defd224e473c2d72bbd": { plan: "LARGE", campaign: "LARGE", tier: "Large Root Beer", slots: "6", adFree: "365 days", redeemBy: "2026-12-24" },
@@ -87,12 +94,10 @@ export async function verifyPromoCode(rawCode: string, expectedTier?: string): P
   const code = rawCode.trim().toUpperCase().replace(/\s+/g, "");
   const hash = await computeCodeHash(code);
 
-  // 1-use check - if already claimed on this device, reject
   if (isCodeAlreadyClaimed(hash)) {
     return { valid: false, message: "This code has already been used." };
   }
 
-  // Hash list lookup
   const entry = VALID_CODE_HASHES[hash];
   if (!entry) {
     return { valid: false, message: "Invalid promo code." };
@@ -102,7 +107,6 @@ export async function verifyPromoCode(rawCode: string, expectedTier?: string): P
     return { valid: false, message: "Giveaway / Party Pack has ended" };
   }
 
-  // Tier check - code must match the tier the user selected
   if (expectedTier && entry.tier !== expectedTier) {
     return { valid: false, message: `This code is for ${entry.tier}, not ${expectedTier}.` };
   }
@@ -129,27 +133,41 @@ export async function claimPromoCode(rawCode: string, expectedTier?: string) {
     return { success: false, message: "This code has already been used." };
   }
 
+  const tierId = tierIdForTier(check.tier);
+
   try {
+    // Core package - what the UI should read
     localStorage.setItem("weather:pro_tier", check.tier || "Party Pack Root Beer");
     localStorage.setItem("weather:pro_slots", String(check.slots || "Unlimited"));
     localStorage.setItem("weather:pro_adfree", check.adFree || "FOREVER");
     localStorage.setItem("weather:pro_plan", check.plan || "PARTY");
+    localStorage.setItem("weather:pro_tier_id", tierId);
+    localStorage.setItem("weather:pro_unlocked", "true");
+
+    // Per-tier unlock key - so each tier unlocks its own package
+    localStorage.setItem(`weather:monetization:${tierId}`, "true");
+    localStorage.setItem(`weather:unlocked:${tierId}`, "true");
 
     if (check.isLifetime || check.tier === "Party Pack Root Beer") {
       localStorage.setItem("weather:monetization:party_pack_root_beer_tier", "true");
       localStorage.setItem("weather:pro_lifetime", "true");
       localStorage.setItem("weather:pro_until", "2099-12-31");
+      localStorage.setItem("weather:adfree", "true");
     } else if (check.adFree?.toLowerCase().includes("30")) {
       const until = new Date();
       until.setDate(until.getDate() + 30);
       localStorage.setItem("weather:pro_until", until.toISOString().slice(0, 10));
+      localStorage.setItem("weather:adfree", "true");
       localStorage.removeItem("weather:pro_lifetime");
     } else if (check.adFree?.toLowerCase().includes("365")) {
       const until = new Date();
       until.setDate(until.getDate() + 365);
       localStorage.setItem("weather:pro_until", until.toISOString().slice(0, 10));
+      localStorage.setItem("weather:adfree", "true");
       localStorage.removeItem("weather:pro_lifetime");
     } else {
+      // Small - 2 slots, 0 days ad-free
+      localStorage.setItem("weather:adfree", "false");
       localStorage.removeItem("weather:pro_lifetime");
       localStorage.removeItem("weather:pro_until");
     }
@@ -157,15 +175,15 @@ export async function claimPromoCode(rawCode: string, expectedTier?: string) {
     localStorage.setItem(`weather:claimed_code:${codeHash}`, "true");
     window.dispatchEvent(
       new CustomEvent("weather:pro-unlocked", {
-        detail: { plan: check.plan, tier: check.tier, slots: check.slots, adFree: check.adFree },
+        detail: { plan: check.plan, tier: check.tier, tierId, slots: check.slots, adFree: check.adFree },
       })
     );
   } catch {}
 
-  return { success: true, message: `${check.tier} unlocked. This code is now deactivated.` };
+  return { success: true, message: `${check.tier} unlocked. This code is now deactivated.`, tierId };
 }
 
 export async function redeemPromoCode(inputCode: string, expectedTier?: string) {
   const res = await claimPromoCode(inputCode, expectedTier);
-  return { success: res.success, message: res.message, tierId: "party_pack_root_beer_tier" };
+  return { success: res.success, message: res.message, tierId: (res as any).tierId || tierIdForTier(expectedTier) };
 }
