@@ -14,7 +14,6 @@ import {
 import {
   saveCustomArtChoice,
   compressImageFile,
-  LANDMARK_WATERCOLORS,
   getAllAvailableArtworks,
 } from "@/lib/aiWatercolorGenerator";
 import { generateWatercolorFn } from "@/lib/aiWatercolor.functions";
@@ -120,7 +119,7 @@ export function ArtGalleryPage() {
         alert(t("ad_bonus_unlocked", "Slot 2 unlocked for 24 hours!"));
       },
       (err) => {
-        alert(err.message || "Could not show rewarded ad.");
+        alert(err.message || t("ad_error", "Could not show rewarded ad."));
       }
     );
   };
@@ -166,7 +165,7 @@ export function ArtGalleryPage() {
         data: { city, userPrompt: aiPrompt.slice(0, 200) },
       });
       if (!res?.imageUrl) {
-        throw new Error("Generation failed");
+        throw new Error(t("generation_failed", "Generation failed"));
       }
       const newArt: SavedItem = {
         id: `ai-${Date.now()}`,
@@ -183,7 +182,7 @@ export function ArtGalleryPage() {
       setActiveTab("slots");
       await handleApplyArt(res.imageUrl);
     } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : "Error generating art");
+      setGenerationError(err instanceof Error ? err.message : t("generation_error", "Error generating art"));
     } finally {
       setIsGenerating(false);
     }
@@ -194,7 +193,7 @@ export function ArtGalleryPage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Please upload a valid image file.");
+      alert(t("invalid_image_file", "Please upload a valid image file."));
       return;
     }
 
@@ -218,7 +217,7 @@ export function ArtGalleryPage() {
       setSavedArtworks(updated);
       await handleApplyArt(compressed);
     } catch {
-      alert("Failed to process uploaded photo.");
+      alert(t("upload_photo_failed", "Failed to process uploaded photo."));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -229,21 +228,26 @@ export function ArtGalleryPage() {
     return (raw || []).map((u, i) => ({
       id: `curated-${i}`,
       url: typeof u === "string" ? u : (u as any)?.url || "",
-      title: `${currentPlace.name} Landmark ${i + 1}`,
+      title: t("landmark_name", { city: currentPlace.name, number: i + 1 }),
       city: currentPlace.name,
       timestamp: Date.now(),
     }));
-  }, [currentPlace]);
+  }, [currentPlace, t]);
+
+  const savedCount = savedArtworks.filter(Boolean).length;
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-12">
       <header className="sticky top-0 z-20 backdrop-blur-md bg-background/80 border-b border-border/50 px-4 py-3 flex items-center justify-between max-w-4xl mx-auto">
-        <Link to="/" className="text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1">
+        <Link
+          to="/"
+          className="text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1"
+        >
           <span>←</span>
-          <span>{t("back_to_weather", "Back to Forecast")}</span>
+          <span>{t("back_to_forecast", "Back to Forecast")}</span>
         </Link>
         <h1 className="text-sm font-bold text-foreground">
-          {t("gallery_title", "Watercolor Art Gallery & Studio")}
+          {t("art_gallery", "Art Gallery")}
         </h1>
         <div className="w-12" />
       </header>
@@ -258,18 +262,18 @@ export function ArtGalleryPage() {
                 {currentPlace.country ? `, ${getLocalizedCountry(currentPlace.country, i18n.language)}` : ""}
               </span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold">
-                {savedArtworks.filter(Boolean).length} / {maxSlots} Slots Unlocked
+                {savedCount} / {maxSlots} {t("unlocked_label", "Unlocked")}
               </span>
               {adBonusState && !isPermanentSlot2 && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30">
-                  🎁 Slot 2 Active ({adHoursLeft}h left)
+                  🎁 {t("slot_label", { slot: 2 })} ({adHoursLeft}h)
                 </span>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {tierConfig
                 ? tierConfig.name
-                : "Free Plan (Slot 1 Permanent • Slot 2 via 24h Ad or Small Root Beer)"}
+                : t("free_plan_card", "Free Plan (Slot 1 Permanent • Slot 2 via 24h Ad or Small Root Beer)")}
             </p>
           </div>
 
@@ -280,7 +284,7 @@ export function ArtGalleryPage() {
                 onClick={handleWatchAd}
                 className="px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition cursor-pointer"
               >
-                📺 Watch Ad (Slot 2 for 24h)
+                📺 {t("watch_ad_btn", "Watch Ad")} ({t("slot_label", { slot: 2 })} 24h)
               </button>
             )}
             <button
@@ -288,7 +292,7 @@ export function ArtGalleryPage() {
               onClick={() => setPaymentModalTier("small_root_beer_tier")}
               className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold transition hover:brightness-105 cursor-pointer"
             >
-              ⚡ Supporter Tiers
+              ⚡ {t("supporter_tiers", "Supporter Tiers")}
             </button>
           </div>
         </section>
@@ -299,28 +303,34 @@ export function ArtGalleryPage() {
             type="button"
             onClick={() => setActiveTab("slots")}
             className={`py-2 px-4 border-b-2 transition cursor-pointer ${
-              activeTab === "slots" ? "border-primary text-primary" : "border-transparent text-muted-foreground"
+              activeTab === "slots"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
             }`}
           >
-            🖼️ Your Slots ({savedArtworks.filter(Boolean).length}/6)
+            🖼️ {t("your_slots", { count: savedCount })}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("curated")}
             className={`py-2 px-4 border-b-2 transition cursor-pointer ${
-              activeTab === "curated" ? "border-primary text-primary" : "border-transparent text-muted-foreground"
+              activeTab === "curated"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
             }`}
           >
-            🏛️ Curated Landmarks
+            🏛️ {t("curated_landmarks", "Curated Landmarks")}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("studio")}
             className={`py-2 px-4 border-b-2 transition cursor-pointer ${
-              activeTab === "studio" ? "border-primary text-primary" : "border-transparent text-muted-foreground"
+              activeTab === "studio"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
             }`}
           >
-            ✨ AI Studio (Target: Slot {targetSlot + 1})
+            ✨ {t("ai_studio", { slot: targetSlot + 1 })}
           </button>
         </div>
 
@@ -346,48 +356,60 @@ export function ArtGalleryPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-border/50 text-xs font-bold">
-                    <span>{isUnlocked ? "🎨" : "🔒"} Slot {idx + 1}</span>
+                    <span>
+                      {isUnlocked ? "🎨" : "🔒"} {t("slot_label", { slot: idx + 1 })}
+                    </span>
                     <span className="text-[10px] text-muted-foreground">
                       {isUnlocked
                         ? isSlot2 && adBonusState && !isPermanentSlot2
-                          ? `🎁 24h Ad Active (${adHoursLeft}h)`
+                          ? `🎁 24h (${adHoursLeft}h)`
                           : isTarget
-                          ? "Target"
-                          : "Unlocked"
+                          ? t("target_label", "Target")
+                          : t("unlocked_label", "Unlocked")
                         : isSlot2
-                        ? "Ad or $1 Tier"
-                        : "Locked"}
+                        ? t("ad_or_dollar_tier", "Ad or $1")
+                        : t("locked_label", "Locked")}
                     </span>
                   </div>
 
                   <div className="py-3 flex-1 flex flex-col items-center justify-center min-h-[140px]">
                     {item?.url ? (
                       <div className="w-full space-y-1">
-                        <img src={item.url} alt={item.title} className="w-full aspect-video object-cover rounded-xl" />
+                        <img
+                          src={item.url}
+                          alt={item.title}
+                          className="w-full aspect-video object-cover rounded-xl"
+                        />
                         <p className="text-xs font-semibold truncate">{item.title}</p>
                       </div>
                     ) : isUnlocked ? (
                       <div className="text-center py-4 text-muted-foreground">
                         <span className="text-2xl font-bold">+</span>
-                        <p className="text-xs font-medium">Empty Slot {idx + 1}</p>
+                        <p className="text-xs font-medium">
+                          {t("slot_label", { slot: idx + 1 })}
+                        </p>
                         {isSlot2 && adBonusState && !isPermanentSlot2 && (
                           <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">
-                            Ad Bonus active for {adHoursLeft} more hours
+                            {t("ad_bonus_active_hours", "24h Ad Active ({{hours}}h)", { hours: adHoursLeft })}
                           </p>
                         )}
                       </div>
                     ) : isSlot2 ? (
                       <div className="text-center py-3 text-muted-foreground space-y-1">
                         <span className="text-2xl">🔒</span>
-                        <p className="text-xs font-bold text-foreground">Slot 2</p>
+                        <p className="text-xs font-bold text-foreground">
+                          {t("slot_label", { slot: 2 })}
+                        </p>
                         <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                          Watch ad for 24h or unlock with Small Root Beer ($1)
+                          {t("slot2_unlock_desc", "Watch ad for 24h or unlock with Small Root Beer ($1)")}
                         </p>
                       </div>
                     ) : (
                       <div className="text-center py-4 text-muted-foreground space-y-1">
                         <span className="text-2xl">🔒</span>
-                        <p className="text-xs font-semibold">Slot {idx + 1} Locked</p>
+                        <p className="text-xs font-semibold">
+                          {t("slot_locked", { slot: idx + 1 })}
+                        </p>
                         <p className="text-[10px]">
                           {idx <= 3 ? "Medium Root Beer ($3)" : "Large Root Beer ($5)"}
                         </p>
@@ -404,9 +426,9 @@ export function ArtGalleryPage() {
                             e.stopPropagation();
                             void handleApplyArt(item.url);
                           }}
-                          className="px-3 py-1 rounded-lg bg-primary text-primary-foreground font-bold"
+                          className="px-3 py-1 rounded-lg bg-primary text-primary-foreground font-bold cursor-pointer"
                         >
-                          ✓ Apply
+                          ✓ {t("apply", "Apply")}
                         </button>
                         <div className="flex items-center gap-1">
                           <button
@@ -415,8 +437,8 @@ export function ArtGalleryPage() {
                               e.stopPropagation();
                               void handleDownloadSlotArt(item, idx);
                             }}
-                            className="px-2 py-1 rounded-lg bg-muted text-foreground font-bold hover:bg-muted/80"
-                            title={t("btn_download", "Download")}
+                            className="px-2 py-1 rounded-lg bg-muted text-foreground font-bold hover:bg-muted/80 cursor-pointer"
+                            title={t("save_wallpaper", "Save Wallpaper")}
                           >
                             💾
                           </button>
@@ -426,7 +448,7 @@ export function ArtGalleryPage() {
                               e.stopPropagation();
                               void handleDeleteArt(idx);
                             }}
-                            className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-bold hover:bg-destructive/20"
+                            className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-bold hover:bg-destructive/20 cursor-pointer"
                             title={t("btn_delete", "Delete")}
                           >
                             🗑️
@@ -437,9 +459,9 @@ export function ArtGalleryPage() {
                       <button
                         type="button"
                         onClick={() => setActiveTab("studio")}
-                        className="w-full py-1 rounded-lg bg-muted font-bold hover:bg-muted/80 transition"
+                        className="w-full py-1 rounded-lg bg-muted font-bold hover:bg-muted/80 transition cursor-pointer"
                       >
-                        + Paint with AI
+                        + {t("paint_artwork", "Paint Artwork")}
                       </button>
                     ) : isSlot2 ? (
                       <div className="w-full flex items-center gap-1.5">
@@ -449,9 +471,9 @@ export function ArtGalleryPage() {
                             e.stopPropagation();
                             handleWatchAd();
                           }}
-                          className="flex-1 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30 text-[11px] transition"
+                          className="flex-1 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/30 text-[11px] transition cursor-pointer"
                         >
-                          📺 Watch Ad
+                          📺 {t("watch_ad_btn", "Watch Ad")}
                         </button>
                         <button
                           type="button"
@@ -459,9 +481,9 @@ export function ArtGalleryPage() {
                             e.stopPropagation();
                             setPaymentModalTier("small_root_beer_tier");
                           }}
-                          className="flex-1 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 text-[11px] transition"
+                          className="flex-1 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30 text-[11px] transition cursor-pointer"
                         >
-                          🍺 Small ($1)
+                          🍺 {t("small_root_beer", "Small Root Beer")}
                         </button>
                       </div>
                     ) : (
@@ -469,11 +491,13 @@ export function ArtGalleryPage() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPaymentModalTier(idx <= 3 ? "medium_root_beer_tier" : "large_root_beer_tier");
+                          setPaymentModalTier(
+                            idx <= 3 ? "medium_root_beer_tier" : "large_root_beer_tier"
+                          );
                         }}
-                        className="w-full py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs transition"
+                        className="w-full py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs transition cursor-pointer"
                       >
-                        ⚡ Unlock with Root Beer
+                        ⚡ {t("unlock_with_root_beer", "Unlock with Root Beer")}
                       </button>
                     )}
                   </div>
@@ -487,23 +511,30 @@ export function ArtGalleryPage() {
         {activeTab === "curated" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {curatedList.map((art) => (
-              <div key={art.id} className="rounded-2xl border border-border/70 overflow-hidden bg-card p-3 space-y-2">
-                <img src={art.url} alt={art.title} className="w-full aspect-video object-cover rounded-xl" />
+              <div
+                key={art.id}
+                className="rounded-2xl border border-border/70 overflow-hidden bg-card p-3 space-y-2"
+              >
+                <img
+                  src={art.url}
+                  alt={art.title}
+                  className="w-full aspect-video object-cover rounded-xl"
+                />
                 <h4 className="text-xs font-bold truncate">{art.title}</h4>
                 <div className="flex gap-1.5 pt-1">
                   <button
                     type="button"
                     onClick={() => handleApplyArt(art.url)}
-                    className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-bold"
+                    className="flex-1 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-bold cursor-pointer"
                   >
-                    Apply
+                    {t("apply", "Apply")}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSaveToSlot(targetSlot, art)}
-                    className="px-2.5 py-1 rounded-lg bg-muted text-xs font-bold"
+                    className="px-2.5 py-1 rounded-lg bg-muted text-xs font-bold cursor-pointer"
                   >
-                    💾 Slot {targetSlot + 1}
+                    💾 {t("slot_label", { slot: targetSlot + 1 })}
                   </button>
                 </div>
               </div>
@@ -514,7 +545,9 @@ export function ArtGalleryPage() {
         {/* TAB 3: STUDIO */}
         {activeTab === "studio" && (
           <div className="rounded-3xl border border-border p-5 bg-card space-y-4 max-w-xl mx-auto">
-            <h3 className="text-sm font-bold">✨ Paint with AI for Slot {targetSlot + 1}</h3>
+            <h3 className="text-sm font-bold">
+              ✨ {t("paint_with_ai_for_slot", { slot: targetSlot + 1 })}
+            </h3>
             {generationError && (
               <p className="text-xs text-destructive font-semibold">{generationError}</p>
             )}
@@ -522,7 +555,7 @@ export function ArtGalleryPage() {
               rows={3}
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="Describe scenery, landmarks, mist, or lighting..."
+              placeholder={t("ai_studio_placeholder", "Describe scenery, landmarks, mist, or lighting...")}
               className="w-full text-xs rounded-xl border p-2.5 bg-background"
             />
             <div className="flex justify-between items-center pt-2">
@@ -536,17 +569,19 @@ export function ArtGalleryPage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-xl bg-muted text-xs font-semibold"
+                className="px-3 py-1.5 rounded-xl bg-muted text-xs font-semibold cursor-pointer"
               >
-                📁 Upload Photo
+                📁 {t("upload_photo", "Upload Photo")}
               </button>
               <button
                 type="button"
                 disabled={isGenerating || !aiPrompt.trim()}
                 onClick={handleGenerateAi}
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 cursor-pointer"
               >
-                {isGenerating ? "⏳ Painting..." : "✨ Paint Artwork"}
+                {isGenerating
+                  ? `⏳ ${t("painting", "Painting...")}`
+                  : `✨ ${t("paint_artwork", "Paint Artwork")}`}
               </button>
             </div>
           </div>
