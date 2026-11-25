@@ -262,7 +262,31 @@
   "pay_modal_confirm_unlock": "¡Contribuí — Desbloquea mis ventajas ahora! 🎉",
   "pay_modal_error_google_play": "No se pudo completar la compra en Google Play. También puedes apoyar con Buy Me a Coffee abajo.",
   "btn_save_to_gallery": "Guardar en galería",
-  "btn_save_to_downloads": "Guardar en descargas"
+  "btn_save_to_downloads": "Guardar en descargas",
+  "art_gallery": "Galería de arte",
+  "save_wallpaper": "Guardar fondo de pantalla",
+  "back_to_forecast": "Volver al pronóstico",
+  "your_slots": "Tus espacios ({{count}})",
+  "curated_landmarks": "Lugares emblemáticos seleccionados",
+  "ai_studio": "Estudio de IA (Destino: Espacio {{slot}})",
+  "apply": "Aplicar",
+  "slot_label": "Espacio {{slot}}",
+  "slot_locked": "Espacio {{slot}} bloqueado",
+  "unlock_with_root_beer": "Desbloquear con Root Beer",
+  "supporter_tiers": "Niveles de apoyo",
+  "paint_with_ai_for_slot": "Pintar con IA para el espacio {{slot}}",
+  "ai_studio_placeholder": "Describe el paisaje, lugares, niebla o iluminación...",
+  "upload_photo": "Subir foto",
+  "paint_artwork": "Pintar obra",
+  "ai_select_closed": "Selección de IA cerrada.",
+  "landmark_name": "{{city}} Monumento {{number}}",
+  "small_root_beer": "Root Beer pequeña",
+  "paywall_benefit_city_landmark": "2 espacios permanentes para fondos de lugares de la ciudad",
+  "guide_common_conditions": "Condiciones meteorológicas comunes",
+  "guide_drizzle": "Llovizna",
+  "hourly_forecast": "Pronóstico por horas",
+  "seven_day_outlook": "Pronóstico de 7 días"
 }
+
 
 
