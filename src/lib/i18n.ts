@@ -805,8 +805,12 @@ function buildResourceBundle(langJson: Record<string, string>, langCode: string)
       btn_save_wallpaper: ext["save_wallpaper"] || langJson["save_wallpaper"] || enJson["save_wallpaper"] || "Save Wallpaper",
       tab_hourly: ext["tab_hourly"] || ext["hourly_forecast"] || langJson["hourly_forecast"] || "Hourly",
       tab_daily: ext["tab_daily"] || ext["seven_day_outlook"] || langJson["seven_day_outlook"] || "Daily",
-},
-};
+    },
+  };
+}
+
+export const resources: Record<string, { translation: Record<string, string> }> = {
+
 
 export const resources: Record<string, { translation: Record<string, string> }> = {
   en: buildResourceBundle(enJson, "en"),
