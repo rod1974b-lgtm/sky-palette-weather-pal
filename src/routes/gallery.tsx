@@ -155,8 +155,8 @@ export function ArtGalleryPage() {
   const handleDownloadSlotArt = async (item: SavedItem, slotIndex: number) => {
     const filename = `${currentPlace.name.toLowerCase().replace(/\s+/g, "-")}-slot-${slotIndex + 1}`;
     const title = `${currentPlace.name} Artwork`;
-    const ok = await saveArtImageToDevice(item.url, filename, title);
-    if (!ok) {
+    const res = await saveArtImageToDevice(item.url, filename, title);
+    if (!res.success) {
       window.open(item.url, "_blank");
     }
   };
@@ -170,13 +170,13 @@ export function ArtGalleryPage() {
       const fullPrompt = `${aiPrompt.trim()}, watercolor painting of ${currentPlace.name}`;
       const result = await generateWatercolorFn({
         data: {
-          prompt: fullPrompt,
-          cityName: currentPlace.name,
-          weatherCondition: "clear",
+          city: currentPlace.name,
+          userPrompt: fullPrompt,
+          weatherDesc: "fluid watercolor painting, luminous atmospheric light",
         },
       });
 
-      if (result.success && result.imageUrl) {
+      if (result?.imageUrl) {
         const newItem: SavedItem = {
           id: `ai-${Date.now()}`,
           url: result.imageUrl,
@@ -188,7 +188,7 @@ export function ArtGalleryPage() {
         setActiveTab("slots");
         setAiPrompt("");
       } else {
-        setGenerationError(result.error || t("ai_generation_failed", "Could not generate artwork."));
+        setGenerationError(t("ai_generation_failed", "Could not generate artwork."));
       }
     } catch (e: any) {
       setGenerationError(e?.message || t("ai_generation_failed", "Could not generate artwork."));
