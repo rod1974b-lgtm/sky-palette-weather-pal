@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import type { Weather } from "@/lib/weather";
 import { pickNum } from "@/lib/weatherSafe";
 import { saveWallpaperToDownloads } from "@/lib/saveWallpaper";
@@ -36,22 +35,6 @@ export interface WeatherViewProps {
   onSelectBackground?: (url: string | null) => void;
 }
 
-
-export interface WeatherViewProps {
-  weather: Weather;
-  unit: "metric" | "imperial";
-  onOpenAiGallery?: () => void;
-  onOpenPostcard?: () => void;
-  onRefresh?: () => void | Promise<void>;
-  isRefreshing?: boolean;
-  isFavorite?: boolean;
-  onToggleFavorite?: () => void;
-  activeAlerts?: TickerAlertItem[];
-  customBgUrl?: string | null;
-  onSelectBackground?: (url: string | null) => void;
-}
-
-
 export const WeatherView: React.FC<WeatherViewProps> = ({
   weather: w,
   unit,
@@ -81,6 +64,16 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   // Save Wallpaper loading state
   const [isSaving, setIsSaving] = useState(false);
 
+  // Zero-dependency Toast State
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error") => {
+    setToastMsg({ text, type });
+    setTimeout(() => {
+      setToastMsg((current) => (current?.text === text ? null : current));
+    }, 3200);
+  };
+
   // Safe fallback values
   const safeTemp = pickNum(w.current?.temperature_2m, w.current?.temperature, 0);
   const safeFeels = pickNum(w.current?.apparent_temperature, w.current?.apparentTemperature, safeTemp);
@@ -97,7 +90,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   // Single Save Wallpaper Handler
   const handleSaveWallpaper = async () => {
     if (!displayBg) {
-      toast.error(t("no_wallpaper_to_save", "No wallpaper currently applied"));
+      showToast(t("no_wallpaper_to_save", "No wallpaper currently applied"), "error");
       return;
     }
     setIsSaving(true);
@@ -105,12 +98,12 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       const fileName = `weather-pal-${w.place.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}.png`;
       const result = await saveWallpaperToDownloads(displayBg, fileName);
       if (result.ok) {
-        toast.success(result.message || t("wallpaper_saved_success", "Wallpaper saved to device!"));
+        showToast(result.message || t("wallpaper_saved_success", "Wallpaper saved to device!"), "success");
       } else {
-        toast.error(result.message || t("wallpaper_save_failed", "Could not save wallpaper"));
+        showToast(result.message || t("wallpaper_save_failed", "Could not save wallpaper"), "error");
       }
     } catch {
-      toast.error(t("wallpaper_save_failed", "Could not save wallpaper"));
+      showToast(t("wallpaper_save_failed", "Could not save wallpaper"), "error");
     } finally {
       setIsSaving(false);
     }
@@ -193,7 +186,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   }, [safeTemp, safeCode, unit, activeOutfitTab, t]);
 
   return (
-    <div className="w-full space-y-4 pb-12">
+    <div className="w-full space-y-4 pb-12 relative">
       {/* 1. SEVERE WEATHER ALERT BANNER */}
       {activeAlerts.length > 0 && (
         <div className="space-y-2">
@@ -511,6 +504,22 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         unit={unit}
         initialTab={forecastModalTab}
       />
+
+      {/* 9. ZERO-DEPENDENCY TOAST NOTIFICATION */}
+      {toastMsg && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl shadow-lg border text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all backdrop-blur-md ${
+            toastMsg.type === "success"
+              ? "bg-card/95 border-border text-foreground shadow-md"
+              : "bg-destructive/15 border-destructive/40 text-destructive shadow-md"
+          }`}
+        >
+          <span>{toastMsg.type === "success" ? "✓" : "⚠️"}</span>
+          <span>{toastMsg.text}</span>
+        </div>
+      )}
     </div>
   );
 };
