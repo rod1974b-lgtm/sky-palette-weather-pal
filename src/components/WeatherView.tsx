@@ -1,5 +1,7 @@
+// src/components/WeatherView.tsx
 import React, { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { Weather } from "@/lib/weather";
 import { pickNum } from "@/lib/weatherSafe";
 import { saveWallpaperToDownloads } from "@/lib/saveWallpaper";
@@ -35,6 +37,51 @@ export interface WeatherViewProps {
   onSelectBackground?: (url: string | null) => void;
 }
 
+const WMO_KEY_MAP: Record<number, { key: string; fallback: string }> = {
+  0: { key: "cond_clear", fallback: "Clear sky" },
+  1: { key: "cond_partly_cloudy", fallback: "Partly cloudy" },
+  2: { key: "cond_partly_cloudy", fallback: "Partly cloudy" },
+  3: { key: "cond_overcast", fallback: "Overcast" },
+  45: { key: "cond_fog", fallback: "Fog" },
+  48: { key: "cond_fog", fallback: "Fog" },
+  51: { key: "cond_drizzle", fallback: "Drizzle" },
+  53: { key: "cond_drizzle", fallback: "Drizzle" },
+  55: { key: "cond_drizzle", fallback: "Drizzle" },
+  56: { key: "cond_drizzle", fallback: "Drizzle" },
+  57: { key: "cond_drizzle", fallback: "Drizzle" },
+  61: { key: "cond_rain", fallback: "Rain" },
+  63: { key: "cond_rain", fallback: "Rain" },
+  65: { key: "cond_heavy_rain", fallback: "Heavy rain" },
+  66: { key: "cond_heavy_rain", fallback: "Freezing rain" },
+  67: { key: "cond_heavy_rain", fallback: "Heavy freezing rain" },
+  71: { key: "cond_snow", fallback: "Snow" },
+  73: { key: "cond_snow", fallback: "Snow" },
+  75: { key: "cond_snow", fallback: "Heavy snow" },
+  77: { key: "cond_snow", fallback: "Snow grains" },
+  80: { key: "cond_showers", fallback: "Showers" },
+  81: { key: "cond_showers", fallback: "Showers" },
+  82: { key: "cond_showers", fallback: "Heavy showers" },
+  85: { key: "cond_snow_showers", fallback: "Snow showers" },
+  86: { key: "cond_snow_showers", fallback: "Heavy snow showers" },
+  95: { key: "cond_thunderstorm", fallback: "Thunderstorm" },
+  96: { key: "cond_thunderstorm", fallback: "Thunderstorm with hail" },
+  99: { key: "cond_thunderstorm", fallback: "Severe thunderstorm" },
+};
+
+function getConditionLabel(code: number, t: TFunction): string {
+  const item = WMO_KEY_MAP[code];
+  if (item) return t(item.key, item.fallback);
+  if (code <= 2) return t("cond_partly_cloudy", "Partly cloudy");
+  if (code === 3) return t("cond_overcast", "Overcast");
+  if (code <= 48) return t("cond_fog", "Fog");
+  if (code <= 57) return t("cond_drizzle", "Drizzle");
+  if (code <= 67) return t("cond_rain", "Rain");
+  if (code <= 77) return t("cond_snow", "Snow");
+  if (code <= 82) return t("cond_showers", "Showers");
+  if (code <= 86) return t("cond_snow_showers", "Snow showers");
+  return t("cond_thunderstorm", "Thunderstorm");
+}
+
 export const WeatherView: React.FC<WeatherViewProps> = ({
   weather: w,
   unit,
@@ -42,6 +89,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   onOpenPostcard,
   onRefresh,
   isRefreshing = false,
+  isFavorite = false,
+  onToggleFavorite,
+  activeAlerts: propAlerts = [],
   customBgUrl,
   onSelectBackground,
 }) => {
@@ -58,10 +108,10 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
   const [forecastModalTab, setForecastModalTab] = useState<"hourly" | "daily">("hourly");
 
-  // Outfit recommendations tab: "casual" | "business" | "outdoor"
+  // What to Wear tab state
   const [activeOutfitTab, setActiveOutfitTab] = useState<"casual" | "business" | "outdoor">("casual");
 
-  // Save Wallpaper loading state
+  // Single Save Button State
   const [isSaving, setIsSaving] = useState(false);
 
   // Zero-dependency Toast State
@@ -74,18 +124,18 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     }, 3200);
   };
 
-  // Safe fallback values
-  const safeTemp = pickNum(w.current?.temperature_2m, w.current?.temperature, 0);
-  const safeFeels = pickNum(w.current?.apparent_temperature, w.current?.apparentTemperature, safeTemp);
-  const safeHumidity = pickNum(w.current?.relative_humidity_2m, w.current?.relativeHumidity, 0);
-  const safeWindSpeed = pickNum(w.current?.wind_speed_10m, w.current?.windSpeed, 0);
-  const safeUv = pickNum(w.current?.uv_index, w.current?.uvIndex, 0);
-  const safeAqi = pickNum(w.airQuality?.usAqi, w.airQuality?.pm2_5, 0);
-  const safePressure = pickNum(w.current?.surface_pressure, w.current?.pressure_msl, 1013);
-  const safeCode = pickNum(w.current?.weather_code, w.current?.weatherCode, 0);
+  // Safe metrics: Check w.current properties first, then fallbacks
+  const safeTemp = pickNum(w.current?.temp, (w.current as any)?.temperature, (w.current as any)?.temperature_2m) ?? 0;
+  const safeFeels = pickNum(w.current?.feels, (w.current as any)?.apparent_temperature, safeTemp) ?? safeTemp;
+  const safeHumidity = pickNum(w.current?.humidity, (w.current as any)?.relative_humidity_2m) ?? 0;
+  const safeWindSpeed = pickNum(w.current?.wind, w.current?.wind_speed, (w.current as any)?.wind_speed_10m) ?? 0;
+  const safeUv = pickNum(w.current?.uv, w.current?.uvIndex, (w.current as any)?.uv_index) ?? 0;
+  const safeAqi = pickNum(w.current?.aqi, (w as any).airQuality?.usAqi, 0) ?? 0;
+  const safePressure = pickNum(w.current?.pressure, (w.current as any)?.pressure_msl) ?? 1013;
+  const safeCode = pickNum(w.current?.code, (w.current as any)?.weather_code) ?? 0;
 
   // Priority: Prop customBgUrl > Weather Default Background
-  const displayBg = customBgUrl !== undefined ? customBgUrl : w.background_image;
+  const displayBg = customBgUrl !== undefined ? customBgUrl : (w as any).background_image;
 
   // Single Save Wallpaper Handler
   const handleSaveWallpaper = async () => {
@@ -97,7 +147,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     try {
       const fileName = `weather-pal-${w.place.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}.png`;
       const result = await saveWallpaperToDownloads(displayBg, fileName);
-      if (result.ok) {
+      if (result.status !== "error") {
         showToast(result.message || t("wallpaper_saved_success", "Wallpaper saved to device!"), "success");
       } else {
         showToast(result.message || t("wallpaper_save_failed", "Could not save wallpaper"), "error");
@@ -110,44 +160,49 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   };
 
   // Weather severe alerts
-  const activeAlerts = useMemo(() => {
-    const list: Array<{ id: string; title: string; desc: string; severity: "warning" | "alert" }> = [];
+  const combinedAlerts = useMemo(() => {
+    const list = [...propAlerts];
     if (safeCode === 95 || safeCode === 96 || safeCode === 99) {
-      list.push({
-        id: "thunderstorm",
-        title: t("alert_ts_title", "Thunderstorm Warning"),
-        desc: t("alert_ts_desc", "Severe electrical storms detected in your immediate area."),
-        severity: "alert",
-      });
+      if (!list.some((a) => a.id === "thunderstorm")) {
+        list.push({
+          id: "thunderstorm",
+          title: t("alert_ts_title", "Thunderstorm Warning"),
+          desc: t("alert_ts_desc", "Severe electrical storms detected in your immediate area."),
+          severity: "alert",
+        });
+      }
     }
     if (safeWindSpeed > 45) {
-      list.push({
-        id: "wind",
-        title: t("alert_wind_title", "High Wind Advisory"),
-        desc: t("alert_wind_desc", "Gale-force gusts exceeding safe outdoor thresholds."),
-        severity: "warning",
-      });
+      if (!list.some((a) => a.id === "wind")) {
+        list.push({
+          id: "wind",
+          title: t("alert_wind_title", "High Wind Advisory"),
+          desc: t("alert_wind_desc", "Gale-force gusts exceeding safe outdoor thresholds."),
+          severity: "warning",
+        });
+      }
     }
     if (safeUv >= 8) {
-      list.push({
-        id: "uv",
-        title: t("alert_uv_title", "Extreme UV Radiation"),
-        desc: t("alert_uv_desc", "Intense solar radiation. Apply SPF 50+ and seek shade."),
-        severity: "warning",
-      });
+      if (!list.some((a) => a.id === "uv")) {
+        list.push({
+          id: "uv",
+          title: t("alert_uv_title", "Extreme UV Radiation"),
+          desc: t("alert_uv_desc", "Intense solar radiation. Apply SPF 50+ and seek shade."),
+          severity: "warning",
+        });
+      }
     }
     return list;
-  }, [safeCode, safeWindSpeed, safeUv, t]);
+  }, [safeCode, safeWindSpeed, safeUv, propAlerts, t]);
 
   const tempUnit = unit === "imperial" ? "°F" : "°C";
   const speedUnit = unit === "imperial" ? "mph" : "km/h";
 
   // Outfit recommendations: fully localized across all 14 languages with t() lookup
   const outfitRec = useMemo(() => {
-    const rawTemp = safeTemp ?? 22;
+    const rawTemp = safeTemp;
     const tempC = unit === "imperial" ? ((rawTemp - 32) * 5) / 9 : rawTemp;
-    const codeNum = safeCode;
-    const isRaining = (codeNum >= 51 && codeNum <= 67) || (codeNum >= 80 && codeNum <= 82);
+    const isRaining = (safeCode >= 51 && safeCode <= 67) || (safeCode >= 80 && safeCode <= 82);
 
     if (activeOutfitTab === "business") {
       if (tempC >= 28) {
@@ -164,8 +219,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     if (activeOutfitTab === "outdoor") {
       if (tempC >= 28) {
         return isRaining
-          ? t("outfit_outdoor_hot_rain", "Waterproof shell jacket, trail shorts, quick-dry cap")
-          : t("outfit_outdoor_hot_clear", "UV-blocking athletic shirt, moisture-wicking shorts, sunglasses");
+          ? t("outfit_outdoor_hot_rain", "Waterproof shell jacket, quick-dry shorts, waterproof trail shoes")
+          : t("outfit_outdoor_hot_clear", "Moisture-wicking UV top, trail shorts, polarized sunglasses");
       }
       if (tempC >= 18) {
         return t("outfit_outdoor_mild", "Long-sleeve performance top, hiking pants, windbreaker");
@@ -188,9 +243,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   return (
     <div className="w-full space-y-4 pb-12 relative">
       {/* 1. SEVERE WEATHER ALERT BANNER */}
-      {activeAlerts.length > 0 && (
+      {combinedAlerts.length > 0 && (
         <div className="space-y-2">
-          {activeAlerts.map((alt) => (
+          {combinedAlerts.map((alt) => (
             <div
               key={alt.id}
               className={`p-3.5 rounded-2xl border text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-xs ${
@@ -203,7 +258,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 <span className="text-base sm:text-lg">⚠️</span>
                 <div>
                   <div className="font-bold">{alt.title}</div>
-                  <div className="text-[11px] sm:text-xs opacity-90 font-normal">{alt.desc}</div>
+                  <div className="text-[11px] sm:text-xs opacity-90 font-normal">{alt.desc || alt.message}</div>
                 </div>
               </div>
             </div>
@@ -233,19 +288,32 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </button>
         </div>
 
-        {onRefresh && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className={`h-8 w-8 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center justify-center shrink-0 cursor-pointer ${
-              isRefreshing ? "opacity-60 animate-spin" : ""
-            }`}
-            title={t("refresh", "Refresh Weather")}
-          >
-            🔄
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onToggleFavorite && (
+            <button
+              type="button"
+              onClick={onToggleFavorite}
+              className="h-8 w-8 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center justify-center cursor-pointer"
+              title={isFavorite ? t("remove_favorite", "Remove favorite") : t("add_favorite", "Add favorite")}
+            >
+              <span className={isFavorite ? "text-amber-500" : "opacity-60"}>{isFavorite ? "★" : "☆"}</span>
+            </button>
+          )}
+
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className={`h-8 w-8 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center justify-center cursor-pointer ${
+                isRefreshing ? "opacity-60 animate-spin" : ""
+              }`}
+              title={t("refresh", "Refresh Weather")}
+            >
+              🔄
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 3. HERO WALLPAPER CARD */}
@@ -288,7 +356,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 <span className="text-xl font-bold ml-0.5">{tempUnit}</span>
               </div>
               <div className="text-xs sm:text-sm font-medium text-muted-foreground capitalize">
-                {w.current?.condition || t("weather", "Weather")}
+                {getConditionLabel(safeCode, t)}
               </div>
             </div>
           </div>
@@ -377,8 +445,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               <div className="text-[11px] text-muted-foreground font-semibold">
                 {hr.time ? new Date(hr.time).getHours() + ":00" : `${idx}h`}
               </div>
-              <WeatherIcon code={hr.weather_code ?? 0} isDay={true} className="w-6 h-6 mx-auto my-1 drop-shadow-xs" />
-              <div className="text-xs font-extrabold">{Math.round(hr.temperature_2m ?? 0)}°</div>
+              <WeatherIcon code={hr.code ?? 0} isDay={true} className="w-6 h-6 mx-auto my-1 drop-shadow-xs" />
+              <div className="text-xs font-extrabold">{Math.round(hr.temp ?? 0)}°</div>
             </div>
           ))}
         </div>
@@ -412,14 +480,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 {idx === 0 ? t("today", "Today") : idx === 1 ? t("tomorrow", "Tomorrow") : day.date}
               </div>
               <div className="flex items-center gap-2">
-                <WeatherIcon code={day.weather_code ?? 0} isDay={true} className="w-5 h-5 drop-shadow-xs" />
+                <WeatherIcon code={day.code ?? 0} isDay={true} className="w-5 h-5 drop-shadow-xs" />
                 <span className="text-[11px] text-muted-foreground font-normal hidden sm:inline">
-                  {day.condition}
+                  {getConditionLabel(day.code, t)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-foreground">{Math.round(day.temperature_2m_max ?? 0)}°</span>
-                <span className="text-muted-foreground font-normal">{Math.round(day.temperature_2m_min ?? 0)}°</span>
+                <span className="font-extrabold text-foreground">{Math.round(day.max ?? 0)}°</span>
+                <span className="text-muted-foreground font-normal">{Math.round(day.min ?? 0)}°</span>
               </div>
             </div>
           ))}
