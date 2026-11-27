@@ -8,12 +8,13 @@ import {
   getAstronomyTexts,
 } from "@/lib/astronomy";
 
-interface AstronomyTrackerProps {
+export interface AstronomyTrackerProps {
   weather?: Weather | null;
+  onOpenGuide?: () => void;
 }
 
-export const AstronomyTracker: React.FC<AstronomyTrackerProps> = ({ weather }) => {
-  const { i18n } = useTranslation();
+export const AstronomyTracker: React.FC<AstronomyTrackerProps> = ({ weather, onOpenGuide }) => {
+  const { i18n, t } = useTranslation();
   const lang = i18n.language || "en";
   const texts = useMemo(() => getAstronomyTexts(lang), [lang]);
 
@@ -41,9 +42,9 @@ export const AstronomyTracker: React.FC<AstronomyTrackerProps> = ({ weather }) =
   const p1 = { x: 160, y: 18 };
   const p2 = { x: 290, y: 105 };
 
-  const t = Math.max(0, Math.min(1, arcProgress));
-  const sunX = Math.round((1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * p1.x + t * t * p2.x);
-  const sunY = Math.round((1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * p1.y + t * t * p2.y);
+  const tVal = Math.max(0, Math.min(1, arcProgress));
+  const sunX = Math.round((1 - tVal) * (1 - tVal) * p0.x + 2 * (1 - tVal) * tVal * p1.x + tVal * tVal * p2.x);
+  const sunY = Math.round((1 - tVal) * (1 - tVal) * p0.y + 2 * (1 - tVal) * tVal * p1.y + tVal * tVal * p2.y);
 
   const phaseName = texts.phases[moonInfo.key] || moonInfo.key;
 
@@ -58,32 +59,43 @@ export const AstronomyTracker: React.FC<AstronomyTrackerProps> = ({ weather }) =
           </h3>
         </div>
 
-        {/* Live lighting badge */}
-        {sunInfo.currentLightState === "golden_hour" && (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-500/15 border border-amber-500/30 text-amber-500 dark:text-amber-400 animate-pulse">
-            🌅 {texts.golden_hour} • {texts.active_now}
-          </span>
-        )}
-        {sunInfo.currentLightState === "blue_hour" && (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 animate-pulse">
-            🌌 {texts.blue_hour} • {texts.active_now}
-          </span>
-        )}
-        {sunInfo.currentLightState === "daylight" && (
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-            ☀️ {texts.daylight} ({sunInfo.daylightDurationStr})
-          </span>
-        )}
-        {sunInfo.currentLightState === "night" && (
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-            🌙 {texts.time_to_sunrise}: {sunInfo.timeUntilSunriseStr}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Live lighting badge */}
+          {sunInfo.currentLightState === "golden_hour" && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-500/15 border border-amber-500/30 text-amber-500 dark:text-amber-400 animate-pulse">
+              🌅 {texts.golden_hour} • {texts.active_now}
+            </span>
+          )}
+          {sunInfo.currentLightState === "blue_hour" && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 animate-pulse">
+              🌌 {texts.blue_hour} • {texts.active_now}
+            </span>
+          )}
+          {sunInfo.currentLightState === "daylight" && (
+            <span className="text-[11px] font-semibold text-muted-foreground hidden sm:flex items-center gap-1">
+              ☀️ {texts.daylight} ({sunInfo.daylightDurationStr})
+            </span>
+          )}
+          {sunInfo.currentLightState === "night" && (
+            <span className="text-[11px] font-semibold text-muted-foreground hidden sm:flex items-center gap-1">
+              🌙 {texts.time_to_sunrise}: {sunInfo.timeUntilSunriseStr}
+            </span>
+          )}
+
+          {onOpenGuide && (
+            <button
+              type="button"
+              onClick={onOpenGuide}
+              className="text-[11px] font-bold text-primary hover:underline transition cursor-pointer"
+            >
+              📖 {t("trajectory_guide", "Trajectory Guide ↗")}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Grid: Left = Sun Arc, Right = Moon Phase */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {/* 1. Solar Trajectory Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 1. Solar Parabolic Arc Card */}
         <div className="p-3.5 rounded-xl bg-muted/40 border border-border/50 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
             <span className="flex items-center gap-1.5 font-bold text-foreground">
@@ -91,97 +103,62 @@ export const AstronomyTracker: React.FC<AstronomyTrackerProps> = ({ weather }) =
             </span>
             <span className="text-[11px]">
               {sunInfo.isDay
-                ? `${sunInfo.daylightRemainingStr} ${texts.daylight_remaining}`
-                : `${sunInfo.timeUntilSunriseStr} ${texts.time_to_sunrise}`}
+                ? `${texts.daylight_remaining}: ${sunInfo.daylightRemainingStr || "-"}`
+                : `${texts.time_to_sunrise}: ${sunInfo.timeUntilSunriseStr || "-"}`}
             </span>
           </div>
 
-          {/* SVG Sun Arc */}
-          <div className="relative w-full pt-1 pb-1">
-            <svg viewBox="0 0 320 125" className="w-full h-auto overflow-visible select-none">
+          {/* SVG Daylight Arc */}
+          <div className="relative w-full h-32 flex items-center justify-center my-1 select-none">
+            <svg
+              viewBox="0 0 320 130"
+              className="w-full h-full overflow-visible"
+              aria-label="Solar parabolic trajectory path"
+            >
               <defs>
-                {/* Arc gradient */}
-                <linearGradient id="sunArcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <linearGradient id="solarArcGrad" x1="0" y1="0" x2="1" y2="0">
                   <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.4" />
-                  <stop offset="50%" stopColor="#fbbf24" stopOpacity="0.9" />
+                  <stop offset="50%" stopColor="#eab308" stopOpacity="0.9" />
                   <stop offset="100%" stopColor="#f97316" stopOpacity="0.4" />
                 </linearGradient>
-
-                {/* Sky glow under the arc */}
-                <linearGradient id="sunGlowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.12" />
+                <radialGradient id="sunGlowGrad">
+                  <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.9" />
                   <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
-                </linearGradient>
-
-                <filter id="sunGlow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
-                  <feMerge>
-                    <feMergeNode in="coloredBlur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
+                </radialGradient>
               </defs>
 
-              {/* Shaded area under daylight curve */}
-              <path
-                d="M 30,105 Q 160,18 290,105 L 290,105 L 30,105 Z"
-                fill="url(#sunGlowGrad)"
-              />
-
-              {/* Horizon Line */}
+              {/* Baseline ground horizon */}
               <line
-                x1="18"
+                x1="20"
                 y1="105"
-                x2="302"
+                x2="300"
                 y2="105"
                 stroke="currentColor"
-                strokeOpacity="0.2"
-                strokeWidth="1.5"
                 strokeDasharray="3 3"
+                opacity="0.25"
               />
 
-              {/* Background Trajectory Arc */}
+              {/* Parabolic Guide Path */}
               <path
                 d="M 30,105 Q 160,18 290,105"
                 fill="none"
-                stroke="currentColor"
-                strokeOpacity="0.18"
-                strokeWidth="2.5"
-                strokeDasharray="4 4"
+                stroke="url(#solarArcGrad)"
+                strokeWidth="3.5"
+                strokeLinecap="round"
               />
 
-              {/* Progress Arc */}
+              {/* Real-time Sun Position Marker */}
               {sunInfo.isDay && (
-                <path
-                  d="M 30,105 Q 160,18 290,105"
-                  fill="none"
-                  stroke="url(#sunArcGrad)"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  strokeDasharray="300"
-                  strokeDashoffset={300 - (sunInfo.sunProgressPercent / 100) * 300}
-                />
-              )}
-
-              {/* Sun Bead */}
-              {sunInfo.isDay ? (
-                <g transform={`translate(${sunX}, ${sunY})`} filter="url(#sunGlow)">
-                  <circle r="9" fill="#fbbf24" fillOpacity="0.35" className="animate-ping" />
-                  <circle r="7.5" fill="#f59e0b" />
-                  <circle r="5" fill="#fef3c7" />
-                </g>
-              ) : (
-                /* Resting Sun below horizon at night */
-                <g transform="translate(160, 114)">
-                  <circle r="5" fill="currentColor" fillOpacity="0.3" />
+                <g transform={`translate(${sunX}, ${sunY})`}>
+                  <circle r="14" fill="url(#sunGlowGrad)" className="animate-pulse" />
+                  <circle r="6.5" fill="#f59e0b" stroke="#ffffff" strokeWidth="2" />
                 </g>
               )}
 
-              {/* Sunrise Node */}
-              <circle cx="30" cy="105" r="4.5" fill="#f59e0b" />
+              {/* Sunrise / Sunset Labels on Curve endpoints */}
               <text
                 x="30"
-                y="120"
+                y="122"
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight="700"
@@ -190,12 +167,9 @@ export const AstronomyTracker: React.FC<AstronomyTrackerProps> = ({ weather }) =
               >
                 ↑{sunInfo.sunriseStr}
               </text>
-
-              {/* Sunset Node */}
-              <circle cx="290" cy="105" r="4.5" fill="#f97316" />
               <text
                 x="290"
-                y="120"
+                y="122"
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight="700"
