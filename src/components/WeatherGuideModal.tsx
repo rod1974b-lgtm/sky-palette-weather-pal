@@ -17,10 +17,12 @@ export interface WeatherGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTopic?: GuideTopic;
+  selectedWeatherCode?: number;
 }
 
 interface IconGuideItem {
   code: string;
+  wmoCodes?: number[];
   dayIcon: string;
   nightIcon?: string;
   emoji: string;
@@ -36,13 +38,20 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
   isOpen,
   onClose,
   initialTopic = "all",
+  selectedWeatherCode,
 }) => {
   const { t, i18n } = useTranslation();
   const [topic, setTopic] = useState<GuideTopic>(initialTopic);
 
   useEffect(() => {
-    if (isOpen) setTopic(initialTopic);
-  }, [isOpen, initialTopic]);
+    if (isOpen) {
+      if (selectedWeatherCode !== undefined) {
+        setTopic("icons");
+      } else {
+        setTopic(initialTopic);
+      }
+    }
+  }, [isOpen, initialTopic, selectedWeatherCode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -75,12 +84,12 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     { id: "pressure", label: t("guide_pressure", isThai ? "ความกดอากาศ" : "Barometric Pressure"), icon: "🧭" },
     { id: "humidity", label: t("guide_humidity", isThai ? "ความชื้นสัมพัทธ์" : "Humidity"), icon: "💧" },
     { id: "wind", label: t("guide_wind", isThai ? "แรงลม & ลมกระโชก" : "Wind & Gusts"), icon: "💨" },
-    { id: "conditions", label: t("guide_conditions", isThai ? "สภาพอากาศ" : "Conditions"), icon: "⛅" },
   ];
 
   const iconCatalog: IconGuideItem[] = [
     {
       code: "01",
+      wmoCodes: [0, 1],
       dayIcon: "/icons/watercolor/01d_clear_sky.png",
       nightIcon: "/icons/watercolor/01n_clear_night.png",
       emoji: "☀",
@@ -93,6 +102,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "02",
+      wmoCodes: [2],
       dayIcon: "/icons/watercolor/02d_few_clouds.png",
       nightIcon: "/icons/watercolor/02n_few_clouds_night.png",
       emoji: "🌤",
@@ -105,6 +115,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "03",
+      wmoCodes: [3],
       dayIcon: "/icons/watercolor/03d_scattered.png",
       nightIcon: "/icons/watercolor/03n_scattered_night.png",
       emoji: "⛅",
@@ -117,6 +128,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "04",
+      wmoCodes: [],
       dayIcon: "/icons/watercolor/04d_broken.png",
       nightIcon: "/icons/watercolor/04n_broken_night.png",
       emoji: "☁",
@@ -129,6 +141,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "04_overcast",
+      wmoCodes: [],
       dayIcon: "/icons/watercolor/04d_overcast.png",
       nightIcon: "/icons/watercolor/04n_overcast_night.png",
       emoji: "☁",
@@ -141,6 +154,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "09_drizzle",
+      wmoCodes: [51, 53, 55, 56, 57],
       dayIcon: "/icons/watercolor/10d_light_rain.png",
       nightIcon: "/icons/watercolor/09n_shower_night.png",
       emoji: "🌦",
@@ -153,6 +167,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "09_shower",
+      wmoCodes: [80, 81, 82],
       dayIcon: "/icons/watercolor/10d_light_rain.png",
       nightIcon: "/icons/watercolor/09n_shower_night.png",
       emoji: "🌧",
@@ -165,11 +180,12 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "10_light",
+      wmoCodes: [61, 63],
       dayIcon: "/icons/watercolor/10d_light_rain.png",
       nightIcon: "/icons/watercolor/10n_rain_night.png",
       emoji: "💧",
-      nameEn: "Light Rain",
-      nameTh: "ฝนตกเล็กน้อย",
+      nameEn: "Light to Moderate Rain",
+      nameTh: "ฝนตกเล็กน้อยถึงปานกลาง",
       descEn: "Gentle continuous rainfall. Pavement stays wet; light umbrella or hooded jacket advised.",
       descTh: "ฝนตกเบาๆ อย่างต่อเนื่อง ถนนเปียกลื่น แนะนำให้กางร่มหรือใส่เสื้อกันฝนแบบบาง",
       categoryEn: "Precipitation",
@@ -177,6 +193,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "10_heavy",
+      wmoCodes: [65],
       dayIcon: "/icons/watercolor/10d_heavy_rain.png",
       nightIcon: "/icons/watercolor/10n_rain_night.png",
       emoji: "🌊",
@@ -189,6 +206,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "11",
+      wmoCodes: [95, 96, 99],
       dayIcon: "/icons/watercolor/11d_thunderstorm.png",
       nightIcon: "/icons/watercolor/11n_thunderstorm_night.png",
       emoji: "⛈",
@@ -201,6 +219,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "13",
+      wmoCodes: [71, 73, 75, 77, 85, 86],
       dayIcon: "/icons/watercolor/13d_snow.png",
       nightIcon: "/icons/watercolor/13n_snow_night.png",
       emoji: "❄",
@@ -213,28 +232,19 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "50_mist",
+      wmoCodes: [45, 48],
       dayIcon: "/icons/watercolor/50d_mist.png",
       emoji: "🌫",
-      nameEn: "Mist / Morning Dew",
-      nameTh: "หมอกแดด / ละอองหมอกบาง",
-      descEn: "Light atmospheric suspension of water droplets. Visibility is over 1 km (0.6 miles).",
-      descTh: "ละอองน้ำบางเบาลอยในอากาศยามเช้าหรือหลังฝน ทัศนวิสัยยังมองเห็นได้ไกลกว่า 1 กิโลเมตร",
-      categoryEn: "Atmosphere",
-      categoryTh: "บรรยากาศ & หมอกควัน",
-    },
-    {
-      code: "50_fog",
-      dayIcon: "/icons/watercolor/50d_mist.png",
-      emoji: "🌁",
-      nameEn: "Dense Fog",
-      nameTh: "หมอกหนาจัด",
-      descEn: "Cloud resting at ground level. Visibility drops below 1 km; headlights and slow driving are essential.",
-      descTh: "กลุ่มเมฆลดระดับลงมาสัมผัสพื้น ทัศนวิสัยลดต่ำกว่า 1 กิโลเมตร ควรเปิดไฟหน้ารถและขับขี่อย่างระมัดระวัง",
+      nameEn: "Mist / Dense Fog",
+      nameTh: "หมอกแดด / ละอองหมอกหนา",
+      descEn: "Suspension of microscopic water droplets reducing visibility. Headlights and slow driving recommended.",
+      descTh: "ละอองน้ำลอยตัวในอากาศ ทัศนวิสัยลดลงต่ำกว่า 1 กิโลเมตร ควรเปิดไฟหน้ารถและขับขี่อย่างระมัดระวัง",
       categoryEn: "Atmosphere",
       categoryTh: "บรรยากาศ & หมอกควัน",
     },
     {
       code: "50_haze",
+      wmoCodes: [],
       dayIcon: "/icons/watercolor/50d_haze_ratchaburi.png",
       emoji: "😷",
       nameEn: "Haze / PM2.5 Smog",
@@ -245,29 +255,8 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       categoryTh: "บรรยากาศ & หมอกควัน",
     },
     {
-      code: "50_dust",
-      dayIcon: "/icons/watercolor/50d_dust.png",
-      emoji: "🌪",
-      nameEn: "Dust / Blowing Sand",
-      nameTh: "ฝุ่นตลบ / ลมพัดทราย",
-      descEn: "Fine dry soil, sand, or mineral dust lifted into the atmosphere by surface winds.",
-      descTh: "อนุภาคดินทรายหรือฝุ่นแห้งที่ถูกลมกรรโชกพัดขึ้นสู่อากาศ ลดทัศนวิสัยและระคายเคืองตา",
-      categoryEn: "Atmosphere",
-      categoryTh: "บรรยากาศ & หมอกควัน",
-    },
-    {
-      code: "50_smoke",
-      dayIcon: "/icons/watercolor/50d_haze_ratchaburi.png",
-      emoji: "🔥",
-      nameEn: "Smoke / Wildfire Plume",
-      nameTh: "ควันไฟ / ควันไฟป่า",
-      descEn: "Airborne combustion products from fires. Can travel hundreds of miles, causing stinging eyes.",
-      descTh: "เขม่าควันจากการเผาไหม้หรือไฟป่า ลอยกระจายตัวได้ไกล อาจทำให้แสบตาและระบบหายใจระคายเคือง",
-      categoryEn: "Atmosphere",
-      categoryTh: "บรรยากาศ & หมอกควัน",
-    },
-    {
       code: "wind",
+      wmoCodes: [],
       dayIcon: "/icons/watercolor/wind.png",
       emoji: "💨",
       nameEn: "High Winds / Breezy",
@@ -279,6 +268,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     },
     {
       code: "tornado",
+      wmoCodes: [],
       dayIcon: "/icons/watercolor/tornado.png",
       emoji: "🌪",
       nameEn: "Tornado / Funnel Cloud",
@@ -289,6 +279,11 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
       categoryTh: "ลม & สภาพอากาศรุนแรง",
     },
   ];
+
+  const matchedItem =
+    selectedWeatherCode !== undefined
+      ? iconCatalog.find((item) => item.wmoCodes?.includes(selectedWeatherCode))
+      : undefined;
 
   return (
     <div
@@ -322,8 +317,8 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
             {t(
               "guide_subtitle",
               isThai
-                ? "คำอธิบายตัวเลขและสัญลักษณ์ทั้งหมด 18 รูปแบบ เพื่อการอ่านพยากรณ์อย่างมั่นใจ"
-                : "Simple, easy-to-read explanations for every metric and all 18 watercolor condition icons"
+                ? "คำอธิบายตัวเลข วิถีดวงอาทิตย์ ดวงจันทร์ และสัญลักษณ์สภาพอากาศ เพื่อการอ่านพยากรณ์อย่างมั่นใจ"
+                : "Simple, easy-to-read explanations for every metric, celestial trajectory, and condition icon"
             )}
           </p>
         </div>
@@ -349,59 +344,183 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
 
         {/* Modal Scroll Content */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-6 text-zinc-800 dark:text-zinc-200 text-sm">
-          {/* ICONS CATALOG */}
+          {/* FOCUSED WEATHER CONDITION SPOTLIGHT (if opened from an icon click) */}
+          {matchedItem && (topic === "all" || topic === "icons") && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-500/15 via-indigo-500/10 to-amber-500/10 border-2 border-sky-500/40 shadow-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  {t("current_condition_explanation", isThai ? "คำอธิบายสภาพอากาศปัจจุบันของคุณ" : "Your Current Weather Condition")}
+                </span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-700 dark:text-sky-300 font-bold">
+                  WMO #{selectedWeatherCode}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3.5 pt-1">
+                <img
+                  src={matchedItem.dayIcon}
+                  alt={matchedItem.nameEn}
+                  className="w-14 h-14 object-contain drop-shadow-md shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <span>{matchedItem.emoji}</span>
+                    <span>{isThai ? matchedItem.nameTh : matchedItem.nameEn}</span>
+                  </h4>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed">
+                    {isThai ? matchedItem.descTh : matchedItem.descEn}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 1. ICONS CATALOG */}
           {(topic === "all" || topic === "icons") && (
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-base flex items-center gap-2 text-sky-600 dark:text-sky-400">
                   <span>🎨</span>
-                  <span>{t("guide_icons_heading", isThai ? "ไอคอนสีน้ำ 18 รูปแบบ" : "18 Watercolor Condition Icons")}</span>
+                  <span>{t("guide_icons_heading", isThai ? "ไอคอนสีน้ำสภาพอากาศ" : "Watercolor Weather Icons")}</span>
                 </h3>
                 <span className="text-xs text-zinc-500">
                   {isThai ? "กลางวัน & กลางคืน" : "Day & Night Pairs"}
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {iconCatalog.map((item) => (
-                  <div
-                    key={item.code}
-                    className="p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 flex items-start gap-3"
-                  >
-                    <div className="flex flex-col items-center gap-1 shrink-0">
-                      <img
-                        src={item.dayIcon}
-                        alt={item.nameEn}
-                        className="w-10 h-10 object-contain drop-shadow-xs"
-                      />
-                      {item.nightIcon && (
+                {iconCatalog.map((item) => {
+                  const isSelected =
+                    selectedWeatherCode !== undefined && item.wmoCodes?.includes(selectedWeatherCode);
+                  return (
+                    <div
+                      key={item.code}
+                      className={`p-3 rounded-2xl border transition-all flex items-start gap-3 ${
+                        isSelected
+                          ? "border-sky-500 bg-sky-500/10 ring-2 ring-sky-500/40 shadow-xs"
+                          : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-1 shrink-0">
                         <img
-                          src={item.nightIcon}
-                          alt={`${item.nameEn} night`}
-                          className="w-6 h-6 object-contain opacity-75"
-                          title="Night icon"
+                          src={item.dayIcon}
+                          alt={item.nameEn}
+                          className="w-10 h-10 object-contain drop-shadow-xs"
                         />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <h4 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 truncate">
-                          {isThai ? item.nameTh : item.nameEn}
-                        </h4>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-200/70 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 shrink-0">
-                          {isThai ? item.categoryTh : item.categoryEn}
-                        </span>
+                        {item.nightIcon && (
+                          <img
+                            src={item.nightIcon}
+                            alt={`${item.nameEn} night`}
+                            className="w-6 h-6 object-contain opacity-75"
+                            title="Night icon"
+                          />
+                        )}
                       </div>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                        {isThai ? item.descTh : item.descEn}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <h4 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 truncate">
+                            {isThai ? item.nameTh : item.nameEn}
+                          </h4>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-200/70 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 shrink-0">
+                            {isThai ? item.categoryTh : item.categoryEn}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                          {isThai ? item.descTh : item.descEn}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
 
-          {/* UV INDEX */}
+          {/* 2. SUN & MOON ASTRONOMY TRAJECTORY */}
+          {(topic === "all" || topic === "astronomy") && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                  <span>✨</span>
+                  <span>{t("guide_celestial_heading", isThai ? "วิถีดวงอาทิตย์และดวงจันทร์บนท้องฟ้า" : "Sun & Moon Trajectory Guide")}</span>
+                </h3>
+              </div>
+
+              {/* Solar Arc & Daylight Trajectory */}
+              <div className="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 space-y-3">
+                <h4 className="font-bold text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                  <span>☀️</span>
+                  <span>{t("guide_sun_trajectory_title", isThai ? "เส้นทางโค้งของดวงอาทิตย์ (Solar Arc)" : "Solar Arc & Daylight Progression")}</span>
+                </h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                  {isThai
+                    ? "ดวงอาทิตย์เคลื่อนที่เป็นรูปพาราโบลาจากขอบฟ้าทิศตะวันออก (Sunrise) ขึ้นสู่จุดสูงสุดที่เที่ยงวันดาราศาสตร์ (Solar Noon) แล้วคล้อยต่ำลงสู่ทิศตะวันตก (Sunset) มุมตกกระทบของแสงอาทิตย์ส่งผลโดยตรงต่อรังสี UV และการสะสมความร้อนบนพื้นผิวโลก"
+                    : "The sun follows a parabolic curve across the sky from east to west. At Solar Noon, sunlight strikes at the steepest angle, producing peak UV index and maximum surface heating before tapering down toward sunset."}
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="p-3 rounded-xl bg-white dark:bg-zinc-800 border border-amber-500/20">
+                    <span className="font-bold text-amber-600 dark:text-amber-400 block">
+                      📸 {t("golden_hour", "Golden Hour")}
+                    </span>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
+                      {isThai
+                        ? "เกิดขึ้น 1 ชั่วโมงหลังพระอาทิตย์ขึ้นและก่อนพระอาทิตย์ตก แสงทำมุมต่ำ เดินทางผ่านชั้นบรรยากาศหนา ให้โทนสีทองอบอุ่น นุ่มนวล เหมาะกับการถ่ายภาพ"
+                        : "Occurs when the sun is roughly 6° above the horizon. Light travels through thicker atmosphere, diffusing harsh glare and leaving soft, warm golden tones."}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white dark:bg-zinc-800 border border-indigo-500/20">
+                    <span className="font-bold text-indigo-500 dark:text-indigo-400 block">
+                      🌌 {t("blue_hour", "Blue Hour")}
+                    </span>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
+                      {isThai
+                        ? "ช่วงสนธยา 20-30 นาทีก่อนพระอาทิตย์ขึ้นหรือหลังตกดิน แสงอาทิตย์สะท้อนชั้นบรรยากาศชั้นบนเกิดโทนสีฟ้าครามเข้มสวยงาม"
+                        : "Occurs during twilight when the sun is 4° to 6° below the horizon. The ozone layer absorbs warm wavelengths, casting a deep indigo evening hue."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lunar Trajectory & 29.5-Day Cycle */}
+              <div className="p-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 space-y-3">
+                <h4 className="font-bold text-sm text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                  <span>🌙</span>
+                  <span>{t("guide_moon_trajectory_title", isThai ? "วิถีดวงจันทร์และข้างขึ้น-ข้างแรม (Lunar Cycle)" : "Lunar Orbit & 29.5-Day Synodic Cycle")}</span>
+                </h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                  {isThai
+                    ? "ดวงจันทร์โคจรรอบโลกครบ 1 รอบทุกๆ 29.53 วัน ตำแหน่งสัมพัทธ์ระหว่างโลก ดวงอาทิตย์ และดวงจันทร์ ทำให้ส่วนสว่างที่มองเห็นเปลี่ยนไป และดวงจันทร์จะขึ้นช้าลงวันละประมาณ 50 นาที"
+                    : "The Moon orbits Earth every 29.53 days. As its angle relative to Earth and Sun shifts, illuminated surface area cycles from 0% (New Moon) to 100% (Full Moon). The Moon rises approximately 50 minutes later each night."}
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-center">
+                    <span className="text-2xl block">🌑</span>
+                    <span className="font-bold block mt-1 text-[11px]">New Moon (0%)</span>
+                    <span className="text-[10px] text-zinc-500">{isThai ? "มืดสนิท / เริ่มรอบใหม่" : "Dark / Reset"}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-center">
+                    <span className="text-2xl block">🌓</span>
+                    <span className="font-bold block mt-1 text-[11px]">First Quarter (50%)</span>
+                    <span className="text-[10px] text-zinc-500">{isThai ? "ครึ่งดวงข้างขึ้น" : "Waxing Half"}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-center">
+                    <span className="text-2xl block">🌕</span>
+                    <span className="font-bold block mt-1 text-[11px]">Full Moon (100%)</span>
+                    <span className="text-[10px] text-zinc-500">{isThai ? "จันทร์เพ็ญเต็มดวง" : "Peak Night Light"}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-center">
+                    <span className="text-2xl block">🌗</span>
+                    <span className="font-bold block mt-1 text-[11px]">Last Quarter (50%)</span>
+                    <span className="text-[10px] text-zinc-500">{isThai ? "ครึ่งดวงข้างแรม" : "Waning Half"}</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 3. UV INDEX */}
           {(topic === "all" || topic === "uv") && (
             <section className="space-y-3">
               <h3 className="font-bold text-base flex items-center gap-2 text-amber-600 dark:text-amber-400">
@@ -453,7 +572,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
             </section>
           )}
 
-          {/* AQI & PM2.5 */}
+          {/* 4. AQI & PM2.5 */}
           {(topic === "all" || topic === "aqi") && (
             <section className="space-y-3">
               <h3 className="font-bold text-base flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -486,7 +605,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
             </section>
           )}
 
-          {/* BAROMETRIC PRESSURE */}
+          {/* 5. BAROMETRIC PRESSURE */}
           {(topic === "all" || topic === "pressure") && (
             <section className="space-y-3">
               <h3 className="font-bold text-base flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
@@ -523,7 +642,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
             </section>
           )}
 
-          {/* HUMIDITY & DEW POINT */}
+          {/* 6. HUMIDITY & DEW POINT */}
           {(topic === "all" || topic === "humidity") && (
             <section className="space-y-3">
               <h3 className="font-bold text-base flex items-center gap-2 text-cyan-600 dark:text-cyan-400">
@@ -555,7 +674,7 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
             </section>
           )}
 
-          {/* WIND & GUSTS */}
+          {/* 7. WIND & GUSTS */}
           {(topic === "all" || topic === "wind") && (
             <section className="space-y-3">
               <h3 className="font-bold text-base flex items-center gap-2 text-teal-600 dark:text-teal-400">
@@ -585,3 +704,5 @@ export const WeatherGuideModal: React.FC<WeatherGuideModalProps> = ({
     </div>
   );
 };
+
+export default WeatherGuideModal;
