@@ -43,48 +43,61 @@ export interface WeatherViewProps {
 
 const WMO_KEY_MAP: Record<number, { key: string; fallback: string }> = {
   0: { key: "cond_clear", fallback: "Clear sky" },
-  1: { key: "cond_partly_cloudy", fallback: "Partly cloudy" },
+  1: { key: "cond_mainly_clear", fallback: "Mainly clear" },
   2: { key: "cond_partly_cloudy", fallback: "Partly cloudy" },
   3: { key: "cond_overcast", fallback: "Overcast" },
   45: { key: "cond_fog", fallback: "Fog" },
-  48: { key: "cond_fog", fallback: "Fog" },
-  51: { key: "cond_drizzle", fallback: "Drizzle" },
-  53: { key: "cond_drizzle", fallback: "Drizzle" },
-  55: { key: "cond_drizzle", fallback: "Drizzle" },
-  56: { key: "cond_drizzle", fallback: "Drizzle" },
-  57: { key: "cond_drizzle", fallback: "Drizzle" },
-  61: { key: "cond_rain", fallback: "Rain" },
-  63: { key: "cond_rain", fallback: "Rain" },
+  48: { key: "cond_depositing_rime_fog", fallback: "Depositing rime fog" },
+  51: { key: "cond_light_drizzle", fallback: "Light drizzle" },
+  53: { key: "cond_moderate_drizzle", fallback: "Moderate drizzle" },
+  55: { key: "cond_dense_drizzle", fallback: "Dense drizzle" },
+  61: { key: "cond_slight_rain", fallback: "Slight rain" },
+  63: { key: "cond_moderate_rain", fallback: "Moderate rain" },
   65: { key: "cond_heavy_rain", fallback: "Heavy rain" },
-  66: { key: "cond_heavy_rain", fallback: "Freezing rain" },
-  67: { key: "cond_heavy_rain", fallback: "Heavy freezing rain" },
-  71: { key: "cond_snow", fallback: "Snow" },
-  73: { key: "cond_snow", fallback: "Snow" },
-  75: { key: "cond_snow", fallback: "Heavy snow" },
-  77: { key: "cond_snow", fallback: "Snow grains" },
-  80: { key: "cond_showers", fallback: "Showers" },
-  81: { key: "cond_showers", fallback: "Showers" },
-  82: { key: "cond_showers", fallback: "Heavy showers" },
-  85: { key: "cond_snow_showers", fallback: "Snow showers" },
-  86: { key: "cond_snow_showers", fallback: "Heavy snow showers" },
+  71: { key: "cond_slight_snow", fallback: "Slight snow" },
+  73: { key: "cond_moderate_snow", fallback: "Moderate snow" },
+  75: { key: "cond_heavy_snow", fallback: "Heavy snow" },
+  80: { key: "cond_slight_rain_showers", fallback: "Rain showers" },
+  81: { key: "cond_moderate_rain_showers", fallback: "Moderate rain showers" },
+  82: { key: "cond_violent_rain_showers", fallback: "Violent rain showers" },
   95: { key: "cond_thunderstorm", fallback: "Thunderstorm" },
-  96: { key: "cond_thunderstorm", fallback: "Thunderstorm with hail" },
-  97: { key: "cond_thunderstorm", fallback: "Severe thunderstorm" },
-  99: { key: "cond_thunderstorm", fallback: "Severe thunderstorm" },
+  96: { key: "cond_thunderstorm_slight_hail", fallback: "Thunderstorm with slight hail" },
+  99: { key: "cond_thunderstorm_heavy_hail", fallback: "Thunderstorm with heavy hail" },
 };
 
 function getConditionLabel(code: number, t: TFunction): string {
-  const item = WMO_KEY_MAP[code];
-  if (item) return t(item.key, item.fallback);
-  if (code <= 2) return t("cond_partly_cloudy", "Partly cloudy");
-  if (code === 3) return t("cond_overcast", "Overcast");
-  if (code <= 48) return t("cond_fog", "Fog");
-  if (code <= 57) return t("cond_drizzle", "Drizzle");
-  if (code <= 67) return t("cond_rain", "Rain");
-  if (code <= 77) return t("cond_snow", "Snow");
-  if (code <= 82) return t("cond_showers", "Showers");
-  if (code <= 86) return t("cond_snow_showers", "Snow showers");
-  return t("cond_thunderstorm", "Thunderstorm");
+  const match = WMO_KEY_MAP[code];
+  if (match) {
+    return t(match.key, match.fallback);
+  }
+  return t("cond_partly_cloudy", "Partly cloudy");
+}
+
+function getOutfitRecommendation(temp: number, code: number, isMetric: boolean, t: TFunction): string {
+  const cTemp = isMetric ? temp : ((temp - 32) * 5) / 9;
+
+  if (code === 95 || code === 96 || code === 99) {
+    return t("outfit_thunderstorm", "⛈️ Thunderstorms active: Stay indoors and avoid open outdoor areas.");
+  }
+  if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) {
+    return t("outfit_rain", "🌧️ Rain expected: Carry an umbrella or wear a waterproof jacket.");
+  }
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return t("outfit_snow", "❄️ Freezing snow: Wear a thermal coat, gloves, and insulated boots.");
+  }
+  if (cTemp >= 32) {
+    return t("outfit_very_hot", "☀️ Very hot: Breathable cotton/linen, UV sunglasses, and stay hydrated.");
+  }
+  if (cTemp >= 24) {
+    return t("outfit_warm", "👕 Warm & pleasant: T-shirt, shorts, and light summer clothes.");
+  }
+  if (cTemp >= 16) {
+    return t("outfit_mild", "🧥 Mild weather: Light jacket, cardigan, or long-sleeve layers.");
+  }
+  if (cTemp >= 8) {
+    return t("outfit_chilly", "🧣 Chilly: Warm sweater, windbreaker, and warm pants.");
+  }
+  return t("outfit_cold", "🧤 Cold: Heavy winter coat, thermal layers, and warm scarf.");
 }
 
 export const WeatherView: React.FC<WeatherViewProps> = ({
@@ -96,78 +109,73 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   isRefreshing = false,
   isFavorite = false,
   onToggleFavorite,
-  activeAlerts: propAlerts = [],
+  activeAlerts = [],
   customBgUrl,
   onSelectBackground,
 }) => {
   const { t } = useTranslation();
 
-  // Internal modal fallbacks
+  // Modal States
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
-
-  // Weather Guide Modal
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTopic, setGuideTopic] = useState<GuideTopic>("all");
-
-  // Forecast Detail Modal
+  const [guideSelectedCode, setGuideSelectedCode] = useState<number | undefined>(undefined);
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
   const [forecastModalTab, setForecastModalTab] = useState<"hourly" | "daily">("hourly");
-  const [forecastInitialIndex, setForecastInitialIndex] = useState<number>(0);
+  const [forecastInitialIndex, setForecastInitialIndex] = useState(0);
 
-  // What to Wear tab state
-  const [activeOutfitTab, setActiveOutfitTab] = useState<"casual" | "business" | "outdoor">("casual");
-
-  // Single Save Button State
+  // Toast State
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Zero-dependency Toast State
-  const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
-
-  const showToast = useCallback((text: string, type: "success" | "error") => {
+  const showToast = useCallback((text: string, type: "success" | "error" = "success") => {
     setToastMsg({ text, type });
     setTimeout(() => {
-      setToastMsg((current) => (current?.text === text ? null : current));
+      setToastMsg((cur) => (cur?.text === text ? null : cur));
     }, 3200);
   }, []);
 
-  // Safe metrics: check normalized weather object first
-  const safeTemp = pickNum(w.current?.temp, (w.current as any)?.temperature, (w.current as any)?.temperature_2m) ?? 0;
-  const safeFeels = pickNum(w.current?.feels, (w.current as any)?.apparent_temperature, safeTemp) ?? safeTemp;
-  const safeHumidity = pickNum(w.current?.humidity, (w.current as any)?.relative_humidity_2m) ?? 0;
-  const safeWindSpeed = pickNum(w.current?.wind, w.current?.wind_speed, (w.current as any)?.wind_speed_10m) ?? 0;
-  const safeUv = pickNum(w.current?.uv, w.current?.uvIndex, (w.current as any)?.uv_index) ?? 0;
-  const safeAqi = pickNum(w.current?.aqi, (w as any).airQuality?.usAqi, 0) ?? 0;
-  const safePressure = pickNum(w.current?.pressure, (w.current as any)?.pressure_msl) ?? 1013;
+  // Safe Metric Extraction
+  const safeTemp = pickNum(w.current?.temp, w.current?.temperature_2m) ?? 25;
+  const safeFeels = pickNum(w.current?.feels, w.current?.apparent_temperature) ?? safeTemp;
+  const safeHumidity = pickNum(w.current?.humidity, w.current?.relative_humidity_2m) ?? 60;
+  const safeWindSpeed = pickNum(w.current?.wind, w.current?.wind_speed, w.current?.wind_speed_10m) ?? 10;
+  const safeUv = pickNum(w.current?.uv, w.current?.uv_index) ?? 3;
+  const safeAqi = pickNum(w.current?.aqi, (w.current as any)?.air_quality_index) ?? 0;
+  const safePressure = pickNum(w.current?.pressure, w.current?.surface_pressure) ?? 1013;
   const safeCode = pickNum(w.current?.code, (w.current as any)?.weather_code) ?? 0;
 
-  // Priority: Prop customBgUrl > Weather Default Background
-  const displayBg = customBgUrl !== undefined ? customBgUrl : (w as any).background_image;
+  const tempUnit = unit === "imperial" ? "°F" : "°C";
+  const speedUnit = unit === "imperial" ? "mph" : "km/h";
 
-  // Single Save Wallpaper Handler
+  const outfitRec = useMemo(
+    () => getOutfitRecommendation(safeTemp, safeCode, unit === "metric", t),
+    [safeTemp, safeCode, unit, t]
+  );
+
+  const displayBg = customBgUrl || w.wallpaper_url;
+
   const handleSaveWallpaper = async () => {
-    if (!displayBg) {
-      showToast(t("no_wallpaper_to_save", "No wallpaper currently applied"), "error");
-      return;
-    }
+    if (isSaving) return;
     setIsSaving(true);
     try {
-      const fileName = `weather-pal-${w.place.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}.png`;
-      const result = await saveWallpaperToDownloads(displayBg, fileName);
-      if (result.status !== "error") {
-        showToast(result.message || t("wallpaper_saved_success", "Wallpaper saved to device!"), "success");
+      const res = await saveWallpaperToDownloads(displayBg, w.place?.name);
+      if (res.ok) {
+        showToast(t("wallpaper_saved_success", "Wallpaper saved to downloads!"), "success");
       } else {
-        showToast(result.message || t("wallpaper_save_failed", "Could not save wallpaper"), "error");
+        showToast(res.error || t("wallpaper_save_failed", "Failed to save wallpaper"), "error");
       }
     } catch {
-      showToast(t("wallpaper_save_failed", "Could not save wallpaper"), "error");
+      showToast(t("wallpaper_save_failed", "Failed to save wallpaper"), "error");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const openGuideFor = (topic: GuideTopic) => {
+  const openGuideFor = (topic: GuideTopic, code?: number) => {
     setGuideTopic(topic);
+    setGuideSelectedCode(code);
     setGuideOpen(true);
   };
 
@@ -183,123 +191,26 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     setForecastModalOpen(true);
   };
 
-  // Weather severe alerts
-  const combinedAlerts = useMemo(() => {
-    const list = [...propAlerts];
-    if (safeCode === 95 || safeCode === 96 || safeCode === 99) {
-      if (!list.some((a) => a.id === "thunderstorm")) {
-        list.push({
-          id: "thunderstorm",
-          title: t("alert_ts_title", "Thunderstorm Warning"),
-          desc: t("alert_ts_desc", "Severe electrical storms detected in your immediate area."),
-          severity: "alert",
-        });
-      }
-    }
-    if (safeWindSpeed > 45) {
-      if (!list.some((a) => a.id === "wind")) {
-        list.push({
-          id: "wind",
-          title: t("alert_wind_title", "High Wind Advisory"),
-          desc: t("alert_wind_desc", "Gale-force gusts exceeding safe outdoor thresholds."),
-          severity: "warning",
-        });
-      }
-    }
-    if (safeUv >= 8) {
-      if (!list.some((a) => a.id === "uv")) {
-        list.push({
-          id: "uv",
-          title: t("alert_uv_title", "Extreme UV Radiation"),
-          desc: t("alert_uv_desc", "Intense solar radiation. Apply SPF 50+ and seek shade."),
-          severity: "warning",
-        });
-      }
-    }
-    return list;
-  }, [safeCode, safeWindSpeed, safeUv, propAlerts, t]);
-
-  const tempUnit = unit === "imperial" ? "°F" : "°C";
-  const speedUnit = unit === "imperial" ? "mph" : "km/h";
-
-  // Outfit recommendations: fully localized across all 14 languages with t() lookup
-  const outfitRec = useMemo(() => {
-    const rawTemp = safeTemp;
-    const tempC = unit === "imperial" ? ((rawTemp - 32) * 5) / 9 : rawTemp;
-    const isRaining = (safeCode >= 51 && safeCode <= 67) || (safeCode >= 80 && safeCode <= 82);
-
-    if (activeOutfitTab === "business") {
-      if (tempC >= 28) {
-        return isRaining
-          ? t("outfit_biz_hot_rain", "Light linen suit, breathable dress shirt, umbrella")
-          : t("outfit_biz_hot_clear", "Breathable suit trousers, short-sleeve shirt");
-      }
-      if (tempC >= 18) {
-        return t("outfit_biz_mild", "Standard business suit, light blazer");
-      }
-      return t("outfit_biz_cold", "Wool suit, tailored trench coat, dress boots");
-    }
-
-    if (activeOutfitTab === "outdoor") {
-      if (tempC >= 28) {
-        return isRaining
-          ? t("outfit_outdoor_hot_rain", "Waterproof shell jacket, quick-dry shorts, waterproof trail shoes")
-          : t("outfit_outdoor_hot_clear", "Moisture-wicking UV top, trail shorts, polarized sunglasses");
-      }
-      if (tempC >= 18) {
-        return t("outfit_outdoor_mild", "Long-sleeve performance top, hiking pants, windbreaker");
-      }
-      return t("outfit_outdoor_cold", "Thermal base layer, insulated fleece, windproof trousers");
-    }
-
-    // Default: casual
-    if (tempC >= 28) {
-      return isRaining
-        ? t("outfit_casual_hot_rain", "Light tee, shorts, compact umbrella")
-        : t("outfit_casual_hot_clear", "Breathable t-shirt, shorts, sun hat");
-    }
-    if (tempC >= 18) {
-      return t("outfit_casual_mild", "Casual jeans, light sweater or flannel");
-    }
-    return t("outfit_casual_cold", "Heavy sweater, warm coat, scarf");
-  }, [safeTemp, safeCode, unit, activeOutfitTab, t]);
-
   return (
-    <div className="w-full space-y-4 pb-12 relative">
-      {/* 1. SEVERE WEATHER ALERT BANNER & WATCHER */}
-      <WeatherAlertWatcher weather={w} unit={unit} activeAlerts={combinedAlerts as any} />
+    <div className="w-full max-w-xl mx-auto space-y-4 pb-12 animate-in fade-in duration-300">
+      {/* 1. SEVERE WEATHER ALERT WATCHER */}
+      <WeatherAlertWatcher weather={w} />
 
-      {/* 2. TOP TOOLBAR CONTROLS */}
-      <div className="flex items-center justify-between gap-2 px-1">
-        <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-          <button
-            type="button"
-            onClick={() => (onOpenAiGallery ? onOpenAiGallery() : setGalleryOpen(true))}
-            className="px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-          >
-            <span>🎨</span>
-            <span>{t("art_gallery", "Art Gallery")}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => (onOpenPostcard ? onOpenPostcard() : setPostcardOpen(true))}
-            className="px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-          >
-            <span>💌</span>
-            <span>{t("postcard", "Postcard")}</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
+      {/* 2. TOP TOOLBAR */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
           {onToggleFavorite && (
             <button
               type="button"
               onClick={onToggleFavorite}
-              className="h-8 w-8 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center justify-center cursor-pointer"
-              title={isFavorite ? t("remove_favorite", "Remove favorite") : t("add_favorite", "Add favorite")}
+              aria-label={isFavorite ? t("remove_favorite", "Remove favorite") : t("add_favorite", "Add favorite")}
+              className={`p-2 rounded-2xl transition border cursor-pointer ${
+                isFavorite
+                  ? "bg-amber-500/20 text-amber-500 border-amber-500/30"
+                  : "bg-card/70 hover:bg-card text-muted-foreground border-border/70"
+              }`}
             >
-              <span className={isFavorite ? "text-amber-500" : "opacity-60"}>{isFavorite ? "★" : "☆"}</span>
+              <span className="text-base">{isFavorite ? "★" : "☆"}</span>
             </button>
           )}
 
@@ -308,59 +219,112 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
               type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
-              className={`h-8 w-8 rounded-xl bg-card hover:bg-muted text-card-foreground text-xs font-bold transition border border-border/70 shadow-xs flex items-center justify-center cursor-pointer ${
-                isRefreshing ? "opacity-60 animate-spin" : ""
-              }`}
-              title={t("refresh", "Refresh Weather")}
+              aria-label={t("refresh", "Refresh forecast")}
+              className="p-2 rounded-2xl bg-card/70 hover:bg-card text-card-foreground transition border border-border/70 cursor-pointer disabled:opacity-50"
             >
-              🔄
+              <span className={`text-base block ${isRefreshing ? "animate-spin" : ""}`}>🔄</span>
             </button>
           )}
         </div>
-      </div>
 
-      {/* 3. HERO WALLPAPER CARD */}
-      <section className="relative w-full aspect-16/9 sm:aspect-21/9 rounded-3xl overflow-hidden border border-border/60 shadow-md bg-muted select-none">
-        {displayBg ? (
-          <img
-            src={displayBg}
-            alt={w.place.name}
-            className="w-full h-full object-cover object-center transition-all duration-700 ease-out"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-tr from-sky-400 to-indigo-500 opacity-90" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
-      </section>
-
-      {/* 4. SAVE WALLPAPER BUTTON */}
-      {displayBg && (
-        <div className="w-full px-1">
+        <div className="flex items-center gap-2">
+          {/* Postcard Creator Button */}
           <button
             type="button"
-            onClick={handleSaveWallpaper}
-            disabled={isSaving}
-            className="w-full py-2.5 px-4 rounded-2xl bg-card hover:bg-muted text-card-foreground text-xs sm:text-sm font-bold transition border border-border/80 shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            onClick={() => {
+              if (onOpenPostcard) onOpenPostcard();
+              else setPostcardOpen(true);
+            }}
+            className="px-3 py-1.5 rounded-2xl bg-card/80 hover:bg-card text-card-foreground text-xs font-semibold transition border border-border/70 shadow-2xs flex items-center gap-1.5 cursor-pointer"
           >
-            <span>💾</span>
-            <span>{isSaving ? t("saving", "Saving...") : t("save_wallpaper", "Save Wallpaper")}</span>
+            <span>💌</span>
+            <span>{t("postcard", "Postcard")}</span>
           </button>
+
+          {/* AI Gallery Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenAiGallery) onOpenAiGallery();
+              else setGalleryOpen(true);
+            }}
+            className="px-3 py-1.5 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer transition"
+          >
+            <span>🎨</span>
+            <span>{t("art_gallery", "AI Gallery")}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3. CITY & LOCATION BANNER */}
+      <div className="px-1 flex items-baseline justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
+            <span>📍</span>
+            <span>{w.place?.name || t("current_city", "Current City")}</span>
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {w.place?.country || t("global_weather", "Live Weather")}
+          </p>
+        </div>
+      </div>
+
+      {/* 4. WALLPAPER ARTWORK CARD */}
+      {displayBg && (
+        <div className="relative rounded-3xl overflow-hidden border border-border/80 shadow-md bg-card/50">
+          <img
+            src={displayBg}
+            alt={w.place?.name ? `${w.place.name} wallpaper` : "Weather wallpaper"}
+            className="w-full h-48 sm:h-56 object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white">
+            <span className="text-xs font-bold drop-shadow-md">🎨 {t("watercolor_sky", "Watercolor Sky Artwork")}</span>
+            <button
+              type="button"
+              onClick={handleSaveWallpaper}
+              disabled={isSaving}
+              className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+            >
+              <span>💾</span>
+              <span>{isSaving ? t("saving", "Saving...") : t("save_wallpaper", "Save Wallpaper")}</span>
+            </button>
+          </div>
         </div>
       )}
 
       {/* 5. WEATHER METRICS OVERVIEW */}
       <section className="p-4 sm:p-5 rounded-3xl bg-card/90 backdrop-blur-md border border-border/70 shadow-sm space-y-4">
         <div className="flex items-center justify-between gap-3">
+          {/* CLICKABLE CURRENT WEATHER HERO ICON & CONDITION */}
           <div className="flex items-center gap-3">
-            <WeatherIcon code={safeCode} isDay={Boolean(w.current?.is_day)} className="w-14 h-14 shrink-0 drop-shadow-sm" />
+            <button
+              type="button"
+              onClick={() => openGuideFor("icons", safeCode)}
+              title={t("view_weather_explanation", "Tap to view weather explanation")}
+              className="group relative cursor-pointer rounded-2xl p-1 transition-all hover:scale-105 hover:bg-muted/40 active:scale-95 focus:outline-none"
+            >
+              <WeatherIcon
+                code={safeCode}
+                isDay={Boolean(w.current?.is_day)}
+                className="w-14 h-14 shrink-0 drop-shadow-sm transition-transform group-hover:drop-shadow-md"
+              />
+              <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground shadow-xs">
+                ℹ️
+              </span>
+            </button>
             <div>
               <div className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground flex items-baseline">
                 {Math.round(safeTemp)}
                 <span className="text-xl font-bold ml-0.5">{tempUnit}</span>
               </div>
-              <div className="text-xs sm:text-sm font-medium text-muted-foreground capitalize">
-                {getConditionLabel(safeCode, t)}
-              </div>
+              <button
+                type="button"
+                onClick={() => openGuideFor("icons", safeCode)}
+                className="text-xs sm:text-sm font-medium text-muted-foreground capitalize hover:text-primary transition-colors cursor-pointer text-left block"
+              >
+                {getConditionLabel(safeCode, t)} ↗
+              </button>
             </div>
           </div>
 
@@ -438,7 +402,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       <WeatherMascot weather={w} />
 
       {/* 7. HOURLY & 7-DAY FORECAST PREVIEWS (Clickable) */}
-      <section className="space-y-3">
+      <section className="p-4 sm:p-5 rounded-3xl bg-card border border-border/70 shadow-xs space-y-3">
         {/* Hourly Header */}
         <div className="flex items-center justify-between px-1">
           <h2 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
@@ -450,7 +414,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             onClick={() => openHourlyDetail(0)}
             className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
           >
-            {t("see_all", "See Details")} →
+            {t("view_more", "View Details ↗")}
           </button>
         </div>
 
@@ -483,7 +447,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             onClick={() => openDailyDetail(0)}
             className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
           >
-            {t("see_all", "See Details")} →
+            {t("view_more", "View Details ↗")}
           </button>
         </div>
 
@@ -516,43 +480,10 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
       {/* 8. WHAT TO WEAR TODAY */}
       <section className="p-4 rounded-3xl bg-card border border-border/70 shadow-xs space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
-            <span>👕</span>
-            <span>{t("what_to_wear", "What to Wear Today")}</span>
-          </h2>
-
-          <div className="flex items-center gap-1 bg-muted/80 p-0.5 rounded-xl text-[11px] font-bold">
-            <button
-              type="button"
-              onClick={() => setActiveOutfitTab("casual")}
-              className={`px-2 py-1 rounded-lg transition ${
-                activeOutfitTab === "casual" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
-              }`}
-            >
-              {t("tab_casual", "Casual")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveOutfitTab("business")}
-              className={`px-2 py-1 rounded-lg transition ${
-                activeOutfitTab === "business" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
-              }`}
-            >
-              {t("tab_business", "Business")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveOutfitTab("outdoor")}
-              className={`px-2 py-1 rounded-lg transition ${
-                activeOutfitTab === "outdoor" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
-              }`}
-            >
-              {t("tab_outdoor", "Outdoor")}
-            </button>
-          </div>
-        </div>
-
+        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <span>🧥</span>
+          <span>{t("what_to_wear", "What to Wear Today")}</span>
+        </h3>
         <p className="text-xs sm:text-sm text-foreground/90 font-medium py-1">{outfitRec}</p>
       </section>
 
@@ -562,8 +493,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
       {/* 10. LIVE WEATHER & RAIN RADAR */}
       <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={w.place.name} />
 
-      {/* 11. SUN & MOON ASTRONOMY TRACKER */}
-      <AstronomyTracker weather={w} />
+      {/* 11. SUN & MOON ASTRONOMY TRACKER (WITH TRAJECTORY GUIDE TRIGGER) */}
+      <AstronomyTracker weather={w} onOpenGuide={() => openGuideFor("astronomy")} />
 
       {/* MODALS */}
       <AiGalleryModal
@@ -587,14 +518,19 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
       <WeatherGuideModal
         isOpen={guideOpen}
-        onClose={() => setGuideOpen(false)}
+        onClose={() => {
+          setGuideOpen(false);
+          setGuideSelectedCode(undefined);
+        }}
         initialTopic={guideTopic}
+        selectedWeatherCode={guideSelectedCode}
       />
 
       <ForecastDetailModal
         isOpen={forecastModalOpen}
         onClose={() => setForecastModalOpen(false)}
         weather={w}
+        unit={unit}
         type={forecastModalTab}
         initialIndex={forecastInitialIndex}
         onTypeChange={(nextType) => setForecastModalTab(nextType)}
