@@ -1,16 +1,20 @@
 // src/components/WeatherView.tsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import type { Weather } from "@/lib/weather";
+import type { Weather, WeatherUnit } from "@/lib/weather";
 import { pickNum } from "@/lib/weatherSafe";
 import { saveWallpaperToDownloads } from "@/lib/saveWallpaper";
 import { WeatherIcon } from "@/lib/weatherIcons";
 import AiGalleryModal from "./AiGalleryModal";
 import WeatherPostcardModal from "./WeatherPostcardModal";
-import { WeatherGuideModal } from "./WeatherGuideModal";
+import { WeatherGuideModal, type GuideTopic } from "./WeatherGuideModal";
 import { ForecastDetailModal } from "./ForecastDetailModal";
 import { OutdoorActivityPlanner } from "./OutdoorActivityPlanner";
+import { WeatherMascot } from "./WeatherMascot";
+import { WeatherRadar } from "./WeatherRadar";
+import { AstronomyTracker } from "./AstronomyTracker";
+import { WeatherAlertWatcher } from "./WeatherAlertWatcher";
 
 export interface TickerAlertItem {
   id: string;
@@ -19,7 +23,7 @@ export interface TickerAlertItem {
   title: string;
   message?: string;
   desc?: string;
-  severity: "info" | "warning" | "alert";
+  severity: "info" | "warning" | "alert" | "disaster" | "danger" | "advisory" | "all-clear";
   isMock?: boolean;
 }
 
@@ -65,6 +69,7 @@ const WMO_KEY_MAP: Record<number, { key: string; fallback: string }> = {
   86: { key: "cond_snow_showers", fallback: "Heavy snow showers" },
   95: { key: "cond_thunderstorm", fallback: "Thunderstorm" },
   96: { key: "cond_thunderstorm", fallback: "Thunderstorm with hail" },
+  97: { key: "cond_thunderstorm", fallback: "Severe thunderstorm" },
   99: { key: "cond_thunderstorm", fallback: "Severe thunderstorm" },
 };
 
@@ -97,16 +102,18 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // Internal modal fallbacks if parent does not provide handlers
+  // Internal modal fallbacks
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
 
   // Weather Guide Modal
   const [guideOpen, setGuideOpen] = useState(false);
+  const [guideTopic, setGuideTopic] = useState<GuideTopic>("all");
 
   // Forecast Detail Modal
   const [forecastModalOpen, setForecastModalOpen] = useState(false);
   const [forecastModalTab, setForecastModalTab] = useState<"hourly" | "daily">("hourly");
+  const [forecastInitialIndex, setForecastInitialIndex] = useState<number>(0);
 
   // What to Wear tab state
   const [activeOutfitTab, setActiveOutfitTab] = useState<"casual" | "business" | "outdoor">("casual");
@@ -117,14 +124,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
   // Zero-dependency Toast State
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  const showToast = (text: string, type: "success" | "error") => {
+  const showToast = useCallback((text: string, type: "success" | "error") => {
     setToastMsg({ text, type });
     setTimeout(() => {
       setToastMsg((current) => (current?.text === text ? null : current));
     }, 3200);
-  };
+  }, []);
 
-  // Safe metrics: Check w.current properties first, then fallbacks
+  // Safe metrics: check normalized weather object first
   const safeTemp = pickNum(w.current?.temp, (w.current as any)?.temperature, (w.current as any)?.temperature_2m) ?? 0;
   const safeFeels = pickNum(w.current?.feels, (w.current as any)?.apparent_temperature, safeTemp) ?? safeTemp;
   const safeHumidity = pickNum(w.current?.humidity, (w.current as any)?.relative_humidity_2m) ?? 0;
@@ -157,6 +164,23 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const openGuideFor = (topic: GuideTopic) => {
+    setGuideTopic(topic);
+    setGuideOpen(true);
+  };
+
+  const openHourlyDetail = (index: number) => {
+    setForecastModalTab("hourly");
+    setForecastInitialIndex(index);
+    setForecastModalOpen(true);
+  };
+
+  const openDailyDetail = (index: number) => {
+    setForecastModalTab("daily");
+    setForecastInitialIndex(index);
+    setForecastModalOpen(true);
   };
 
   // Weather severe alerts
@@ -242,29 +266,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
 
   return (
     <div className="w-full space-y-4 pb-12 relative">
-      {/* 1. SEVERE WEATHER ALERT BANNER */}
-      {combinedAlerts.length > 0 && (
-        <div className="space-y-2">
-          {combinedAlerts.map((alt) => (
-            <div
-              key={alt.id}
-              className={`p-3.5 rounded-2xl border text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-xs ${
-                alt.severity === "alert"
-                  ? "bg-destructive/15 border-destructive/40 text-destructive dark:text-red-400"
-                  : "bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="text-base sm:text-lg">⚠️</span>
-                <div>
-                  <div className="font-bold">{alt.title}</div>
-                  <div className="text-[11px] sm:text-xs opacity-90 font-normal">{alt.desc || alt.message}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* 1. SEVERE WEATHER ALERT BANNER & WATCHER */}
+      <WeatherAlertWatcher weather={w} unit={unit} activeAlerts={combinedAlerts as any} />
 
       {/* 2. TOP TOOLBAR CONTROLS */}
       <div className="flex items-center justify-between gap-2 px-1">
@@ -371,7 +374,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => setGuideOpen(true)}
+              onClick={() => openGuideFor("all")}
               className="mt-1 text-[11px] font-semibold text-primary underline underline-offset-2 hover:opacity-80 transition cursor-pointer"
             >
               📖 {t("label_unit_guide", "Weather Guide")}
@@ -379,43 +382,62 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </div>
         </div>
 
-        {/* 4 Detail Badges */}
+        {/* 4 Detail Badges - Each clickable to open Guide Modal */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-border/50 text-xs">
-          <div className="p-2.5 rounded-2xl bg-background/60 border border-border/40">
+          <button
+            type="button"
+            onClick={() => openGuideFor("humidity")}
+            className="p-2.5 rounded-2xl bg-background/60 hover:bg-background/80 transition border border-border/40 text-left cursor-pointer"
+          >
             <div className="text-muted-foreground font-medium flex items-center gap-1">
               <span>💧</span> {t("humidity", "Humidity")}
             </div>
             <div className="text-sm font-bold mt-0.5">{safeHumidity}%</div>
-          </div>
+          </button>
 
-          <div className="p-2.5 rounded-2xl bg-background/60 border border-border/40">
+          <button
+            type="button"
+            onClick={() => openGuideFor("wind")}
+            className="p-2.5 rounded-2xl bg-background/60 hover:bg-background/80 transition border border-border/40 text-left cursor-pointer"
+          >
             <div className="text-muted-foreground font-medium flex items-center gap-1">
               <span>💨</span> {t("wind", "Wind")}
             </div>
             <div className="text-sm font-bold mt-0.5">
               {Math.round(safeWindSpeed)} {speedUnit}
             </div>
-          </div>
+          </button>
 
-          <div className="p-2.5 rounded-2xl bg-background/60 border border-border/40">
+          <button
+            type="button"
+            onClick={() => openGuideFor("uv")}
+            className="p-2.5 rounded-2xl bg-background/60 hover:bg-background/80 transition border border-border/40 text-left cursor-pointer"
+          >
             <div className="text-muted-foreground font-medium flex items-center gap-1">
               <span>☀️</span> {t("uv_index", "UV Index")}
             </div>
             <div className="text-sm font-bold mt-0.5">{safeUv}</div>
-          </div>
+          </button>
 
-          <div className="p-2.5 rounded-2xl bg-background/60 border border-border/40">
+          <button
+            type="button"
+            onClick={() => openGuideFor("aqi")}
+            className="p-2.5 rounded-2xl bg-background/60 hover:bg-background/80 transition border border-border/40 text-left cursor-pointer"
+          >
             <div className="text-muted-foreground font-medium flex items-center gap-1">
               <span>🍃</span> {t("air_quality", "Air Quality")}
             </div>
             <div className="text-sm font-bold mt-0.5">
               {safeAqi > 0 ? `${safeAqi} AQI` : `${Math.round(safePressure)} hPa`}
             </div>
-          </div>
+          </button>
         </div>
       </section>
 
-      {/* 6. HOURLY & 7-DAY FORECAST PREVIEWS */}
+      {/* 6. WEATHER MASCOT BUDDIES */}
+      <WeatherMascot weather={w} />
+
+      {/* 7. HOURLY & 7-DAY FORECAST PREVIEWS (Clickable) */}
       <section className="space-y-3">
         {/* Hourly Header */}
         <div className="flex items-center justify-between px-1">
@@ -425,29 +447,28 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </h2>
           <button
             type="button"
-            onClick={() => {
-              setForecastModalTab("hourly");
-              setForecastModalOpen(true);
-            }}
+            onClick={() => openHourlyDetail(0)}
             className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
           >
             {t("see_all", "See Details")} →
           </button>
         </div>
 
-        {/* Hourly Strip */}
+        {/* Hourly Strip (Clickable hour pills) */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {w.hourly?.slice(0, 12).map((hr, idx) => (
-            <div
+            <button
               key={idx}
-              className="p-2.5 rounded-2xl bg-card border border-border/70 text-center shrink-0 min-w-[68px] shadow-2xs"
+              type="button"
+              onClick={() => openHourlyDetail(idx)}
+              className="p-2.5 rounded-2xl bg-card hover:bg-muted transition border border-border/70 text-center shrink-0 min-w-[68px] shadow-2xs cursor-pointer"
             >
               <div className="text-[11px] text-muted-foreground font-semibold">
                 {hr.time ? new Date(hr.time).getHours() + ":00" : `${idx}h`}
               </div>
               <WeatherIcon code={hr.code ?? 0} isDay={true} className="w-6 h-6 mx-auto my-1 drop-shadow-xs" />
               <div className="text-xs font-extrabold">{Math.round(hr.temp ?? 0)}°</div>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -459,22 +480,21 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
           </h2>
           <button
             type="button"
-            onClick={() => {
-              setForecastModalTab("daily");
-              setForecastModalOpen(true);
-            }}
+            onClick={() => openDailyDetail(0)}
             className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
           >
             {t("see_all", "See Details")} →
           </button>
         </div>
 
-        {/* Daily Preview (3 days compact) */}
+        {/* Daily Preview (Clickable day rows) */}
         <div className="space-y-1.5">
-          {w.daily?.slice(0, 3).map((day, idx) => (
-            <div
+          {w.daily?.slice(0, 7).map((day, idx) => (
+            <button
               key={idx}
-              className="p-3 rounded-2xl bg-card border border-border/70 flex items-center justify-between text-xs font-semibold shadow-2xs"
+              type="button"
+              onClick={() => openDailyDetail(idx)}
+              className="w-full p-3 rounded-2xl bg-card hover:bg-muted transition border border-border/70 flex items-center justify-between text-xs font-semibold shadow-2xs cursor-pointer text-left"
             >
               <div className="w-24 text-muted-foreground">
                 {idx === 0 ? t("today", "Today") : idx === 1 ? t("tomorrow", "Tomorrow") : day.date}
@@ -489,12 +509,12 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
                 <span className="font-extrabold text-foreground">{Math.round(day.max ?? 0)}°</span>
                 <span className="text-muted-foreground font-normal">{Math.round(day.min ?? 0)}°</span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </section>
 
-      {/* 7. WHAT TO WEAR TODAY */}
+      {/* 8. WHAT TO WEAR TODAY */}
       <section className="p-4 rounded-3xl bg-card border border-border/70 shadow-xs space-y-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
@@ -536,15 +556,20 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         <p className="text-xs sm:text-sm text-foreground/90 font-medium py-1">{outfitRec}</p>
       </section>
 
-      {/* 8. OUTDOOR ACTIVITY PLANNER */}
+      {/* 9. OUTDOOR ACTIVITY PLANNER */}
       <OutdoorActivityPlanner weather={w} unit={unit} />
+
+      {/* 10. LIVE WEATHER & RAIN RADAR */}
+      <WeatherRadar weather={w} lat={w.place.lat} lon={w.place.lon} cityName={w.place.name} />
+
+      {/* 11. SUN & MOON ASTRONOMY TRACKER */}
+      <AstronomyTracker weather={w} />
 
       {/* MODALS */}
       <AiGalleryModal
         isOpen={galleryOpen}
         onClose={() => setGalleryOpen(false)}
-        activeWallpaper={displayBg || undefined}
-        onSelectWallpaper={(url) => {
+        onSelectBackground={(url: string) => {
           if (onSelectBackground) onSelectBackground(url);
           setGalleryOpen(false);
         }}
@@ -557,32 +582,30 @@ export const WeatherView: React.FC<WeatherViewProps> = ({
         onClose={() => setPostcardOpen(false)}
         weather={w}
         unit={unit}
-        backgroundImage={displayBg || undefined}
+        backgroundUrl={displayBg || ""}
       />
 
       <WeatherGuideModal
         isOpen={guideOpen}
         onClose={() => setGuideOpen(false)}
+        initialTopic={guideTopic}
       />
 
       <ForecastDetailModal
         isOpen={forecastModalOpen}
         onClose={() => setForecastModalOpen(false)}
         weather={w}
-        unit={unit}
-        initialTab={forecastModalTab}
+        type={forecastModalTab}
+        initialIndex={forecastInitialIndex}
+        onTypeChange={(nextType) => setForecastModalTab(nextType)}
       />
 
-      {/* 9. ZERO-DEPENDENCY TOAST NOTIFICATION */}
+      {/* 12. ZERO-DEPENDENCY TOAST NOTIFICATION */}
       {toastMsg && (
         <div
           role="status"
           aria-live="polite"
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl shadow-lg border text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all backdrop-blur-md ${
-            toastMsg.type === "success"
-              ? "bg-card/95 border-border text-foreground shadow-md"
-              : "bg-destructive/15 border-destructive/40 text-destructive shadow-md"
-          }`}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-foreground text-background font-semibold text-xs sm:text-sm shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-3 duration-200"
         >
           <span>{toastMsg.type === "success" ? "✓" : "⚠️"}</span>
           <span>{toastMsg.text}</span>
