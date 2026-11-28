@@ -31,7 +31,7 @@ export const WeatherRadar: React.FC<WeatherRadarProps> = ({
   cityName: propCityName,
 }) => {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language || "en";
+  const lang = (i18n.language || "en").slice(0, 2).toLowerCase();
   const texts: Record<RadarKey, string> = { ...RADAR_EN, ...(RADAR_I18N[lang] ?? {}) };
 
   // Center coordinates (read from explicit props or weather object, fallback to Bangkok)
